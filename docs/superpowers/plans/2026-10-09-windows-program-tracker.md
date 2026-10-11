@@ -68,7 +68,8 @@ Agents keep this list current; the owner checks items off (or tells an agent to)
 - [ ] Verify `binarycompanion.com` in Google Search Console as an owner of the OAuth project.
 - [ ] Create the Binary Companion Microsoft partner (Partner Center) company account signed in as `sobryan@binarycompanion.com` (after the tenant user exists); get a D-U-N-S number if Binary Companion has none. Slow step, start early.
 - [x] Microsoft Entra: choose the tenant (existing "Default Directory"; ruling R6, 2026-10-10).
-- [ ] Microsoft Entra: verify `binarycompanion.com` on the tenant (TXT at Squarespace; agent adds the record or the owner does) and create `sobryan@binarycompanion.com`.
+- [x] Microsoft Entra: `binarycompanion.com` verified on the tenant (2026-10-10, TXT at Squarespace).
+- [ ] Microsoft Entra: create the work user `sobryan@binarycompanion.com` (owner decides its role and how the first password is handled).
 - [x] Microsoft Entra: update homepage, terms and privacy URLs and the logo (done 2026-10-10 after the cutover; read back with Graph).
 - [ ] Microsoft Entra: verify the publisher domain, then re-run publisher verification with the Binary Companion partner ID.
 - [ ] Google: one bundled brand edit and submit for verification; remove `obryan.cloud` from Authorized domains after approval.
