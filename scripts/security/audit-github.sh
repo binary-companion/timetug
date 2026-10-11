@@ -21,8 +21,9 @@ REPOS=("${ARGS[@]:1}")
 
 # Repositories that ship signed releases and so need a `v*` tag ruleset.
 TAG_RULESET_REPOS=" timetug timetug-windows timetug-shared calendar-connectors "
-# Secret names that may live at repository level (read-only public-data credentials, spec section 8).
-ALLOWED_REPO_SECRETS=" DOCKERHUB_USERNAME DOCKERHUB_TOKEN "
+# Secret names that may live at repository level. None: every secret is an environment secret, or an
+# organization secret limited to selected repositories (the Docker Hub read-only token, since 2026-10-11).
+ALLOWED_REPO_SECRETS=" "
 
 fails=0
 skips=0
@@ -114,8 +115,8 @@ print(d['target'], d['enforcement'], ','.join(sorted(rules)), '|'.join(inc))")
     for s in $secrets; do
       case "$ALLOWED_REPO_SECRETS" in *" $s "*) ;; *) bad="$bad $s" ;; esac
     done
-    [ -z "$bad" ] && pass "no repository-level secrets beyond the read-only allow-list" \
-      || fail "repository-level secrets:$bad (move them into an environment)"
+    [ -z "$bad" ] && pass "no repository-level secrets" \
+      || fail "repository-level secrets:$bad (move them into an environment or an organization secret)"
   else
     skip "repository secrets (needs repository admin)"
   fi
