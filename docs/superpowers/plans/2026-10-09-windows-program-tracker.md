@@ -82,7 +82,7 @@ Agents keep this list current; the owner checks items off (or tells an agent to)
 - [ ] Docker Hub (after the transfer): `DOCKERHUB_USERNAME` / `DOCKERHUB_TOKEN` were set as repository secrets on `darkarena1/timetug` on 2026-10-09; the token is a read-only token from the Binary Companion Docker Hub account (PR 71's `core-linux` job reads them). Once `binary-companion` exists, set the same two values as organization secrets limited to the repositories that run Linux CI (`timetug` first), then delete the repository-level copies.
 - [ ] Transfer `timetug` and `homebrew-tap` to `binary-companion` (repository Settings > Transfer).
 - [ ] Create the `timetug-bot` GitHub App and install it on the dependent repositories.
-- [ ] Run the audit script with an `admin:org` token; it must pass.
+- [ ] Audit script written (2026-10-11): `scripts/security/audit-github.sh [--strict] binary-companion website darkarena1/timetug` (it moves to the organization's `.github` repository, as spec section 8 says, once that exists after the transfer). It must pass with `--strict` after `gh auth refresh -s admin:org`. Last run: fails because (1) organization 2FA is not required, (2) members can create repositories, (3) `darkarena1/timetug` still has repository-level secrets (the environment copies exist; delete the repository copies after the owner verifies `release`, `appstore` and `hosting`); the Actions policy check is skipped without `admin:org`. `appstore` admin bypass was turned off on 2026-10-11.
 
 ### Later phases
 - Phase 4: create the Binary Companion nuget.org account and configure trusted publishing for `TimeTug.Engine`.
@@ -119,6 +119,7 @@ Append one line per session: date, what was done, what is next.
 - 2026-10-11 (later): App Store Connect listing text and URLs entered and saved (not submitted). Home page lists all supported providers (Apple Calendar, Google, Microsoft, iCloud/CalDAV, iCal links) to match the app and the privacy policy.
 - 2026-10-11 (cleanup): `timetug.obryan.cloud` now redirects (all five URLs verified 301); the obsolete `FIREBASE_SERVICE_ACCOUNT_TIMETUG` secret is deleted from the `hosting` environment and the repository, and old key `5be03ce9…` is deleted. The unexplained second key `4de92d1f…` on `github-action-1376589039@timetug` was deleted at the owner's go. Google Authorized domains then had `obryan.cloud` removed; Task 6 is complete.
 - 2026-10-11 (decisions): Owner: no Mac App Store distribution in the EU for now (website and Homebrew only); a real business address comes later, when there is something to sell. Privacy policy no longer calls Google Calendar beta. Auto-merge and Auto-fix are on for this repository's PRs at the owner's request. Contact PR: README, SECURITY.md, CODE_OF_CONDUCT.md.
+- 2026-10-11 (phase 0 follow-ups): `binary-companion/website` has the `Protect main` ruleset and auto-merge; the audit script exists and found the items above; Restrict updates is not applied anywhere because it blocks auto-merge (ruling in plan Task 8). `timetug-bot` GitHub App not created: it is needed only when `timetug-shared` and `calendar-connectors` exist, and its creation and private key are the owner's. Org 2FA and the other organization settings (spec section 8) remain the owner's. EU Mac App Store storefronts excluded (148 regions) at the owner's decision.
 
 ## Where each secret comes from
 
