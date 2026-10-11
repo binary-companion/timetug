@@ -69,6 +69,23 @@ for file_name, document in workflows.items():
         if used and environment and expected and environment != expected:
             errors.append(f'{file_name}/{job_name}: environment is {environment!r}, expected {expected!r}')
 
+# The website deploys with GitHub's OIDC identity through Workload Identity Federation, never a stored Firebase key.
+# The federation provider accepts only tokens whose environment claim is `hosting` (phase 1.5 plan, Task 2).
+hosting_path = root / '.github/workflows/firebase-hosting-merge.yml'
+hosting_text = hosting_path.read_text()
+hosting = workflows['firebase-hosting-merge.yml']
+hosting_permissions = hosting.get('permissions') or {}
+if hosting_permissions.get('id-token') != 'write' or hosting_permissions.get('contents') != 'read':
+    errors.append('firebase-hosting-merge.yml must set permissions contents: read and id-token: write')
+if 'secrets.' in hosting_text.replace('secrets.GITHUB_TOKEN', '') or 'firebaseServiceAccount' in hosting_text:
+    errors.append('firebase-hosting-merge.yml must not read secrets or a Firebase service account key')
+for job_name, job in hosting['jobs'].items():
+    if job.get('environment') != 'hosting':
+        errors.append(f'firebase-hosting-merge.yml/{job_name}: must declare environment: hosting')
+    auth = [step for step in job['steps'] if str(step.get('uses', '')).startswith('google-github-actions/auth@')]
+    if not auth or not {'workload_identity_provider', 'service_account'} <= set(auth[0].get('with', {})):
+        errors.append(f'firebase-hosting-merge.yml/{job_name}: must sign in with google-github-actions/auth and Workload Identity Federation')
+
 if errors:
     for error in errors:
         print(f'FAIL: {error}', file=sys.stderr)

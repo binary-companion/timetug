@@ -48,7 +48,7 @@
       ]
     },
     {
-      "site": "timetug",
+      "site": "timetug-redirect",
       "public": "legacy",
       "redirects": [
         {

@@ -15,20 +15,21 @@ marketing/legal site, unrelated to the Xcode project). Plain static HTML, no bui
   `sips -Z <size> artwork/Branding/timetug-app-icon-1024.png --out site/public/img/<name>.png` if the source
   icon changes.
 
-Hosted on Firebase Hosting, project `timetug` (the same Google Cloud project as the Google Calendar OAuth
-client — see `docs/decisions/`). Two sites, both declared in `firebase.json`:
+Hosted on Firebase Hosting in the Google Cloud project `binary-companion` (the Binary Companion account; the
+Google Calendar OAuth client stays in project `timetug`, see `docs/decisions/`). Two sites, both declared in
+`firebase.json`:
 
 - `timetug-site` serves `public/` at `timetug.binarycompanion.com`. It also answers `/appcast.xml` with a 301
   to the current Sparkle feed, so the feed URL in the app stays on the new domain when the feed moves.
-- `timetug` keeps `timetug.obryan.cloud` and serves only 301 redirects (rules for one, two and three path
+- `timetug-redirect` serves `timetug.obryan.cloud` and only 301 redirects (rules for one, two and three path
   segments, then the new root). Firebase redirects cannot capture a whole path, hence the fixed depths.
   `legacy/404.html` exists only because a hosting entry needs a public directory.
 
 ## Deploying
 
 Automatic: pushing to `master` with changes under `site/` deploys via
-`.github/workflows/firebase-hosting-merge.yml` (see that file for how the Firebase service account secret
-is supplied). A pull request that touches `site/` runs credential-free offline website validation via
+`.github/workflows/firebase-hosting-merge.yml`, which signs in to Google Cloud with GitHub's OIDC identity
+(Workload Identity Federation), so no key or token is stored anywhere. A pull request that touches `site/` runs credential-free offline website validation via
 `.github/workflows/firebase-hosting-pull-request.yml`; it does not publish a hosted preview.
 The current Firebase configuration includes a Content Security Policy for local scripts, GitHub API
 requests, Google Fonts and local images. Run `scripts/dev/verify.sh release-tools` from the repository root
@@ -36,10 +37,10 @@ to test download links, JSON and workflows. Verify the actual response headers a
 merge deployment; repository inspection does not establish which headers are live on the hosted site.
 
 Manual, from this directory, if you have the Firebase CLI and are signed in as an account with access to
-the `timetug` project:
+the `binary-companion` project:
 
 ```bash
 cd site
-firebase deploy --only hosting            # both sites
-firebase deploy --only hosting:timetug-site   # content only
+firebase deploy --only hosting --project binary-companion                  # both sites
+firebase deploy --only hosting:timetug-site --project binary-companion     # content only
 ```

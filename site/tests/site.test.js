@@ -7,7 +7,7 @@ const config = JSON.parse(fs.readFileSync('site/firebase.json', 'utf8'));
 const entries = config.hosting;
 const NEW = 'https://timetug.binarycompanion.com';
 const content = entries.find(entry => entry.site === 'timetug-site');
-const legacy = entries.find(entry => entry.site === 'timetug');
+const legacy = entries.find(entry => entry.site === 'timetug-redirect');
 
 // Firebase redirect source matching, reduced to what this site uses: `/`, `/:name` segments, and `/**`.
 function matches(source, requestPath) {
@@ -35,9 +35,9 @@ function page(name) {
   return fs.readFileSync(path.join('site/public', `${name}.html`), 'utf8');
 }
 
-test('content is served by timetug-site and redirects by timetug', () => {
+test('content is served by timetug-site and redirects by timetug-redirect', () => {
   assert.ok(content, 'missing timetug-site entry');
-  assert.ok(legacy, 'missing timetug entry');
+  assert.ok(legacy, 'missing timetug-redirect entry');
   assert.equal(content.public, 'public');
   assert.equal(legacy.public, 'legacy');
   assert.equal((content.redirects || []).some(rule => rule.source !== '/appcast.xml'), false,
