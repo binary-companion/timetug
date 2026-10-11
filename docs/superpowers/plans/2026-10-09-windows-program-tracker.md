@@ -73,7 +73,7 @@ Agents keep this list current; the owner checks items off (or tells an agent to)
 - [x] Microsoft Entra: update homepage, terms and privacy URLs and the logo (done 2026-10-10 after the cutover; read back with Graph).
 - [ ] Microsoft Entra: verify the publisher domain, then re-run publisher verification with the Binary Companion partner ID.
 - [x] Google: bundled brand edit saved, verified and published 2026-10-11 (new URLs live on the consent screen).
-- [ ] Google: remove `obryan.cloud` from Authorized domains (approval arrived; waits for the owner's go and the old-domain redirect).
+- [x] Google: `obryan.cloud` removed from Authorized domains (2026-10-11); only `binarycompanion.com` remains.
 - [x] App Store Connect: privacy, support and marketing URLs updated, and the macOS 1.0 listing text drafted and saved (2026-10-11). Still the owner's before submission: screenshots, build, age rating, App Privacy answers, content rights, pricing, review contact, EU trader status.
 
 ### 0 Organization move
@@ -117,6 +117,7 @@ Append one line per session: date, what was done, what is next.
 - 2026-10-10 (night, later): Owner approved the existing Entra tenant as Binary Companion's Microsoft identity (R6). `binarycompanion.com` added to the tenant as an unverified custom domain; its verification TXT is recorded in plan Task 5 and needs adding at Squarespace (blocked on the Google step-up sign-in). HTTPS on `timetug.binarycompanion.com` is serving; certificate still propagating at some edges. PR 79 merged by the owner; first key-free deploy from `hosting` succeeded and the new pages, headers and redirect rules were verified. Entra branding URLs and logo set. Still open: move `timetug.obryan.cloud` to `timetug-redirect`, merge `binary-companion/website` PR 1, delete the obsolete Firebase key and secret.
 - 2026-10-11: Google done at the owner's go: `binarycompanion.com` verified in Search Console (TXT at `@`, keep it), Authorized domains now list both domains, and the bundled brand edit (home, privacy, terms URLs; developer contact `sobryan@binarycompanion.com` added) verified and published. User support email stays `darkarena@gmail.com` (the field only offers the signed-in account's addresses). Remaining for Google: remove `obryan.cloud` from Authorized domains after the old-domain redirect works.
 - 2026-10-11 (later): App Store Connect listing text and URLs entered and saved (not submitted). Home page lists all supported providers (Apple Calendar, Google, Microsoft, iCloud/CalDAV, iCal links) to match the app and the privacy policy.
+- 2026-10-11 (cleanup): `timetug.obryan.cloud` now redirects (all five URLs verified 301); the obsolete `FIREBASE_SERVICE_ACCOUNT_TIMETUG` secret is deleted from the `hosting` environment and the repository, and old key `5be03ce9…` is deleted. The unexplained second key `4de92d1f…` on `github-action-1376589039@timetug` was deleted at the owner's go. Google Authorized domains then had `obryan.cloud` removed; Task 6 is complete.
 
 ## Where each secret comes from
 
@@ -131,5 +132,5 @@ GitHub never shows a secret's value again, so each value is re-entered from its 
 | `APPLE_TEAM_ID` | Developer portal, Membership | Look it up (not sensitive) |
 | `GOOGLE_OAUTH_CLIENT_ID`, `GOOGLE_OAUTH_CLIENT_SECRET` | `~/.config/timetug/google-oauth.xcconfig` and the Google Cloud console | Add a new client secret in the console; signed-in users are unaffected |
 | `MICROSOFT_OAUTH_CLIENT_ID` | `~/.config/timetug/microsoft-oauth.xcconfig` and the Entra app registration | Read it from the registration |
-| `FIREBASE_SERVICE_ACCOUNT_TIMETUG` | Obsolete after PR 79 merges: the website deploys through Workload Identity Federation and the `hosting` environment holds no secret. Delete it, and the old project's key `5be03ce9c4a9…`, once the cutover is verified | Nothing to recover |
+| `FIREBASE_SERVICE_ACCOUNT_TIMETUG` | Deleted 2026-10-11. Was obsolete after PR 79: the website deploys through Workload Identity Federation and the `hosting` environment holds no secret. Delete it, and the old project's key `5be03ce9c4a9…`, once the cutover is verified | Nothing to recover |
 | `appstore` environment values | Already in the `appstore` environment | Nothing to move |
