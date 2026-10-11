@@ -36,6 +36,9 @@ if 'build/verify-venv/bin:$PATH' not in pr_runs:
     errors.append('PR website workflow does not use pinned test prerequisites')
 
 ci = workflows['ci.yml']
+linux = ci['jobs'].get('core-linux')
+if linux is None or linux.get('continue-on-error') not in (None, False):
+    errors.append('CI core-linux job must block merges when portability tests fail')
 tooling = ci['jobs'].get('release-tooling')
 if tooling is None:
     errors.append('CI missing release-tooling job')

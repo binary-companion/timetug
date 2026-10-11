@@ -1,33 +1,32 @@
 # TimeTug audit remediation results
 
-Date: 2026-09-27. Branch: `codex/timetug-audit-remediation`. This file is a running verification record; final check counts and commit will be filled after all edits settle.
+Updated 2026-10-11. The [audit](2026-09-26-program-analysis.md) and [handoff plan](../superpowers/plans/2026-09-26-audit-remediation-handoff.md) began at commit `7f96bb8`. Tasks 1–10, 12–15 and 17–19 were merged in [PR #51](https://github.com/darkarena1/timetug/pull/51). This closeout finishes the measured deduplication work (Task 11), makes Linux CI blocking after successful same-code runs (Task 16), and records final evidence (Task 20). Later provider, distribution and website changes remain in current `master`; this work was based on `9b94777`, not the old uncommitted checkout.
 
-| Task | Area | Current evidence |
-|---|---|---|
-| 1 | Credential lifecycle | Implemented. Connector and Apple tests passed in focused runs. DeepSeek found a provider reauthorization recovery issue, fixed with a regression test. |
-| 2 | Refresh ordering | Implemented. Deterministic stale-refresh test passed. |
-| 3 | Timezone context | Implemented. Core tests passed; new DST/in-flight test awaits integrated run. |
-| 4 | Startup acknowledgement | Implemented with per-source app tests; integrated app run pending. |
-| 5 | Join URL safety | Implemented; focused connector policy test passed. Integrated app run pending. |
-| 6 | Widget horizon | Implemented; Core 281/281 passed before concurrent inference edits. |
-| 7-8 | Inference identity, bounds and retries | Implemented; Core 296/296 and inference 13/13 passed in focused final-agent runs. DeepSeek Core/app review pending. |
-| 9-10 | Scoped refresh and provider concurrency | Implemented; Core 294/294, Connectors 185/185 and Bridge 12/12 passed after source changes. Final integrated run pending. |
-| 11 | Dedup performance | Frozen oracle and benchmark harness added; baseline measurement and optimization in progress. |
-| 12 | OAuth listener | Implemented; DeepSeek found two additional lifecycle defects. Both fixed; CalendarApple 30/30 passed. |
-| 13 | UI ticks | Implemented with policy tests; integrated app run passed 230/230 before the final OAuth fixes. |
-| 14 | Microsoft series split | Implemented; DeepSeek found a pre-write serialization ordering defect, fixed; Connectors 185/185 passed afterward. |
-| 15-19 | CI, website, agent verification | Implemented; DeepSeek found six applicable issues and one shipped-Google-scope false positive. Release-tools wrapper 12 passed after fixes. Final integrated check pending. |
-| 20 | Final verification and measurements | Pending. |
+Microsoft sign-in now requests read-only scopes by the owner's later decision in [ADR 0017](../decisions/0017-microsoft-read-only-scopes.md) and [PR #49](https://github.com/darkarena1/timetug/pull/49). The connector library's write implementation remains. The owner confirmed the read-only policy for this closeout; no Microsoft scope or capability change is part of it.
 
-Finding 7 (Microsoft write access) was resolved after this run by the owner's decision: Microsoft sign-in requests read-only scopes (ADR 0017, PR #49). The library's write code and capabilities are unchanged. No live calendar write tests, deployment or production IAM/headers checks have been run. Linux CI enforcement remains pending a successful same-code run.
+## Code and review
 
-## Measurements to fill from final evidence
+`DuplicateResolver` now indexes equal content keys and overlapping timed intervals, evaluates distant blocking pairs only when a group merge needs them, and uses constant-time candidate-ID membership. Its public result and ordering remain checked against the frozen pre-optimization resolver across boundary, lesson, randomized, transitive-block and duplicate-ID fixtures. The benchmark runner accepts a shape and count for focused reruns while retaining the full matrix by default.
 
-- Complete `verify.sh all` run: pending.
-- Release-mode dedup benchmark before/after (synthetic only): pending.
-- Provider request count and peak concurrency: pending integrated evidence.
-- Idle UI structural rebuilds: prior one-second timer rebuilt every second (3,600 times per idle hour); new policy should be measured in a controlled test before reporting an after count.
-- Startup instruction words/estimated tokens: pending.
-- Agent token/tool-call/review-pass counts: unavailable unless captured from session evidence; no estimate will be presented as measured.
+DeepSeek was the primary reviewer. Its resolver review found one proposed dense-case concern but refuted its own fixture; a targeted final candidate-list review found no mismatch. Its CI review caught a stale “allowed to fail” comment, and its agent-guide review identified five confirmed documentation gaps plus one uncertain index-instruction gap. Those comments and the linked runbook, architecture and index/architecture-check instructions were corrected. No DeepSeek finding was accepted without checking it against the repository.
 
-Root `AGENTS.md` changed from 2,100 words / 16,980 bytes at baseline to 370 words / 3,127 bytes in the current working tree. Detailed operational instructions moved to linked runbooks; this is a startup-reading reduction, not a measured agent-token or wall-time saving.
+The root `AGENTS.md` had regrown to **2,070 words / 15,865 bytes** on current `master`. It is now **420 words / 3,528 bytes**; detailed procedures remain reachable through the current architecture, development guide, operations runbook and task skills. This is a measured reduction in default reading size, not a measured token-cost or wall-time reduction.
+
+## Measurements and verification
+
+Release-build benchmark on macOS/arm64 with deterministic synthetic events, one warmup and five timed runs per case. The baseline and changed resolver used the same `9b94777` code; only the benchmark's case selector was copied into the temporary baseline checkout. Times are medians in milliseconds.
+
+| Input | Baseline | Changed | Ratio |
+|---|---:|---:|---:|
+| Sparse, 1,000 events | 686.494 | 2.806 | 245× faster |
+| Sparse, 5,000 events | 18,503.169 | 15.128 | 1,223× faster |
+| Dense, 500 events | 8,481.206 | 875.002 | 9.7× faster |
+| Duplicate-heavy, 5,000 events | 30,406.681 | 5,609.773 | 5.4× faster |
+
+The duplicate-heavy case produced 1,250 cards in both versions. The 5,000-event dense case was not completed: it produces a quadratic manual-candidate result under the current public API and is resource-heavy even after pair search is indexed. No speedup or bounded-memory claim is made for that case.
+
+The synthetic Google and Microsoft connector tests each request exactly 20 calendars and assert a peak of no more than four simultaneous event reads; this is test-harness evidence, not a count from live accounts. The previous one-second UI structural timer was replaced by policy-driven updates, but an idle-hour rebuild count was not measured. Agent token counts and tool-call savings were not captured and are not estimated.
+
+`verify.sh all` passed locally on macOS after the code, workflow, benchmark and guide changes: **24 checks, zero failures and zero skips** (40 seconds, run `build/verify/20261011T141737Z-59717`). Two completed `master` CI runs, [38138250241](https://github.com/darkarena1/timetug/actions/runs/38138250241) and [38138726121](https://github.com/darkarena1/timetug/actions/runs/38138726121), passed `core-linux`; the job is therefore required in this change.
+
+The hosted [TimeTug site](https://timetug.binarycompanion.com/) returned HTTP 200 with the configured Content-Security-Policy on 2026-10-11, and the latest relevant Firebase merge workflow [succeeded](https://github.com/darkarena1/timetug/actions/runs/38138080155). Live provider writes, interactive macOS UI checks, release signing and a new deployment are separate from this local/CI remediation. They have not been claimed as verified here.
