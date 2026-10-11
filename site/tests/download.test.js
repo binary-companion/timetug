@@ -50,7 +50,8 @@ test('keeps the release fallback when the request or JSON fails', async () => {
 });
 
 test('the configured policy permits the current static page resources', () => {
-  const hosting = JSON.parse(fs.readFileSync('site/firebase.json', 'utf8')).hosting;
+  const hosting = JSON.parse(fs.readFileSync('site/firebase.json', 'utf8')).hosting
+    .find(entry => entry.site === 'timetug-site');
   const policy = hosting.headers.find(entry => entry.source === '**').headers
     .find(header => header.key === 'Content-Security-Policy').value;
   for (const directive of [

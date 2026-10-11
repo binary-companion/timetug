@@ -58,6 +58,7 @@ run_release() {
   run wrapper-tests bash scripts/dev/tests/test-verify.sh
   run python-appcast python3 -m unittest discover -s scripts/release/tests -p 'test_*.py'
   run website node --test site/tests/download.test.js
+  run website-config-test node --test site/tests/site.test.js
   run website-syntax node --check site/public/download.js
   run website-config python3 -m json.tool site/firebase.json
 }

@@ -1,4 +1,4 @@
-# timetug.obryan.cloud
+# timetug.binarycompanion.com
 
 TimeTug's public homepage and privacy policy (`docs/decisions/` covers app architecture; this is the
 marketing/legal site, unrelated to the Xcode project). Plain static HTML, no build step.
@@ -16,7 +16,13 @@ marketing/legal site, unrelated to the Xcode project). Plain static HTML, no bui
   icon changes.
 
 Hosted on Firebase Hosting, project `timetug` (the same Google Cloud project as the Google Calendar OAuth
-client — see `docs/decisions/`), custom domain `timetug.obryan.cloud`.
+client — see `docs/decisions/`). Two sites, both declared in `firebase.json`:
+
+- `timetug-site` serves `public/` at `timetug.binarycompanion.com`. It also answers `/appcast.xml` with a 301
+  to the current Sparkle feed, so the feed URL in the app stays on the new domain when the feed moves.
+- `timetug` keeps `timetug.obryan.cloud` and serves only 301 redirects (rules for one, two and three path
+  segments, then the new root). Firebase redirects cannot capture a whole path, hence the fixed depths.
+  `legacy/404.html` exists only because a hosting entry needs a public directory.
 
 ## Deploying
 
@@ -34,5 +40,6 @@ the `timetug` project:
 
 ```bash
 cd site
-firebase deploy --only hosting
+firebase deploy --only hosting            # both sites
+firebase deploy --only hosting:timetug-site   # content only
 ```
