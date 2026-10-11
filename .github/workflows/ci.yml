@@ -11,7 +11,7 @@
 #               as the `TimeTug-dmg` artifact (a fresh installer from every run).
 #   architecture  Checks the AGENTS.md layering rules (scripts/ci/check-architecture.sh) on Linux.
 #   core-linux  Runs the Core and CalendarConnectors tests on Linux to prove Core and the connector library
-#               stay portable. Allowed to fail (see below).
+#               stay portable. Required for merges.
 #
 # The macOS jobs need an Xcode with the macOS 26 SDK or newer (Liquid Glass APIs behind #available).
 # If the `macos-26` runner label is not available to your account, change `runs-on` in all the macOS jobs
@@ -169,11 +169,9 @@ jobs:
           scripts/release/tests/test-preflight.sh
 
   # Core and the connector library are meant to be portable (no Apple-only imports). This job checks that on Linux.
-  # It is allowed to fail (continue-on-error) until Linux support is confirmed; once it is
-  # green on master, remove `continue-on-error` so regressions block merges.
+  # Linux passed on master in runs 38138250241 and 38138726121; regressions now block merges.
   core-linux:
     runs-on: ubuntu-latest
-    continue-on-error: true
     env:
       DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
       DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}

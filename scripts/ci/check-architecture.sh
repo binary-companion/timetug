@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Checks the layering rules from AGENTS.md ("Rules") that the compiler does not enforce on its own.
+# Checks the layering rules from docs/architecture.md that the compiler does not enforce on its own.
 # Usage: scripts/ci/check-architecture.sh [repo-root]
 # Prints one "path:line: message" per violation and exits 1 if there are any.
 # Imports are matched at the start of a line (Swift style here); `import A; import B` on one line is not checked.
@@ -79,7 +79,7 @@ for manifest in $P/*/Package.swift; do
   [ -e "$manifest" ] || continue
   name="$(basename "$(dirname "$manifest")")"
   if ! allowed="$(allowed_deps "$name")"; then
-    report "$manifest:1" "no rule for $P/$name in scripts/ci/check-architecture.sh; add its allowed dependencies (and AGENTS.md Rules)"
+    report "$manifest:1" "no rule for $P/$name in scripts/ci/check-architecture.sh; add its allowed dependencies (and update docs/architecture.md)"
     continue
   fi
   # Read the manifest as one line so a .package(...) wrapped across lines is still seen.
@@ -90,4 +90,4 @@ for manifest in $P/*/Package.swift; do
     sed -E 's/.*(path|url):[[:space:]]*"([^"]*)".*/\2/' || true)
 done
 
-[ "$bad" = 0 ] || { echo "$bad architecture violation(s); the rules are in AGENTS.md (Rules)" >&2; exit 1; }
+[ "$bad" = 0 ] || { echo "$bad architecture violation(s); the rules are in docs/architecture.md" >&2; exit 1; }

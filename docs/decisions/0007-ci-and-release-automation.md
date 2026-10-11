@@ -20,3 +20,7 @@ TimeTug is going public on GitHub. It needs CI on every change and a repeatable 
 - Publishing a release is `git tag vX.Y.Z && git push origin vX.Y.Z`; adding the secrets later upgrades releases to signed ones with no workflow change.
 - The signing and notarization path cannot be exercised without Apple credentials, so its first real run may need fixes.
 - CI depends on the hosted runner image shipping Xcode 26 or newer.
+
+## 2026-10-11 update
+
+The Linux portability job passed on `master` in [run 38138250241](https://github.com/darkarena1/timetug/actions/runs/38138250241) and [run 38138726121](https://github.com/darkarena1/timetug/actions/runs/38138726121). `core-linux` is now required for pull requests; the original `continue-on-error` period is over. The original decision above is retained as history.
