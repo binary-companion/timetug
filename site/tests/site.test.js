@@ -94,3 +94,8 @@ test('privacy policy and terms name Binary Companion, LLC as the operator', () =
   assert.match(page('terms'), /made and operated by Binary Companion, LLC/);
   assert.equal(/individual developer/.test(page('terms')), false);
 });
+
+test('privacy policy does not call Google Calendar support a beta', () => {
+  assert.doesNotMatch(page('privacy'), /pending Google/i);
+  assert.doesNotMatch(page('index'), /class="badge">Beta</);
+});
