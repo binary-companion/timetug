@@ -10,7 +10,8 @@
 A tug when time needs your attention. TimeTug lives in your macOS menu bar, lists today's meetings,
 and takes over every screen shortly before a meeting starts, so you don't hyperfocus through it.
 
-Created by [Scott O'Bryan](https://github.com/darkarena1).
+Created by [Scott O'Bryan](https://github.com/darkarena1). Website, downloads and privacy policy:
+[timetug.binarycompanion.com](https://timetug.binarycompanion.com).
 
 ## Features
 - Reads Apple Calendar (iCloud, Google and Exchange accounts added to macOS) via EventKit

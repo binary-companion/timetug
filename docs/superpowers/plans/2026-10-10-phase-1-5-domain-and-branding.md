@@ -150,7 +150,8 @@ State on 2026-10-10: not publisher verified, no branding URLs (see Facts). Verif
 ### Task 7: Apple and the repository
 
 - [x] App Store Connect (2026-10-11, entered by the agent in the owner's signed-in Chrome at the owner's request): privacy policy URL `https://timetug.binarycompanion.com/privacy`, support and marketing URL `https://timetug.binarycompanion.com/`. The macOS 1.0 listing was otherwise blank; subtitle, promotional text, description and keywords (including `adhd`, no third-party brand names) were drafted from the website and saved. Not set, owner's: screenshots, build, age rating, App Privacy answers, content rights, pricing, review contact, EU trader status.
-- [ ] Update README, `SECURITY.md`, CODEOWNERS contacts and the release-notes link base to the new domain and contact; one PR.
+- [x] Contacts updated (2026-10-11): README links the new site, `SECURITY.md` and `CODE_OF_CONDUCT.md` add `sobryan@binarycompanion.com` as a fallback contact. `CODEOWNERS` is unchanged on purpose (`@darkarena1` stays correct until the organization move, phase 0). The release-notes link base is moot: `sparkle:releaseNotesLink` was dropped by the 2026-09-22 spec.
+- [x] **Owner decision 2026-10-11: no Mac App Store distribution in the EU for now.** TimeTug is available from the website and Homebrew. The EU Digital Services Act trader declaration needs a public business address, phone and email; the owner will provide a real business address when there is something to sell. Until then the App Store listing must exclude the EU storefronts (App Store Connect > Pricing and Availability) so no trader declaration is required.
 
 ### Task 8: Put the Binary Companion website under version control (added 2026-10-10)
 
