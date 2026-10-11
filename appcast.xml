@@ -3,6 +3,41 @@
   <channel>
     <title>TimeTug</title>
     <item>
+      <title>TimeTug 2.0.0-beta.20261011150745</title>
+      <pubDate>Sun, 11 Oct 2026 15:12:22 GMT</pubDate>
+      <sparkle:version>20261011150745</sparkle:version>
+      <sparkle:shortVersionString>2.0.0-beta.20261011150745</sparkle:shortVersionString>
+      <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
+      <sparkle:channel>beta</sparkle:channel>
+      <description>&lt;!DOCTYPE html&gt;
+&lt;html&gt;
+&lt;head&gt;
+&lt;meta charset="utf-8"&gt;
+&lt;style&gt;
+body {
+  font: 13px -apple-system, BlinkMacSystemFont, "Helvetica Neue", sans-serif;
+  color: #1d1d1f;
+  margin: 12px 16px;
+  word-wrap: break-word;
+}
+a { color: #0068da; }
+h1, h2, h3 { font-size: 1.05em; }
+pre, code { font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 0.95em; }
+pre { white-space: pre-wrap; overflow-wrap: anywhere; }
+@media (prefers-color-scheme: dark) {
+  body { color: #f5f5f7; }
+  a { color: #4da3ff; }
+}
+&lt;/style&gt;
+&lt;/head&gt;
+&lt;body&gt;
+&lt;p dir="auto"&gt;Beta build from &lt;a class="commit-link" data-hovercard-type="commit" data-hovercard-url="https://github.com/darkarena1/timetug/commit/fcb5823c6c26bbb93393a7ab632093df6f1fdd9a/hovercard" href="https://github.com/darkarena1/timetug/commit/fcb5823c6c26bbb93393a7ab632093df6f1fdd9a"&gt;&lt;tt&gt;fcb5823&lt;/tt&gt;&lt;/a&gt;&lt;/p&gt;
+&lt;/body&gt;
+&lt;/html&gt;
+</description>
+      <enclosure url="https://github.com/darkarena1/timetug/releases/download/beta-20261011150745/TimeTug-2.0.0-beta.20261011150745.zip" length="9403142" type="application/octet-stream" sparkle:edSignature="flHM4Kun/6u5Wz17mGmEwtKp//m+VQzaJY2waXagy8+OUNJBWm4T3e8GKHCu5kjhCwSJw/YQgniOg3btqV0HBQ==" />
+    </item>
+    <item>
       <title>TimeTug 2.0.0-beta.20261011122203</title>
       <pubDate>Sun, 11 Oct 2026 12:25:35 GMT</pubDate>
       <sparkle:version>20261011122203</sparkle:version>
@@ -141,41 +176,6 @@ pre { white-space: pre-wrap; overflow-wrap: anywhere; }
 &lt;/html&gt;
 </description>
       <enclosure url="https://github.com/darkarena1/timetug/releases/download/beta-20261011113811/TimeTug-2.0.0-beta.20261011113811.zip" length="9377033" type="application/octet-stream" sparkle:edSignature="k0l5Ydxr5fk55rtFHbEYGCDH/3gsM3EjJerUwTG283eNFYdYIN1B8VQdknTB1fV5/VVMlp/cM1q3cT6AetLFDw==" />
-    </item>
-    <item>
-      <title>TimeTug 2.0.0-beta.20261011070218</title>
-      <pubDate>Sun, 11 Oct 2026 07:06:47 GMT</pubDate>
-      <sparkle:version>20261011070218</sparkle:version>
-      <sparkle:shortVersionString>2.0.0-beta.20261011070218</sparkle:shortVersionString>
-      <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
-      <sparkle:channel>beta</sparkle:channel>
-      <description>&lt;!DOCTYPE html&gt;
-&lt;html&gt;
-&lt;head&gt;
-&lt;meta charset="utf-8"&gt;
-&lt;style&gt;
-body {
-  font: 13px -apple-system, BlinkMacSystemFont, "Helvetica Neue", sans-serif;
-  color: #1d1d1f;
-  margin: 12px 16px;
-  word-wrap: break-word;
-}
-a { color: #0068da; }
-h1, h2, h3 { font-size: 1.05em; }
-pre, code { font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 0.95em; }
-pre { white-space: pre-wrap; overflow-wrap: anywhere; }
-@media (prefers-color-scheme: dark) {
-  body { color: #f5f5f7; }
-  a { color: #4da3ff; }
-}
-&lt;/style&gt;
-&lt;/head&gt;
-&lt;body&gt;
-&lt;p dir="auto"&gt;Beta build from &lt;a class="commit-link" data-hovercard-type="commit" data-hovercard-url="https://github.com/darkarena1/timetug/commit/db1baebed1fd535e3a561662f6ee57afa02a7d7b/hovercard" href="https://github.com/darkarena1/timetug/commit/db1baebed1fd535e3a561662f6ee57afa02a7d7b"&gt;&lt;tt&gt;db1baeb&lt;/tt&gt;&lt;/a&gt;&lt;/p&gt;
-&lt;/body&gt;
-&lt;/html&gt;
-</description>
-      <enclosure url="https://github.com/darkarena1/timetug/releases/download/beta-20261011070218/TimeTug-2.0.0-beta.20261011070218.zip" length="9377076" type="application/octet-stream" sparkle:edSignature="hj5DowGnamEDi0j0lmGGlsgo6kyctkIsH1lylEm/rhgemDx2HJBu7W6k09sSgheekxqyA2mNryDa7LahQHTjCw==" />
     </item>
     <item>
       <title>TimeTug 2.0.0</title>
