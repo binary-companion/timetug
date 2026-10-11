@@ -149,7 +149,7 @@ State on 2026-10-10: not publisher verified, no branding URLs (see Facts). Verif
 
 ### Task 7: Apple and the repository
 
-- [ ] **(owner)** App Store Connect: privacy policy, support and marketing URLs to the new domain (editable at any time).
+- [x] App Store Connect (2026-10-11, entered by the agent in the owner's signed-in Chrome at the owner's request): privacy policy URL `https://timetug.binarycompanion.com/privacy`, support and marketing URL `https://timetug.binarycompanion.com/`. The macOS 1.0 listing was otherwise blank; subtitle, promotional text, description and keywords (including `adhd`, no third-party brand names) were drafted from the website and saved. Not set, owner's: screenshots, build, age rating, App Privacy answers, content rights, pricing, review contact, EU trader status.
 - [ ] Update README, `SECURITY.md`, CODEOWNERS contacts and the release-notes link base to the new domain and contact; one PR.
 
 ### Task 8: Put the Binary Companion website under version control (added 2026-10-10)
