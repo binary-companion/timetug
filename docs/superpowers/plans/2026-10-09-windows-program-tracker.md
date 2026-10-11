@@ -66,10 +66,10 @@ Agents keep this list current; the owner checks items off (or tells an agent to)
 - [x] Confirm ownership of `binarycompanion.com` and DNS access. Verified 2026-10-10: registered at Squarespace Domains, DNS at Squarespace, expires 2028-10-02 (the spec's earlier spelling with an "s" was wrong).
 - [ ] Add the `timetug` DNS records at Squarespace (plan Task 2) and sign `scott@obryan.cloud` in to `gcloud` and `firebase`.
 - [ ] Verify `binarycompanion.com` in Google Search Console as an owner of the OAuth project.
-- [ ] Create the Binary Companion Microsoft partner (Partner Center) company account signed in as `sobryan@binarycompanion.com` (after the tenant user exists); get a D-U-N-S number if Binary Companion has none. Slow step, start early.
+- [ ] Enroll Binary Companion in the Microsoft AI Cloud Partner Program as `sobryan@binarycompanion.com` (sign in with it; do not use "Create work account"); get a D-U-N-S number if Binary Companion has none; business verification is the slow step. Then give the agent the Partner Global Account ID (not the location ID).
 - [x] Microsoft Entra: choose the tenant (existing "Default Directory"; ruling R6, 2026-10-10).
 - [x] Microsoft Entra: `binarycompanion.com` verified on the tenant (2026-10-10, TXT at Squarespace).
-- [x] Microsoft Entra: work user `sobryan@binarycompanion.com` created 2026-10-10 (Application Administrator; initial password in `~/.config/timetug/entra-sobryan-initial-password.txt`, change forced at first sign-in).
+- [x] Microsoft Entra: work user `sobryan@binarycompanion.com` created 2026-10-10 (password changed by the owner at first sign-in; roles Application Administrator and, for enrollment, Global Administrator, to be removed once enrollment is Active).
 - [x] Microsoft Entra: update homepage, terms and privacy URLs and the logo (done 2026-10-10 after the cutover; read back with Graph).
 - [ ] Microsoft Entra: verify the publisher domain, then re-run publisher verification with the Binary Companion partner ID.
 - [ ] Google: one bundled brand edit and submit for verification; remove `obryan.cloud` from Authorized domains after approval.
