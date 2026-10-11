@@ -74,7 +74,7 @@ Agents keep this list current; the owner checks items off (or tells an agent to)
 - [ ] Microsoft Entra: verify the publisher domain, then re-run publisher verification with the Binary Companion partner ID.
 - [x] Google: bundled brand edit saved, verified and published 2026-10-11 (new URLs live on the consent screen).
 - [ ] Google: remove `obryan.cloud` from Authorized domains (approval arrived; waits for the owner's go and the old-domain redirect).
-- [ ] App Store Connect: update the privacy, support and marketing URLs.
+- [x] App Store Connect: privacy, support and marketing URLs updated, and the macOS 1.0 listing text drafted and saved (2026-10-11). Still the owner's before submission: screenshots, build, age rating, App Privacy answers, content rights, pricing, review contact, EU trader status.
 
 ### 0 Organization move
 - [ ] Publish the Mac release that carries the new feed URL; wait for users to take it (watch the appcast download counts).
@@ -116,6 +116,7 @@ Append one line per session: date, what was done, what is next.
 - 2026-10-11: Owner chose to host TimeTug's website in Firebase under the `obryan.cloud` account. Sites `timetug-site` and `timetug-redirect` created in project `binary-companion`; federated deploy identity `timetug-deploy` (provider `timetug`); PR 79 rewritten to deploy key-free; `timetug-site` deployed manually and domain `timetug.binarycompanion.com` added (needs one CNAME). `binary-companion/website` deployed key-free (first run green, both URLs unchanged).
 - 2026-10-10 (night, later): Owner approved the existing Entra tenant as Binary Companion's Microsoft identity (R6). `binarycompanion.com` added to the tenant as an unverified custom domain; its verification TXT is recorded in plan Task 5 and needs adding at Squarespace (blocked on the Google step-up sign-in). HTTPS on `timetug.binarycompanion.com` is serving; certificate still propagating at some edges. PR 79 merged by the owner; first key-free deploy from `hosting` succeeded and the new pages, headers and redirect rules were verified. Entra branding URLs and logo set. Still open: move `timetug.obryan.cloud` to `timetug-redirect`, merge `binary-companion/website` PR 1, delete the obsolete Firebase key and secret.
 - 2026-10-11: Google done at the owner's go: `binarycompanion.com` verified in Search Console (TXT at `@`, keep it), Authorized domains now list both domains, and the bundled brand edit (home, privacy, terms URLs; developer contact `sobryan@binarycompanion.com` added) verified and published. User support email stays `darkarena@gmail.com` (the field only offers the signed-in account's addresses). Remaining for Google: remove `obryan.cloud` from Authorized domains after the old-domain redirect works.
+- 2026-10-11 (later): App Store Connect listing text and URLs entered and saved (not submitted). Home page lists all supported providers (Apple Calendar, Google, Microsoft, iCloud/CalDAV, iCal links) to match the app and the privacy policy.
 
 ## Where each secret comes from
 
