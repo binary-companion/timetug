@@ -4,7 +4,7 @@
 
 **Goal:** Every public TimeTug URL lives under `timetug.binarycompanion.com`; the old `timetug.obryan.cloud` answers a permanent 301 with the matching new URL; Google and Microsoft show Binary Companion branding with no interruption for signed-in users.
 
-**Architecture:** Firebase Hosting serves the website from a new site (`timetug-site`) in the existing `timetug` project. The existing site `timetug` keeps `timetug.obryan.cloud` and becomes redirect-only, so the old domain never moves and has no downtime. `/appcast.xml` on the new domain answers 301 to the current feed, so a later phase 0 move only changes that one rule. Branding changes at Google, Microsoft and Apple follow once the new domain is live.
+**Architecture:** TimeTug's website moves to Firebase Hosting in the `binary-companion` project (the Binary Companion Google account), with two sites: `timetug-site` (content at `timetug.binarycompanion.com`) and `timetug-redirect` (`timetug.obryan.cloud`, redirect-only). GitHub deploys with its OIDC identity through Workload Identity Federation, so no Firebase key is stored. `/appcast.xml` on the new domain answers 301 to the current feed, so a later phase 0 move only changes that one rule. Branding changes at Google, Microsoft and Apple follow once the new domain is live.
 
 **Tech Stack:** Firebase Hosting (CLI and REST), Squarespace DNS, Node `node:test` for the site test, Azure CLI (`az`) for Entra, Google Search Console and the Google Auth Platform console.
 
@@ -21,13 +21,13 @@
 | `timetug.obryan.cloud` is `CNAME timetug.web.app`; project `timetug` (number 591041424232) is owned by `darkarena@gmail.com`, which is signed in to `gcloud` and `firebase` on this Mac. `scott@obryan.cloud` is registered in `gcloud` but its token needs a fresh interactive sign-in. | CLI output |
 | `/.well-known/microsoft-identity-association.json` does not exist on the apex yet (404). | `curl` |
 | The Entra `TimeTug` registration (appId `f05c1d1f-55cb-4a2d-bf7e-65db87d23099`) has **no verified publisher**, empty marketing/privacy/terms/support URLs, publisher domain `darkarenagmail.onmicrosoft.com`, no owners listed; the signed-in `az` user (`darkarena@gmail.com`) is Global Administrator of the only tenant ("Default Directory", initial domain only). This contradicts the earlier assumption that the app was publisher-verified. | `az ad app show`, Graph `/organization` (2026-10-10) |
-| Creating a Hosting site returns 403 for the Owner while `validateOnly` passes; the Firebase console shows an unaccepted "Firebase Terms and Conditions" dialog on `timetug`. Accepting terms is the owner's decision. | CLI debug log, console |
+| Creating a Hosting site in project `timetug` returns 403 for the Owner while `validateOnly` passes; the same command works in project `binary-companion`. The console showed a "Firebase Terms and Conditions" dialog once (not accepted by the agent). Cause not found; avoided by hosting in `binary-companion` (R2). | CLI debug log, 2026-10-10 |
 | The Google Cloud project `binary-companion` exists under `scott@obryan.cloud` (the apex site's project). | `gcloud projects list` |
 
 ## Rulings
 
 - **R1, spelling:** use `binarycompanion.com` everywhere. The only registered domain, the live apex site and the GitHub organization `binary-companion` all agree.
-- **R2, which site moves:** the spec said to move `timetug.obryan.cloud` to a new redirect site. Instead the *new* domain gets a new site and the old domain stays where it is, converted to redirect-only. Same end state, but no live custom domain is detached and re-issued, so there is no outage window and no re-verification of the old domain. Cost if wrong: `timetug.web.app` also becomes a redirect; nothing references it.
+- **R2, where the sites live (revised 2026-10-10):** the spec said to move `timetug.obryan.cloud` to a second site in project `timetug`. Creating any new Hosting site in `timetug` returns 403 (cause not found; the Owner has every permission), while sites create fine in project `binary-companion`. The owner chose to deploy TimeTug's website to Firebase in the `obryan.cloud` account. So both sites (`timetug-site`, `timetug-redirect`) live in `binary-companion`, and the old domain moves to `timetug-redirect` after the new domain is serving. Cost: a brief gap on `timetug.obryan.cloud` while it is detached from the old project and attached to the new site; ordering below keeps the old domain serving until then. Benefit: one project and one deploy credential (a federated identity, no key), and `FIREBASE_SERVICE_ACCOUNT_TIMETUG` can be deleted.
 - **R3, redirect rules:** Firebase redirects have no `:splat`; `/:path*` matches one segment only. The redirect site uses explicit rules for 1, 2 and 3 path segments plus a catch-all to the new root (tested in the hosting emulator on 2026-10-10: query strings are preserved).
 - **R4, contacts:** use the one address known to exist, `sobryan@binarycompanion.com`, in the site and the consent screens. `support@` and `security@` aliases are an optional owner item; adding them later is a one-line change.
 - **R5, legal wording:** privacy policy and terms say the app is made and operated by Binary Companion, LLC. The copyright footer stays "Scott O'Bryan" because `LICENSE` names that holder; the owner decides if that changes. Both pages' "Effective" dates are bumped. **(owner reviews the wording in the PR.)**
@@ -77,53 +77,29 @@ firebase login:add scott@obryan.cloud
 - [x] Update the tracker's phase table, Now list and owner checklist for phase 1.5.
 - [x] Update the memory note for the program.
 
-### Task 2: Create the new site and connect the domain
+### Task 2: Create the sites, federate the deploy and connect the domain
 
-**Files:** none in the repository.
+**Files:** none in the repository (cloud resources; recorded here).
 
-- [ ] **Step 1: Create the site.**
-
-```bash
-firebase hosting:sites:create timetug-site --project timetug
-```
-
-Expected: `Site timetug-site created`. If the ID is taken, use `timetug-home` and record it here.
-
-- [ ] **Step 2: Deploy the current content to it** (so the domain serves a page the moment DNS and the certificate are ready). From a clean checkout of this plan's site branch (Task 3) or, if the site branch is not ready, from `master`:
+- [x] **Step 1: Sites.** `firebase hosting:sites:create timetug-site --project binary-companion --account scott@obryan.cloud` and the same for `timetug-redirect` (2026-10-10).
+- [x] **Step 2: Federated deploy identity.** Service account `timetug-deploy@binary-companion.iam.gserviceaccount.com` with `roles/firebasehosting.admin` and `roles/serviceusage.serviceUsageConsumer`; provider `timetug` in pool `github` (project number 948864622857) accepting `assertion.repository in ['darkarena1/timetug','binary-companion/timetug'] && assertion.environment == 'hosting'`; `roles/iam.workloadIdentityUser` bound for both repository names.
+- [x] **Step 3: Content.** Manual deploy of the site branch to `timetug-site`: `cd site && firebase deploy --only hosting:timetug-site --project binary-companion --account scott@obryan.cloud`. `https://timetug-site.web.app` answers 200.
+- [x] **Step 4: Domain.** `POST …/projects/binary-companion/sites/timetug-site/customDomains?customDomainId=timetug.binarycompanion.com`. Firebase asks for one record: `CNAME timetug.binarycompanion.com -> timetug-site.web.app`.
+- [ ] **Step 5 (owner): add the record** at *Squarespace Domains > binarycompanion.com > DNS Settings > Add record*: type `CNAME`, host `timetug`, data `timetug-site.web.app`. Leave every other record alone.
+- [ ] **Step 6: Verify.**
 
 ```bash
-cd site && firebase deploy --only hosting:timetug-site --project timetug
-```
-
-Expected: `https://timetug-site.web.app` answers 200.
-
-- [ ] **Step 3: Add the custom domain through the Hosting REST API** (the CLI has no command for it) and print the DNS records Firebase wants. The token comes from `gcloud` in a command substitution and is never printed:
-
-```bash
-curl -s -X POST \
-  -H "Authorization: Bearer $(gcloud auth print-access-token --account darkarena@gmail.com)" \
-  -H "Content-Type: application/json" \
-  "https://firebasehosting.googleapis.com/v1beta1/projects/timetug/sites/timetug-site/customDomains?customDomainId=timetug.binarycompanion.com" \
-  -d '{}'
-```
-
-Expected: a long-running operation whose `requiredDnsUpdates` lists a TXT (ownership) and A or AAAA records for `timetug.binarycompanion.com`.
-
-- [ ] **Step 4 (owner, or the agent through the owner's signed-in Squarespace session): add those records** at *Squarespace Domains > binarycompanion.com > DNS Settings*. Add only records for the `timetug` host; leave every apex and mail record alone.
-- [ ] **Step 5: Verify.**
-
-```bash
-dig +short timetug.binarycompanion.com @8.8.8.8
+dig +short CNAME timetug.binarycompanion.com @8.8.8.8
 curl -sI https://timetug.binarycompanion.com | head -5
 ```
 
-Expected: the Firebase address, then `HTTP/2 200` once the certificate is issued (minutes to a few hours).
+Expected: `timetug-site.web.app.`, then `HTTP/2 200` once the certificate is issued (minutes to a few hours). The API's `hostState` and `cert.state` show progress.
 
 ### Task 3: Site changes (draft PR; merging is the cutover)
 
-**Files:** Modify `site/firebase.json`, `site/public/index.html`, `site/public/privacy.html`, `site/public/terms.html`, `site/README.md`, `scripts/dev/verify.sh`; Create `site/legacy/404.html`, `site/tests/site.test.js`.
+**Files:** Modify `site/firebase.json`, `site/public/index.html`, `site/public/privacy.html`, `site/public/terms.html`, `site/README.md`, `scripts/dev/verify.sh`, `.github/workflows/firebase-hosting-merge.yml`, `scripts/ci/tests/check-workflow-contracts.py`, `docs/release.md`, `docs/development/action-pins.md`, `AGENTS.md`; Create `site/legacy/404.html`, `site/tests/site.test.js`.
 
-**Interfaces:** `site/firebase.json` becomes an array of two hosting entries: `timetug-site` (content from `public`) and `timetug` (redirects only, from `legacy`).
+**Interfaces:** `site/firebase.json` becomes an array of two hosting entries in project `binary-companion`: `timetug-site` (content from `public`) and `timetug-redirect` (redirects only, from `legacy`). `.github/workflows/firebase-hosting-merge.yml` deploys both with the Firebase CLI after a federated sign-in; `scripts/ci/tests/check-workflow-contracts.py` gains a check against stored Firebase keys.
 
 - [x] **Step 1: Test** `site/tests/site.test.js` (see the file; PR 79): redirect matching for 1 to 3 segments and the root fallback, appcast rule, canonical and `og:` tags, contacts, operator wording.
 
@@ -141,7 +117,9 @@ Run: `node --test site/tests/site.test.js`. Expected: FAIL (no `timetug-site` en
 
 ### Task 4: Cut over (owner merges the PR from Task 3)
 
-- [ ] Merge the PR. Expected: `Deploy to Firebase Hosting on merge` runs in the `hosting` environment and updates both sites.
+- [ ] Merge the PR. Expected: `Deploy to Firebase Hosting on merge` runs in the `hosting` environment, signs in without a key, and updates both sites.
+- [ ] **Move `timetug.obryan.cloud`** to `timetug-redirect`: remove it from site `timetug` in project `timetug` (console, signed in as `darkarena@gmail.com`), add it to `timetug-redirect` with the same API call as Task 2 Step 4, and update its DNS (the zone is at Google's name servers `ns-cloud-e*.googledomains.com`; locate who manages it before touching it). Expect a short gap until the certificate is issued; do it after the new domain is serving.
+- [ ] After that: delete the obsolete `FIREBASE_SERVICE_ACCOUNT_TIMETUG` environment secret and the old project's service-account key `5be03ce9c4a9ec3eae392de55cad3a4dc04fa2de`.
 - [ ] Verify every old URL: `for p in / /privacy /terms /appcast.xml /img/social-preview.jpg; do curl -sI https://timetug.obryan.cloud$p | grep -i -E "^HTTP|^location"; done`. Expected: `301` and the matching `https://timetug.binarycompanion.com...` location.
 - [ ] Verify the new pages and headers: `curl -sI https://timetug.binarycompanion.com/privacy` shows 200 and the Content-Security-Policy header.
 - [ ] In `binary-companion/website` (Task 8), change the TimeTug link in `public/index.html` from `https://timetug.obryan.cloud` to `https://timetug.binarycompanion.com`; the push to `main` deploys it.
