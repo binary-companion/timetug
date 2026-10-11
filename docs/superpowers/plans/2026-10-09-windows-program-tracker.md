@@ -19,8 +19,8 @@ Status values: `not started`, `planning`, `in progress`, `blocked` (say on what)
 | Phase | Status | Spec | Plan | PRs |
 |---|---|---|---|---|
 | S Spike: Swift on Windows | done; approach A confirmed 2026-10-09 | spec section 9 | [plan](2026-10-09-windows-spike-s.md) | [findings](../../spikes/2026-10-09-swift-on-windows.md) |
-| A Secrets into environments (standalone, Mac repo) | in progress: values entered, code PR open, verification and deletion pending | spec section 8 | [plan](2026-10-09-phase-a-secrets-into-environments.md) | |
-| 1.5 Domain and branding | not started | spec section 1.5 | to write (site changes only) | |
+| A Secrets into environments (standalone, Mac repo) | in progress: code merged (PR 75); `beta` and `release` use the repository-level provisioning profile until a fresh one is uploaded; verification and deletion pending | spec section 8 | [plan](2026-10-09-phase-a-secrets-into-environments.md) | |
+| 1.5 Domain and branding | planning: domain spelling corrected, facts and plan written | spec section 1.5 | [plan](2026-10-10-phase-1-5-domain-and-branding.md) | |
 | 0 Organization move and hardening | not started | spec sections 1 and 8 | to write | |
 | 1 `calendar-connectors` repository | not started | spec section 1 | to write | |
 | 2 `timetug-shared` repository | not started | spec section 1 | to write | |
@@ -45,8 +45,10 @@ Order: S first. A and 1.5 can run alongside S. Phase 0 needs the 1.5 domain live
 - [x] Apply the spike's six recommendations to the spec. Done in the approach A decision PR.
 - [x] Write the plan for phase A. Written 2026-10-09.
 - [x] Phase A code tasks 1 to 3 done (contract test, `environment:` lines, docs); PR open.
-- [ ] **(owner)** Squash-merge the phase A PR, then check the next `Beta` run shows `Environment: beta` and signs.
+- [x] **(owner)** Squash-merged the phase A PR (PR 75, 2026-10-10).
+- [ ] Beta run `38096181528` failed because the `MACOS_PROVISIONING_PROFILE_BASE64` copy in `beta` and `release` was damaged (the file in Downloads contains U+FFFD replacement bytes and does not decode). Both environment copies deleted 2026-10-10 so the repository-level copy applies; run re-queued. **(owner)** Download a fresh Developer ID profile from the developer portal as a binary file; the agent checks it with `security cms -D` before setting it in `beta` and `release`.
 - [ ] Verify `release` (next release), `appstore` (trial upload, `ref=master`) and `hosting` (next `site/` change); then, with the owner's go, delete the repository-level copies and the old Firebase key (plan Task 5).
+- [ ] Phase 1.5, plan Task 2: create the `timetug-site` Firebase site and connect `timetug.binarycompanion.com` (needs the Squarespace DNS records). **(owner)** `gcloud auth login scott@obryan.cloud` and `firebase login:add scott@obryan.cloud`, and `az login` when Task 5 starts.
 
 ## Owner checklist by phase
 
@@ -59,8 +61,9 @@ Agents keep this list current; the owner checks items off (or tells an agent to)
 - [ ] After one beta and one release run green from environments, delete the repository-level copies.
 
 ### 1.5 Domain and branding
-- [ ] Confirm ownership of `binarycompanions.com` and DNS access.
-- [ ] Verify `binarycompanions.com` in Google Search Console as an owner of the OAuth project.
+- [x] Confirm ownership of `binarycompanion.com` and DNS access. Verified 2026-10-10: registered at Squarespace Domains, DNS at Squarespace, expires 2028-10-02 (the spec's earlier spelling with an "s" was wrong).
+- [ ] Add the `timetug` DNS records at Squarespace (plan Task 2) and sign `scott@obryan.cloud` in to `gcloud` and `firebase`.
+- [ ] Verify `binarycompanion.com` in Google Search Console as an owner of the OAuth project.
 - [ ] Create the Binary Companion Microsoft partner (Partner Center) company account; get a D-U-N-S number if Binary Companion has none.
 - [ ] Microsoft Entra: update homepage, terms and privacy URLs (after the new site is live).
 - [ ] Microsoft Entra: verify the publisher domain, then re-run publisher verification with the Binary Companion partner ID.
@@ -101,6 +104,7 @@ Append one line per session: date, what was done, what is next.
 - 2026-10-09 (later still): Owner chose approach A. Spec updated with the six Spike S recommendations (`.gitattributes`, `--show-bin-path`, parsed-JSON fixtures, proxy note, runtime size and x64 risks). Sparkle public key confirmed by the owner. Next: phase A plan, then phase 1.5.
 
 - 2026-10-10: Phase A: environments `beta`/`hosting` created, `release` admin bypass off; all values entered by the agent from local files (Developer ID certificate exported by the owner; notary key `L57LKGZZZ4`, App Store key `RGSA38Z6TF`); code PR with the contract test, `environment:` lines and docs. Next: owner merges, then verification runs and deletion of repository-level copies.
+- 2026-10-10 (evening): PR 75 merged. The first `Beta` run from the environment failed at signing: the provisioning profile copied into `beta` and `release` came from a damaged download. Both environment copies were deleted (the repository-level copy still applies) and the run re-queued. Lesson: decode every file-derived value locally before setting it. The domain is `binarycompanion.com` (no "s"); the phase 1.5 plan is written (`2026-10-10-phase-1-5-domain-and-branding.md`), and the old domain stays on the existing site and becomes redirect-only (ruling R2).
 
 ## Where each secret comes from
 
@@ -110,7 +114,7 @@ GitHub never shows a secret's value again, so each value is re-entered from its 
 |---|---|---|
 | `SPARKLE_PRIVATE_KEY` | Login keychain item (service `https://sparkle-project.org`, account `ed25519`, created 2026-09-20); export with Sparkle's `generate_keys -x <file>` | Must not be recreated: installed apps trust only this key's public half (`SUPublicEDKey` in `Apps/macOS/project.yml`). Recover the GitHub copy with a one-time, `release`-gated workflow that encrypts it to an `age` public key the owner holds and uploads only the ciphertext |
 | `MACOS_CERTIFICATE_P12_BASE64`, `MACOS_CERTIFICATE_PASSWORD` | Developer ID Application certificate, exported from Keychain Access as `.p12` | Issue a new Developer ID certificate in the Apple developer portal (same Team ID, so updates and the keychain group keep working) |
-| `MACOS_PROVISIONING_PROFILE_BASE64` | Developer ID provisioning profile from the developer portal | Download again (regenerate it if the certificate changed) |
+| `MACOS_PROVISIONING_PROFILE_BASE64` | Developer ID provisioning profile from the developer portal, downloaded as a binary file. Before setting, check it: `security cms -D -i FILE >/dev/null` must succeed and `com.apple.application-identifier` must be `<team>.com.timetug.app`. The copy in `~/Downloads/TimeTug_Developer_ID.provisionprofile` is damaged (U+FFFD bytes, 2026-10-07) and must not be used | Download again (regenerate it if the certificate changed) |
 | `NOTARY_API_KEY_P8_BASE64`, `NOTARY_API_KEY_ID`, `NOTARY_API_ISSUER_ID` | App Store Connect API key (the `.p8` downloads once) | Revoke and create a new key |
 | `APPLE_TEAM_ID` | Developer portal, Membership | Look it up (not sensitive) |
 | `GOOGLE_OAUTH_CLIENT_ID`, `GOOGLE_OAUTH_CLIENT_SECRET` | `~/.config/timetug/google-oauth.xcconfig` and the Google Cloud console | Add a new client secret in the console; signed-in users are unaffected |
