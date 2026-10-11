@@ -144,7 +144,7 @@ Run: `node --test site/tests/site.test.js`. Expected: FAIL (no `timetug-site` en
 - [ ] Merge the PR. Expected: `Deploy to Firebase Hosting on merge` runs in the `hosting` environment and updates both sites.
 - [ ] Verify every old URL: `for p in / /privacy /terms /appcast.xml /img/social-preview.jpg; do curl -sI https://timetug.obryan.cloud$p | grep -i -E "^HTTP|^location"; done`. Expected: `301` and the matching `https://timetug.binarycompanion.com...` location.
 - [ ] Verify the new pages and headers: `curl -sI https://timetug.binarycompanion.com/privacy` shows 200 and the Content-Security-Policy header.
-- [ ] **(owner, other site)** Change the link on the `binarycompanion.com` homepage from `https://timetug.obryan.cloud` to `https://timetug.binarycompanion.com` (that site is in the `obryan.cloud` Workspace Firebase project).
+- [ ] In `binary-companion/website` (Task 8), change the TimeTug link in `public/index.html` from `https://timetug.obryan.cloud` to `https://timetug.binarycompanion.com`; the push to `main` deploys it.
 
 ### Task 5: Microsoft (Entra)
 
@@ -169,6 +169,17 @@ State on 2026-10-10: not publisher verified, no branding URLs (see Facts). Verif
 
 - [ ] **(owner)** App Store Connect: privacy policy, support and marketing URLs to the new domain (editable at any time).
 - [ ] Update README, `SECURITY.md`, CODEOWNERS contacts and the release-notes link base to the new domain and contact; one PR.
+
+### Task 8: Put the Binary Companion website under version control (added 2026-10-10)
+
+The apex site had been deployed from the Firebase console, with no source repository. Its `index.html` and the three other files the owner supplied are byte-identical to what is live (6 files in the live version, 2 of them Firebase's reserved `/__/firebase/*`; the live version's `config` is empty).
+
+- [x] Repository `binary-companion/website` (public, so the `production` environment's branch limit works on a free plan), created 2026-10-10. Layout: `public/` (site), `firebase.json` (site `binary-companion`, `public`), `.firebaserc`, `.gitattributes`, `README.md`, `.github/{workflows/deploy.yml,dependabot.yml,CODEOWNERS}`.
+- [x] `firebase init` was not run; its output is two small files, written by hand and checked with `firebase deploy --only hosting --project binary-companion --dry-run` against the existing project ("Dry run complete").
+- [x] Deployment without a stored key: Workload Identity Federation in project `binary-companion` (pool `github`, provider `website`, accepting only `repo == binary-companion/website` and `environment == production`), service account `website-deploy@binary-companion.iam.gserviceaccount.com` with `roles/firebasehosting.admin` and `roles/serviceusage.serviceUsageConsumer`. The `production` environment runs only from `main`. No secrets exist for this repository.
+- [ ] Verify: the first push-to-deploy run succeeds and `https://binarycompanion.com` and `https://binary-companion.web.app` still answer 200 with unchanged `index.html`.
+- [ ] Phase 0 follow-ups for this repository: organization ruleset (owner-only merges to `main`), add it to the audit script, add the code-index workflow if wanted.
+- [ ] **(owner)** If a different repository name is preferred (for example `binarycompanion.com`), rename it in GitHub; the Workload Identity condition names `binary-companion/website` and must be updated with it.
 
 ## Done when
 
