@@ -65,14 +65,15 @@ Agents keep this list current; the owner checks items off (or tells an agent to)
 ### 1.5 Domain and branding
 - [x] Confirm ownership of `binarycompanion.com` and DNS access. Verified 2026-10-10: registered at Squarespace Domains, DNS at Squarespace, expires 2028-10-02 (the spec's earlier spelling with an "s" was wrong).
 - [ ] Add the `timetug` DNS records at Squarespace (plan Task 2) and sign `scott@obryan.cloud` in to `gcloud` and `firebase`.
-- [ ] Verify `binarycompanion.com` in Google Search Console as an owner of the OAuth project.
+- [x] Verify `binarycompanion.com` in Google Search Console as an owner of the OAuth project (done 2026-10-11 from `darkarena@gmail.com`).
 - [ ] Enroll Binary Companion in the Microsoft AI Cloud Partner Program as `sobryan@binarycompanion.com` (sign in with it; do not use "Create work account"); get a D-U-N-S number if Binary Companion has none; business verification is the slow step. Then give the agent the Partner Global Account ID (not the location ID).
 - [x] Microsoft Entra: choose the tenant (existing "Default Directory"; ruling R6, 2026-10-10).
 - [x] Microsoft Entra: `binarycompanion.com` verified on the tenant (2026-10-10, TXT at Squarespace).
 - [x] Microsoft Entra: work user `sobryan@binarycompanion.com` created 2026-10-10 (password changed by the owner at first sign-in; roles Application Administrator and, for enrollment, Global Administrator, to be removed once enrollment is Active).
 - [x] Microsoft Entra: update homepage, terms and privacy URLs and the logo (done 2026-10-10 after the cutover; read back with Graph).
 - [ ] Microsoft Entra: verify the publisher domain, then re-run publisher verification with the Binary Companion partner ID.
-- [ ] Google: one bundled brand edit and submit for verification; remove `obryan.cloud` from Authorized domains after approval.
+- [x] Google: bundled brand edit saved, verified and published 2026-10-11 (new URLs live on the consent screen).
+- [ ] Google: remove `obryan.cloud` from Authorized domains (approval arrived; waits for the owner's go and the old-domain redirect).
 - [ ] App Store Connect: update the privacy, support and marketing URLs.
 
 ### 0 Organization move
@@ -114,6 +115,7 @@ Append one line per session: date, what was done, what is next.
 - 2026-10-10 (night, later): Owner supplied the Binary Companion website source (the apex site was deployed from the console and had no repository). Created `binary-companion/website` (public), key-free Firebase deploy through Workload Identity Federation in project `binary-companion`, `production` environment limited to `main`. Phase 1.5 plan Task 8.
 - 2026-10-11: Owner chose to host TimeTug's website in Firebase under the `obryan.cloud` account. Sites `timetug-site` and `timetug-redirect` created in project `binary-companion`; federated deploy identity `timetug-deploy` (provider `timetug`); PR 79 rewritten to deploy key-free; `timetug-site` deployed manually and domain `timetug.binarycompanion.com` added (needs one CNAME). `binary-companion/website` deployed key-free (first run green, both URLs unchanged).
 - 2026-10-10 (night, later): Owner approved the existing Entra tenant as Binary Companion's Microsoft identity (R6). `binarycompanion.com` added to the tenant as an unverified custom domain; its verification TXT is recorded in plan Task 5 and needs adding at Squarespace (blocked on the Google step-up sign-in). HTTPS on `timetug.binarycompanion.com` is serving; certificate still propagating at some edges. PR 79 merged by the owner; first key-free deploy from `hosting` succeeded and the new pages, headers and redirect rules were verified. Entra branding URLs and logo set. Still open: move `timetug.obryan.cloud` to `timetug-redirect`, merge `binary-companion/website` PR 1, delete the obsolete Firebase key and secret.
+- 2026-10-11: Google done at the owner's go: `binarycompanion.com` verified in Search Console (TXT at `@`, keep it), Authorized domains now list both domains, and the bundled brand edit (home, privacy, terms URLs; developer contact `sobryan@binarycompanion.com` added) verified and published. User support email stays `darkarena@gmail.com` (the field only offers the signed-in account's addresses). Remaining for Google: remove `obryan.cloud` from Authorized domains after the old-domain redirect works.
 
 ## Where each secret comes from
 
