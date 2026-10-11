@@ -49,7 +49,7 @@ Take the newest stable tag (`v*` with no suffix) as `X.Y.Z`, then:
 Never reuse a burned tag (see below).
 
 ## Channels and versioning
-Installed apps update through Sparkle from one feed, `https://darkarena1.github.io/timetug/appcast.xml` (`SUFeedURL` in `Apps/macOS/project.yml`). Items in it are either stable or on the `beta` channel; a user sees beta items only after turning on Settings > General > Software Update > Beta updates.
+Installed apps update through Sparkle from one feed, `https://timetug.binarycompanion.com/appcast.xml` (`SUFeedURL` in `Apps/macOS/project.yml`). That address answers 301 to the Pages feed at `https://binary-companion.github.io/timetug/appcast.xml` (`site/firebase.json`), so a later move only changes the redirect. Copies released before 2026-10-11 still ask `https://darkarena1.github.io/timetug/appcast.xml`, which the `darkarena1/darkarena1.github.io` mirror serves; keep that repository. Items in it are either stable or on the `beta` channel; a user sees beta items only after turning on Settings > General > Software Update > Beta updates.
 
 | | Display version (`CFBundleShortVersionString`) | Build number (`CFBundleVersion`) |
 | --- | --- | --- |
@@ -235,7 +235,7 @@ Workflows use `runs-on: macos-26` (the hosted image with Xcode 26 or newer). If 
 - Betas are the exception: they need no approval, and only run for commits merged to `master` that passed CI.
 
 ## Troubleshooting
-- **"Check for Updates" finds nothing or errors.** Open `https://darkarena1.github.io/timetug/appcast.xml` in a browser. A 404 means Pages is not enabled or `gh-pages` has no `appcast.xml` yet. To test a different feed locally, `defaults write com.timetug.app SUFeedURL <url>`, and remove it afterwards with `defaults delete com.timetug.app SUFeedURL`.
+- **"Check for Updates" finds nothing or errors.** Open `https://timetug.binarycompanion.com/appcast.xml` in a browser (it redirects to `https://binary-companion.github.io/timetug/appcast.xml`). A 404 means Pages is not enabled or `gh-pages` has no `appcast.xml` yet. To test a different feed locally, `defaults write com.timetug.app SUFeedURL <url>`, and remove it afterwards with `defaults delete com.timetug.app SUFeedURL`.
 - **`sign_update` fails or the workflow says it could not read edSignature.** `SPARKLE_PRIVATE_KEY` is missing, empty or not the key from `generate_keys -x`. The secret holds the file contents.
 - **The app rejects an update (signature error).** The private key that signed the zip does not match `SUPublicEDKey` in the installed app.
 - **A user is not offered a beta.** Beta updates is off (Settings > General); their installed build number is not lower than the beta's; the beta was pruned (only the newest 5 are kept); or the appcast step failed after the release was published (check the `Beta` run).

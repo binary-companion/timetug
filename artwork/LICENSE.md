@@ -15,7 +15,7 @@ may be redistributed without permission. This is independent of the source code'
 governs only the code and withholds only the right to sell it; it does not grant a right to redistribute the
 artwork. Forks must replace the artwork and name before distributing their own builds.
 
-To ask for permission, open an issue at https://github.com/darkarena1/timetug/issues.
+To ask for permission, open an issue at https://github.com/binary-companion/timetug/issues.
 
 The DMG installer background (`scripts/release/dmg/background.png`, `background@2x.png` and the script that
 generates them) is TimeTug brand artwork and is covered by this all-rights-reserved notice, not by the source
