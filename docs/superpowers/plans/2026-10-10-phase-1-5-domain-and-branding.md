@@ -145,7 +145,7 @@ State on 2026-10-10: not publisher verified, no branding URLs (see Facts). Verif
 - [x] Search Console: `binarycompanion.com` added as a **Domain** property under `darkarena@gmail.com` and verified (2026-10-11) with a TXT at `@`; the existing `google-site-verification` TXT stays. The record must stay or ownership is lost.
 - [x] Added `binarycompanion.com` under *Google Auth Platform > Branding > Authorized domains*; `obryan.cloud` kept until approval.
 - [x] Bundled edit saved, verified and published (2026-10-11, verification took under a minute and the console reported "Your branding has been verified and is being shown to users"): homepage `https://timetug.binarycompanion.com/`, privacy policy `…/privacy`, terms `…/terms`, developer contact `darkarena@gmail.com` plus `sobryan@binarycompanion.com`. The **user support email** stays `darkarena@gmail.com`: that field only offers addresses of the signed-in Google account, so a `binarycompanion.com` address needs a Google Workspace or Google Account for it first.
-- [ ] Remove `obryan.cloud` from Authorized domains (approval has arrived; waits for the owner's go and for the old-domain redirect to be confirmed).
+- [x] Removed `obryan.cloud` from Authorized domains (2026-10-11, at the owner's go, after the old-domain redirect was verified). Only `binarycompanion.com` is listed; the console still reported the branding as verified and shown to users after the save, so no new review was triggered.
 
 ### Task 7: Apple and the repository
 
