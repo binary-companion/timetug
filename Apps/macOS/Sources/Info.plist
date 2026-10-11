@@ -29,7 +29,7 @@
 	<key>SUEnableInstallerLauncherService</key>
 	<true/>
 	<key>SUFeedURL</key>
-	<string>https://darkarena1.github.io/timetug/appcast.xml</string>
+	<string>https://timetug.binarycompanion.com/appcast.xml</string>
 	<key>SUPublicEDKey</key>
 	<string>QZXAO2hdupCAJzVJV0wqKHw3VPTjLDhQPGjJZDBlkzo=</string>
 	<key>TimeTugGoogleClientID</key>

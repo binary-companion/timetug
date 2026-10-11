@@ -4,8 +4,8 @@ const fs = require('node:fs');
 const vm = require('node:vm');
 
 const source = fs.readFileSync('site/public/download.js', 'utf8');
-const fallback = 'https://github.com/darkarena1/timetug/releases/latest';
-const valid = 'https://github.com/darkarena1/timetug/releases/download/v1.3.0/TimeTug-1.3.0.dmg';
+const fallback = 'https://github.com/binary-companion/timetug/releases/latest';
+const valid = 'https://github.com/binary-companion/timetug/releases/download/v1.3.0/TimeTug-1.3.0.dmg';
 
 async function resolve(assets, options = {}) {
   const download = { href: fallback };
@@ -31,11 +31,11 @@ test('accepts a signed DMG from the expected repository', async () => {
 
 test('skips unsigned assets and untrusted download URLs', async () => {
   const blocked = [
-    'https://github.com.evil.test/darkarena1/timetug/releases/download/v1/file.dmg',
+    'https://github.com.evil.test/binary-companion/timetug/releases/download/v1/file.dmg',
     'https://github.com/other/timetug/releases/download/v1/file.dmg',
     'javascript:alert(1)',
     'file:///tmp/file.dmg',
-    'https://user:pass@github.com/darkarena1/timetug/releases/download/v1/file.dmg'
+    'https://user:pass@github.com/binary-companion/timetug/releases/download/v1/file.dmg'
   ];
   for (const url of blocked) {
     assert.equal(await resolve([{ name: 'TimeTug-1.3.0.dmg', browser_download_url: url }]), fallback, url);

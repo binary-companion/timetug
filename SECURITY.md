@@ -2,7 +2,7 @@
 
 ## Reporting a vulnerability
 Please report vulnerabilities privately using GitHub's "Report a vulnerability" button on the
-[Security tab](https://github.com/darkarena1/timetug/security/advisories/new) (private advisories).
+[Security tab](https://github.com/binary-companion/timetug/security/advisories/new) (private advisories).
 If you cannot use GitHub, email [sobryan@binarycompanion.com](mailto:sobryan@binarycompanion.com).
 Do not open a public issue for security problems. You can expect an acknowledgement within a few days.
 

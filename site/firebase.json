@@ -42,7 +42,7 @@
       "redirects": [
         {
           "source": "/appcast.xml",
-          "destination": "https://darkarena1.github.io/timetug/appcast.xml",
+          "destination": "https://binary-companion.github.io/timetug/appcast.xml",
           "type": 301
         }
       ]

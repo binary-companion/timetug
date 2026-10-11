@@ -62,7 +62,7 @@ test('the content site answers /appcast.xml with a 301 to the current feed', () 
   const rule = content.redirects.find(candidate => candidate.source === '/appcast.xml');
   assert.ok(rule, 'missing /appcast.xml rule');
   assert.equal(rule.type, 301);
-  assert.equal(rule.destination, 'https://darkarena1.github.io/timetug/appcast.xml');
+  assert.equal(rule.destination, 'https://binary-companion.github.io/timetug/appcast.xml');
 });
 
 test('pages name the new domain and no longer name the old one', () => {

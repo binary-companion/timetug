@@ -1,7 +1,7 @@
 // Release assets have versioned names, so resolve the current stable DMG when the page loads.
 const download = document.querySelector('[data-latest-dmg]');
 if (download) {
-  fetch('https://api.github.com/repos/darkarena1/timetug/releases/latest', {
+  fetch('https://api.github.com/repos/binary-companion/timetug/releases/latest', {
     headers: { Accept: 'application/vnd.github+json' }
   })
     .then(response => {
@@ -25,8 +25,8 @@ function isTrustedDownloadURL(value) {
       url.hostname === 'github.com' &&
       !url.username && !url.password &&
       url.port === '' &&
-      url.pathname.startsWith('/darkarena1/timetug/releases/download/') &&
-      url.pathname.length > '/darkarena1/timetug/releases/download/'.length;
+      url.pathname.startsWith('/binary-companion/timetug/releases/download/') &&
+      url.pathname.length > '/binary-companion/timetug/releases/download/'.length;
   } catch {
     return false;
   }

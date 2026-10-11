@@ -124,7 +124,7 @@ targets:
     info:
       path: Sources/Info.plist
       properties:
-        SUFeedURL: https://darkarena1.github.io/timetug/appcast.xml
+        SUFeedURL: https://timetug.binarycompanion.com/appcast.xml
         SUPublicEDKey: QZXAO2hdupCAJzVJV0wqKHw3VPTjLDhQPGjJZDBlkzo=
         SUEnableAutomaticChecks: true
         SUEnableInstallerLauncherService: true

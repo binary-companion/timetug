@@ -4,7 +4,7 @@
 
 # TimeTug
 
-[![CI](https://github.com/darkarena1/timetug/actions/workflows/ci.yml/badge.svg?branch=master)](https://github.com/darkarena1/timetug/actions/workflows/ci.yml)
+[![CI](https://github.com/binary-companion/timetug/actions/workflows/ci.yml/badge.svg?branch=master)](https://github.com/binary-companion/timetug/actions/workflows/ci.yml)
 [![License: MIT + Commons Clause](https://img.shields.io/badge/license-MIT%20%2B%20Commons%20Clause-blue.svg)](LICENSE)
 
 A tug when time needs your attention. TimeTug lives in your macOS menu bar, lists today's meetings,
@@ -56,7 +56,7 @@ With [Homebrew](https://brew.sh):
 brew install --cask digital-companion-llc/tap/timetug
 ```
 
-Or download the `.dmg` from the [Releases page](https://github.com/darkarena1/timetug/releases), open it and drag
+Or download the `.dmg` from the [Releases page](https://github.com/binary-companion/timetug/releases), open it and drag
 TimeTug onto the Applications shortcut. Until Apple Developer signing is set up, releases are unsigned
 prereleases: the first time, right-click TimeTug and choose Open. If macOS says the app is damaged, run
 `xattr -dr com.apple.quarantine /Applications/TimeTug.app`.
