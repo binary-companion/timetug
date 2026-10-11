@@ -20,6 +20,9 @@
 | The apex site `binary-companion` is a Firebase Hosting site in a project under the `obryan.cloud` Google Workspace (`scott@obryan.cloud`), not in the `timetug` project. It is titled "Binary Companion, LLC — Technical Consulting", lists `sobryan@binarycompanion.com` as contact, and links to `https://timetug.obryan.cloud`. | live page, `firebase hosting:sites:list --project timetug` shows only `timetug` |
 | `timetug.obryan.cloud` is `CNAME timetug.web.app`; project `timetug` (number 591041424232) is owned by `darkarena@gmail.com`, which is signed in to `gcloud` and `firebase` on this Mac. `scott@obryan.cloud` is registered in `gcloud` but its token needs a fresh interactive sign-in. | CLI output |
 | `/.well-known/microsoft-identity-association.json` does not exist on the apex yet (404). | `curl` |
+| The Entra `TimeTug` registration (appId `f05c1d1f-55cb-4a2d-bf7e-65db87d23099`) has **no verified publisher**, empty marketing/privacy/terms/support URLs, publisher domain `darkarenagmail.onmicrosoft.com`, no owners listed; the signed-in `az` user (`darkarena@gmail.com`) is Global Administrator of the only tenant ("Default Directory", initial domain only). This contradicts the earlier assumption that the app was publisher-verified. | `az ad app show`, Graph `/organization` (2026-10-10) |
+| Creating a Hosting site returns 403 for the Owner while `validateOnly` passes; the Firebase console shows an unaccepted "Firebase Terms and Conditions" dialog on `timetug`. Accepting terms is the owner's decision. | CLI debug log, console |
+| The Google Cloud project `binary-companion` exists under `scott@obryan.cloud` (the apex site's project). | `gcloud projects list` |
 
 ## Rulings
 
@@ -122,86 +125,7 @@ Expected: the Firebase address, then `HTTP/2 200` once the certificate is issued
 
 **Interfaces:** `site/firebase.json` becomes an array of two hosting entries: `timetug-site` (content from `public`) and `timetug` (redirects only, from `legacy`).
 
-- [ ] **Step 1: Write the failing test** `site/tests/site.test.js`:
-
-```js
-const test = require('node:test');
-const assert = require('node:assert/strict');
-const fs = require('node:fs');
-const path = require('node:path');
-
-const config = JSON.parse(fs.readFileSync('site/firebase.json', 'utf8'));
-const entries = Array.isArray(config.hosting) ? config.hosting : [config.hosting];
-const NEW = 'https://timetug.binarycompanion.com';
-const content = entries.find(entry => entry.site === 'timetug-site');
-const legacy = entries.find(entry => entry.site === 'timetug');
-
-function matches(source, requestPath) {
-  if (source === '/**') return true;
-  const want = source.split('/').filter(Boolean);
-  const have = requestPath.split('/').filter(Boolean);
-  return want.length === have.length && want.every(part => part.startsWith(':') || part === have[0 + want.indexOf(part)]);
-}
-
-function redirectFor(requestPath) {
-  const rule = legacy.redirects.find(candidate => matches(candidate.source, requestPath));
-  if (!rule) return null;
-  let destination = rule.destination;
-  const names = rule.source.split('/').filter(part => part.startsWith(':'));
-  const values = requestPath.split('/').filter(Boolean);
-  names.forEach((name, index) => { destination = destination.replace(name, values[index]); });
-  return { type: rule.type, location: destination };
-}
-
-test('two hosting entries: content on timetug-site, redirects on timetug', () => {
-  assert.ok(content && legacy);
-  assert.equal(content.public, 'public');
-  assert.equal(legacy.public, 'legacy');
-  assert.equal(content.redirects?.some(rule => rule.source === '/**'), false);
-});
-
-test('every old URL answers 301 with the matching new URL', () => {
-  const paths = ['/', '/privacy', '/terms', '/style.css', '/download.js', '/favicon.ico',
-    '/img/social-preview.jpg', '/img/app-icon-256.png', '/appcast.xml',
-    '/.well-known/microsoft-identity-association.json'];
-  for (const requestPath of paths) {
-    const result = redirectFor(requestPath);
-    assert.ok(result, `no rule for ${requestPath}`);
-    assert.equal(result.type, 301, requestPath);
-    assert.equal(result.location, NEW + requestPath, requestPath);
-  }
-  assert.equal(redirectFor('/a/b/c/d/e').location, NEW + '/');
-});
-
-test('the content site answers /appcast.xml with a 301 to the current feed', () => {
-  const rule = content.redirects.find(candidate => candidate.source === '/appcast.xml');
-  assert.equal(rule.type, 301);
-  assert.equal(rule.destination, 'https://darkarena1.github.io/timetug/appcast.xml');
-});
-
-test('pages name the new domain and no longer name the old one', () => {
-  for (const name of ['index', 'privacy', 'terms']) {
-    const html = fs.readFileSync(path.join('site/public', `${name}.html`), 'utf8');
-    assert.equal(/obryan\.cloud/.test(html), false, `${name}.html still names obryan.cloud`);
-    assert.ok(html.includes(`${NEW}/`) || html.includes(`${NEW}/${name}`), `${name}.html canonical`);
-  }
-});
-
-test('privacy policy and homepage link to each other', () => {
-  const home = fs.readFileSync('site/public/index.html', 'utf8');
-  const privacy = fs.readFileSync('site/public/privacy.html', 'utf8');
-  assert.match(home, /href="\/?privacy"/);
-  assert.match(privacy, /href="\/"|href="\/index"|href="https:\/\/timetug\.binarycompanion\.com\/"/);
-});
-
-test('contacts use the Binary Companion address', () => {
-  for (const name of ['index', 'privacy', 'terms']) {
-    const html = fs.readFileSync(path.join('site/public', `${name}.html`), 'utf8');
-    assert.equal(/darkarena@gmail\.com/.test(html), false, name);
-    assert.ok(html.includes('sobryan@binarycompanion.com'), name);
-  }
-});
-```
+- [x] **Step 1: Test** `site/tests/site.test.js` (see the file; PR 79): redirect matching for 1 to 3 segments and the root fallback, appcast rule, canonical and `og:` tags, contacts, operator wording.
 
 Run: `node --test site/tests/site.test.js`. Expected: FAIL (no `timetug-site` entry; pages still name `obryan.cloud`).
 
@@ -224,12 +148,15 @@ Run: `node --test site/tests/site.test.js`. Expected: FAIL (no `timetug-site` en
 
 ### Task 5: Microsoft (Entra)
 
-- [ ] **(owner)** `az login`, as in "Access for Entra".
-- [ ] Read the app registration: `az ad app list --display-name TimeTug --query "[].{id:id,appId:appId,publisher:publisherDomain,verified:verifiedPublisher}"`.
-- [ ] Update branding through Graph (`PATCH /applications/{id}` with `info.marketingUrl`, `info.privacyStatementUrl`, `info.termsOfServiceUrl`, `info.supportUrl`), and the logo with `PUT /applications/{id}/logo`. These apply immediately; no review.
-- [ ] **(owner)** Create the Binary Companion partner account in Partner Center using `sobryan@binarycompanion.com` (the publisher domain must match the account's email domain); a D-U-N-S number speeds verification.
-- [ ] Host `https://binarycompanion.com/.well-known/microsoft-identity-association.json` with `{"associatedApplications":[{"applicationId":"<client id>"}]}` as `application/json`. That path is on the apex site in the `obryan.cloud` project, so it needs the `scott@obryan.cloud` sign-in above. If Microsoft accepts the subdomain as the publisher domain, host it in `site/public/.well-known/` instead and keep it out of the redirect rules.
-- [ ] **(owner)** In the portal: *Branding & properties > Publisher domain > verify*, then *Add MPN ID to verify publisher* with the new partner ID.
+State on 2026-10-10: not publisher verified, no branding URLs (see Facts). Verification is therefore first-time, and there is no badge to lose.
+
+- [x] **(owner)** `az login` (done 2026-10-10; Azure CLI 2.91.0).
+- [x] Read the app registration (read-only; findings above).
+- [ ] After the Task 4 cutover, set branding through Graph: `az rest --method PATCH --url https://graph.microsoft.com/v1.0/applications/824b80ba-0339-4344-9d66-81f07e9f3fd4 --body '{"info":{"marketingUrl":"https://timetug.binarycompanion.com/","privacyStatementUrl":"https://timetug.binarycompanion.com/privacy","termsOfServiceUrl":"https://timetug.binarycompanion.com/terms","supportUrl":"https://timetug.binarycompanion.com/"}}'`, then the logo with `PUT /applications/{id}/logo` (`artwork/Branding/timetug-app-icon-1024.png`, resized). Read back with `az ad app show` and confirm.
+- [ ] **(owner)** Create the Binary Companion partner account in Partner Center using `sobryan@binarycompanion.com`; a D-U-N-S number speeds verification.
+- [ ] Add `binarycompanion.com` to the tenant as a custom domain (`POST /domains`), fetch `verificationDnsRecords`, and give the owner the TXT record for Squarespace; then `POST /domains/binarycompanion.com/verify`. Fallback if the tenant route is refused: host `/.well-known/microsoft-identity-association.json` (`{"associatedApplications":[{"applicationId":"f05c1d1f-55cb-4a2d-bf7e-65db87d23099"}]}`, content type `application/json`) in `site/public/.well-known/` and keep it out of the redirect rules.
+- [ ] **(owner)** In the portal: *Branding & properties*, set the publisher domain, then *Add MPN ID to verify publisher* with the new partner ID.
+- [ ] Verify: `az ad app show` shows `verifiedPublisher.displayName`; a fresh Microsoft sign-in shows the verified publisher and no "unverified" warning.
 
 ### Task 6: Google
 

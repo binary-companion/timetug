@@ -20,7 +20,7 @@ Status values: `not started`, `planning`, `in progress`, `blocked` (say on what)
 |---|---|---|---|---|
 | S Spike: Swift on Windows | done; approach A confirmed 2026-10-09 | spec section 9 | [plan](2026-10-09-windows-spike-s.md) | [findings](../../spikes/2026-10-09-swift-on-windows.md) |
 | A Secrets into environments (standalone, Mac repo) | in progress: code merged (PR 75); `beta` and `release` use the repository-level provisioning profile until a fresh one is uploaded; verification and deletion pending | spec section 8 | [plan](2026-10-09-phase-a-secrets-into-environments.md) | |
-| 1.5 Domain and branding | planning: domain spelling corrected, facts and plan written | spec section 1.5 | [plan](2026-10-10-phase-1-5-domain-and-branding.md) | |
+| 1.5 Domain and branding | in progress: site PR 79 (draft) ready; blocked on creating the Firebase site (terms dialog) | spec section 1.5 | [plan](2026-10-10-phase-1-5-domain-and-branding.md) | |
 | 0 Organization move and hardening | not started | spec sections 1 and 8 | to write | |
 | 1 `calendar-connectors` repository | not started | spec section 1 | to write | |
 | 2 `timetug-shared` repository | not started | spec section 1 | to write | |
@@ -48,7 +48,10 @@ Order: S first. A and 1.5 can run alongside S. Phase 0 needs the 1.5 domain live
 - [x] **(owner)** Squash-merged the phase A PR (PR 75, 2026-10-10).
 - [ ] Beta run `38096181528` failed because the `MACOS_PROVISIONING_PROFILE_BASE64` copy in `beta` and `release` was damaged (the file in Downloads contains U+FFFD replacement bytes and does not decode). Both environment copies deleted 2026-10-10 so the repository-level copy applies; run re-queued. **(owner)** Download a fresh Developer ID profile from the developer portal as a binary file; the agent checks it with `security cms -D` before setting it in `beta` and `release`.
 - [ ] Verify `release` (next release), `appstore` (trial upload, `ref=master`) and `hosting` (next `site/` change); then, with the owner's go, delete the repository-level copies and the old Firebase key (plan Task 5).
-- [ ] Phase 1.5, plan Task 2: create the `timetug-site` Firebase site and connect `timetug.binarycompanion.com` (needs the Squarespace DNS records). **(owner)** `gcloud auth login scott@obryan.cloud` and `firebase login:add scott@obryan.cloud`, and `az login` when Task 5 starts.
+- [ ] **(owner)** Accept the "Firebase Terms and Conditions" dialog in the Firebase console for project `timetug` (blocks creating `timetug-site`; the agent did not accept it).
+- [ ] Phase 1.5, plan Task 2: create `timetug-site`, deploy, connect `timetug.binarycompanion.com`, give the owner the Squarespace DNS records. Then mark PR 79 ready and merge (cutover).
+- [ ] **(owner)** Fresh Developer ID provisioning profile (binary download) for `beta` and `release`.
+- [ ] The Microsoft app has no verified publisher and no branding URLs (measured 2026-10-10); Task 5 in the phase 1.5 plan covers it. **(owner)** starts the Partner Center account.
 
 ## Owner checklist by phase
 
@@ -64,7 +67,7 @@ Agents keep this list current; the owner checks items off (or tells an agent to)
 - [x] Confirm ownership of `binarycompanion.com` and DNS access. Verified 2026-10-10: registered at Squarespace Domains, DNS at Squarespace, expires 2028-10-02 (the spec's earlier spelling with an "s" was wrong).
 - [ ] Add the `timetug` DNS records at Squarespace (plan Task 2) and sign `scott@obryan.cloud` in to `gcloud` and `firebase`.
 - [ ] Verify `binarycompanion.com` in Google Search Console as an owner of the OAuth project.
-- [ ] Create the Binary Companion Microsoft partner (Partner Center) company account; get a D-U-N-S number if Binary Companion has none.
+- [ ] Create the Binary Companion Microsoft partner (Partner Center) company account with an address at `binarycompanion.com`; get a D-U-N-S number if Binary Companion has none.
 - [ ] Microsoft Entra: update homepage, terms and privacy URLs (after the new site is live).
 - [ ] Microsoft Entra: verify the publisher domain, then re-run publisher verification with the Binary Companion partner ID.
 - [ ] Google: one bundled brand edit and submit for verification; remove `obryan.cloud` from Authorized domains after approval.
@@ -105,6 +108,7 @@ Append one line per session: date, what was done, what is next.
 
 - 2026-10-10: Phase A: environments `beta`/`hosting` created, `release` admin bypass off; all values entered by the agent from local files (Developer ID certificate exported by the owner; notary key `L57LKGZZZ4`, App Store key `RGSA38Z6TF`); code PR with the contract test, `environment:` lines and docs. Next: owner merges, then verification runs and deletion of repository-level copies.
 - 2026-10-10 (evening): PR 75 merged. The first `Beta` run from the environment failed at signing: the provisioning profile copied into `beta` and `release` came from a damaged download. Both environment copies were deleted (the repository-level copy still applies) and the run re-queued. Lesson: decode every file-derived value locally before setting it. The domain is `binarycompanion.com` (no "s"); the phase 1.5 plan is written (`2026-10-10-phase-1-5-domain-and-branding.md`), and the old domain stays on the existing site and becomes redirect-only (ruling R2).
+- 2026-10-10 (night): Beta from the `beta` environment passed end to end (signing, EdDSA from the environment's Sparkle key, publish, appcast) using the repository-level profile. PR 78 merged; site PR 79 opened as a draft. Entra read-only: the app has no verified publisher and no branding URLs. Firebase site creation is blocked by an unaccepted terms dialog (owner's call).
 
 ## Where each secret comes from
 
