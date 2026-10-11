@@ -50,7 +50,7 @@ Order: S first. A and 1.5 can run alongside S. Phase 0 needs the 1.5 domain live
 - [ ] Verify `release` (next release), `appstore` (trial upload, `ref=master`) and `hosting` (next `site/` change); then, with the owner's go, delete the repository-level copies and the old Firebase key (plan Task 5).
 - [ ] **(owner)** Add one DNS record at Squarespace (Domains > binarycompanion.com > DNS Settings): type `CNAME`, host `timetug`, data `timetug-site.web.app`. Then the agent checks the certificate, you mark PR 79 ready and merge (cutover), and the agent moves `timetug.obryan.cloud` to `timetug-redirect`.
 - [ ] **(owner)** Fresh Developer ID provisioning profile (binary download) for `beta` and `release`.
-- [ ] The Microsoft app has no verified publisher and no branding URLs (measured 2026-10-10); Task 5 in the phase 1.5 plan covers it. **(owner)** starts the Partner Center account.
+- [ ] The Microsoft app has no verified publisher and no branding URLs (measured 2026-10-10); Task 5 in the phase 1.5 plan covers it. Owner chose the existing tenant (R6). `binarycompanion.com` is added to it and awaits one TXT record at Squarespace (value in plan Task 5). **(owner)** completes the Squarespace Google step-up sign-in; then the agent verifies the domain and creates `sobryan@binarycompanion.com`, and the owner starts the Partner Center account as that user.
 
 ## Owner checklist by phase
 
@@ -66,8 +66,11 @@ Agents keep this list current; the owner checks items off (or tells an agent to)
 - [x] Confirm ownership of `binarycompanion.com` and DNS access. Verified 2026-10-10: registered at Squarespace Domains, DNS at Squarespace, expires 2028-10-02 (the spec's earlier spelling with an "s" was wrong).
 - [ ] Add the `timetug` DNS records at Squarespace (plan Task 2) and sign `scott@obryan.cloud` in to `gcloud` and `firebase`.
 - [ ] Verify `binarycompanion.com` in Google Search Console as an owner of the OAuth project.
-- [ ] Create the Binary Companion Microsoft partner (Partner Center) company account with an address at `binarycompanion.com`; get a D-U-N-S number if Binary Companion has none.
-- [ ] Microsoft Entra: update homepage, terms and privacy URLs (after the new site is live).
+- [ ] Enroll Binary Companion in the Microsoft AI Cloud Partner Program as `sobryan@binarycompanion.com` (sign in with it; do not use "Create work account"); get a D-U-N-S number if Binary Companion has none; business verification is the slow step. Then give the agent the Partner Global Account ID (not the location ID).
+- [x] Microsoft Entra: choose the tenant (existing "Default Directory"; ruling R6, 2026-10-10).
+- [x] Microsoft Entra: `binarycompanion.com` verified on the tenant (2026-10-10, TXT at Squarespace).
+- [x] Microsoft Entra: work user `sobryan@binarycompanion.com` created 2026-10-10 (password changed by the owner at first sign-in; roles Application Administrator and, for enrollment, Global Administrator, to be removed once enrollment is Active).
+- [x] Microsoft Entra: update homepage, terms and privacy URLs and the logo (done 2026-10-10 after the cutover; read back with Graph).
 - [ ] Microsoft Entra: verify the publisher domain, then re-run publisher verification with the Binary Companion partner ID.
 - [ ] Google: one bundled brand edit and submit for verification; remove `obryan.cloud` from Authorized domains after approval.
 - [ ] App Store Connect: update the privacy, support and marketing URLs.
@@ -110,6 +113,7 @@ Append one line per session: date, what was done, what is next.
 - 2026-10-10 (night): Beta from the `beta` environment passed end to end (signing, EdDSA from the environment's Sparkle key, publish, appcast) using the repository-level profile. PR 78 merged; site PR 79 opened as a draft. Entra read-only: the app has no verified publisher and no branding URLs. Firebase site creation is blocked by an unaccepted terms dialog (owner's call).
 - 2026-10-10 (night, later): Owner supplied the Binary Companion website source (the apex site was deployed from the console and had no repository). Created `binary-companion/website` (public), key-free Firebase deploy through Workload Identity Federation in project `binary-companion`, `production` environment limited to `main`. Phase 1.5 plan Task 8.
 - 2026-10-11: Owner chose to host TimeTug's website in Firebase under the `obryan.cloud` account. Sites `timetug-site` and `timetug-redirect` created in project `binary-companion`; federated deploy identity `timetug-deploy` (provider `timetug`); PR 79 rewritten to deploy key-free; `timetug-site` deployed manually and domain `timetug.binarycompanion.com` added (needs one CNAME). `binary-companion/website` deployed key-free (first run green, both URLs unchanged).
+- 2026-10-10 (night, later): Owner approved the existing Entra tenant as Binary Companion's Microsoft identity (R6). `binarycompanion.com` added to the tenant as an unverified custom domain; its verification TXT is recorded in plan Task 5 and needs adding at Squarespace (blocked on the Google step-up sign-in). HTTPS on `timetug.binarycompanion.com` is serving; certificate still propagating at some edges. PR 79 merged by the owner; first key-free deploy from `hosting` succeeded and the new pages, headers and redirect rules were verified. Entra branding URLs and logo set. Still open: move `timetug.obryan.cloud` to `timetug-redirect`, merge `binary-companion/website` PR 1, delete the obsolete Firebase key and secret.
 
 ## Where each secret comes from
 
