@@ -1,41 +1,82 @@
 {
-  "hosting": {
-    "public": "public",
-    "ignore": [
-      "firebase.json",
-      "**/.*",
-      "**/node_modules/**"
-    ],
-    "cleanUrls": true,
-    "trailingSlash": false,
-    "headers": [
-      {
-        "source": "**",
-        "headers": [
-          {
-            "key": "Content-Security-Policy",
-            "value": "default-src 'self'; script-src 'self'; style-src 'self' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data:; connect-src https://api.github.com; object-src 'none'; frame-src 'none'; base-uri 'self'; form-action 'none'"
-          }
-        ]
-      },
-      {
-        "source": "**/*.@(png|jpg|jpeg|gif|svg|ico)",
-        "headers": [
-          {
-            "key": "Cache-Control",
-            "value": "public, max-age=604800, immutable"
-          }
-        ]
-      },
-      {
-        "source": "/style.css",
-        "headers": [
-          {
-            "key": "Cache-Control",
-            "value": "public, max-age=3600"
-          }
-        ]
-      }
-    ]
-  }
+  "hosting": [
+    {
+      "site": "timetug-site",
+      "public": "public",
+      "ignore": [
+        "firebase.json",
+        "**/.*",
+        "**/node_modules/**"
+      ],
+      "cleanUrls": true,
+      "trailingSlash": false,
+      "headers": [
+        {
+          "source": "**",
+          "headers": [
+            {
+              "key": "Content-Security-Policy",
+              "value": "default-src 'self'; script-src 'self'; style-src 'self' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data:; connect-src https://api.github.com; object-src 'none'; frame-src 'none'; base-uri 'self'; form-action 'none'"
+            }
+          ]
+        },
+        {
+          "source": "**/*.@(png|jpg|jpeg|gif|svg|ico)",
+          "headers": [
+            {
+              "key": "Cache-Control",
+              "value": "public, max-age=604800, immutable"
+            }
+          ]
+        },
+        {
+          "source": "/style.css",
+          "headers": [
+            {
+              "key": "Cache-Control",
+              "value": "public, max-age=3600"
+            }
+          ]
+        }
+      ],
+      "redirects": [
+        {
+          "source": "/appcast.xml",
+          "destination": "https://darkarena1.github.io/timetug/appcast.xml",
+          "type": 301
+        }
+      ]
+    },
+    {
+      "site": "timetug-redirect",
+      "public": "legacy",
+      "redirects": [
+        {
+          "source": "/",
+          "destination": "https://timetug.binarycompanion.com/",
+          "type": 301
+        },
+        {
+          "source": "/:a",
+          "destination": "https://timetug.binarycompanion.com/:a",
+          "type": 301
+        },
+        {
+          "source": "/:a/:b",
+          "destination": "https://timetug.binarycompanion.com/:a/:b",
+          "type": 301
+        },
+        {
+          "source": "/:a/:b/:c",
+          "destination": "https://timetug.binarycompanion.com/:a/:b/:c",
+          "type": 301
+        },
+        {
+          "source": "/**",
+          "destination": "https://timetug.binarycompanion.com/",
+          "type": 301
+        }
+      ]
+    }
+  ]
 }

@@ -147,7 +147,7 @@ Every signing, notarization, Sparkle and OAuth value lives in a GitHub environme
 | `beta` | `beta.yml` | Deployment branch `master` only; no reviewer |
 | `release` | `release.yml` | Branch `master` and tags `v*`; the owner must approve; admin bypass off |
 | `appstore` | `appstore.yml` | Branch `master` and tags `v*`; no reviewer (owner's choice) |
-| `hosting` | `firebase-hosting-merge.yml` | Deployment branch `master` only; no reviewer |
+| `hosting` | `firebase-hosting-merge.yml` | Deployment branch `master` only; no reviewer. Holds no secret: its environment name is the claim Google's Workload Identity Federation checks |
 
 Signing and notarizing a release happens only when ALL six release values are set (the `release` job). Betas are never notarized: they need only `MACOS_CERTIFICATE_P12_BASE64`, `MACOS_CERTIFICATE_PASSWORD`, `APPLE_TEAM_ID` and `SPARKLE_PRIVATE_KEY`, and skip when any of those four is missing.
 
@@ -156,7 +156,7 @@ Signing and notarizing a release happens only when ALL six release values are se
 - `beta`: `MACOS_CERTIFICATE_P12_BASE64`, `MACOS_CERTIFICATE_PASSWORD`, `APPLE_TEAM_ID`, `SPARKLE_PRIVATE_KEY`, `MACOS_PROVISIONING_PROFILE_BASE64`, `GOOGLE_OAUTH_CLIENT_ID`, `GOOGLE_OAUTH_CLIENT_SECRET`, `MICROSOFT_OAUTH_CLIENT_ID`
 - `release`: the same eight, plus `NOTARY_API_KEY_ID`, `NOTARY_API_ISSUER_ID`, `NOTARY_API_KEY_P8_BASE64`
 - `appstore`: `APPSTORE_DISTRIBUTION_CERT_P12`, `APPSTORE_INSTALLER_CERT_P12`, `APPSTORE_CERT_PASSWORD`, `APPSTORE_APP_PROFILE`, `APPSTORE_WIDGET_PROFILE`, `ASC_KEY_P8`, `ASC_KEY_ID`, `ASC_ISSUER_ID`, plus `GOOGLE_OAUTH_CLIENT_ID`, `GOOGLE_OAUTH_CLIENT_SECRET`, `MICROSOFT_OAUTH_CLIENT_ID`
-- `hosting`: `FIREBASE_SERVICE_ACCOUNT_TIMETUG`
+- `hosting`: nothing. The website deploys to Firebase Hosting in project `binary-companion` through GitHub's OIDC identity (Workload Identity Federation, provider `timetug`, service account `timetug-deploy@binary-companion.iam.gserviceaccount.com`); the provider accepts only this repository's `hosting` environment. There is no key to rotate. `FIREBASE_SERVICE_ACCOUNT_TIMETUG` is obsolete and may be deleted
 
 The notarization key (`release`) and the App Store Connect upload key (`appstore`) are different API keys.
 
