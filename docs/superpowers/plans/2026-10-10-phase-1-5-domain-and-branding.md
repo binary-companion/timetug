@@ -142,10 +142,10 @@ State on 2026-10-10: not publisher verified, no branding URLs (see Facts). Verif
 
 ### Task 6: Google
 
-- [ ] **(owner)** In Search Console, add `binarycompanion.com` as a **Domain** property from the Google account that owns the `timetug` Cloud project (`darkarena@gmail.com`) and verify it with the TXT record Search Console gives (add it at Squarespace; the existing `google-site-verification` TXT stays).
-- [ ] Add `binarycompanion.com` under *Google Auth Platform > Branding > Authorized domains*; keep `obryan.cloud` until approval.
-- [ ] One bundled edit: homepage `https://timetug.binarycompanion.com/`, privacy policy `…/privacy`, terms `…/terms`, support and developer contact `sobryan@binarycompanion.com`. Then submit for verification.
-- [ ] After approval: remove `obryan.cloud` from Authorized domains.
+- [x] Search Console: `binarycompanion.com` added as a **Domain** property under `darkarena@gmail.com` and verified (2026-10-11) with a TXT at `@`; the existing `google-site-verification` TXT stays. The record must stay or ownership is lost.
+- [x] Added `binarycompanion.com` under *Google Auth Platform > Branding > Authorized domains*; `obryan.cloud` kept until approval.
+- [x] Bundled edit saved, verified and published (2026-10-11, verification took under a minute and the console reported "Your branding has been verified and is being shown to users"): homepage `https://timetug.binarycompanion.com/`, privacy policy `…/privacy`, terms `…/terms`, developer contact `darkarena@gmail.com` plus `sobryan@binarycompanion.com`. The **user support email** stays `darkarena@gmail.com`: that field only offers addresses of the signed-in Google account, so a `binarycompanion.com` address needs a Google Workspace or Google Account for it first.
+- [ ] Remove `obryan.cloud` from Authorized domains (approval has arrived; waits for the owner's go and for the old-domain redirect to be confirmed).
 
 ### Task 7: Apple and the repository
 
