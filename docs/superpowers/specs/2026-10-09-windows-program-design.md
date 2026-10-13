@@ -57,7 +57,7 @@ All in the `binary-companion` organization:
 | `timetug` | The Mac app, Apple-only adapters (EventKitSource, AppleIntelligenceInference, and `CalendarApple`: Keychain credential store, loopback sign-in, CryptoKit hashing), and the product website (`site/`), which serves both platforms: the Windows download page is added there in phase 9 | Unchanged: `v*` releases, DMG, Sparkle, Mac App Store |
 | `timetug-windows` | The WinUI app, its platform services, widgets, MSIX packaging, Store submission | `v*` releases in its own repository |
 
-`timetug` is the existing `darkarena1/timetug`, transferred with its history, releases and stars. `homebrew-tap` moves from `digital-companion-llc` to `binary-companion` (nobody uses it yet), after which `digital-companion-llc` can be deleted.
+`timetug` is the existing `darkarena1/timetug`, transferred with its history, releases and stars. `homebrew-tap` moves from `binary-companion-llc` to `binary-companion` (nobody uses it yet), after which `binary-companion-llc` can be deleted.
 
 Dependency direction: `calendar-connectors` <- `timetug-shared` <- {`timetug`, `timetug-windows`}; `timetug` also depends on `calendar-connectors` directly (it registers connector kinds and supplies Apple adapters).
 
