@@ -22,7 +22,7 @@ Status values: `not started`, `planning`, `in progress`, `blocked` (say on what)
 | A Secrets into environments (standalone, Mac repo) | done except one check: the `release` environment is verified by the 2.1.0 release run | spec section 8 | [plan](2026-10-09-phase-a-secrets-into-environments.md) | PR 75 |
 | 1.5 Domain and branding | in progress: site, redirects, Google and Entra branding done; waiting on the Microsoft Partner Program vetting, then publisher verification | spec section 1.5 | [plan](2026-10-10-phase-1-5-domain-and-branding.md) | PRs 78, 79 |
 | 0 Organization move and hardening | in progress: transfers, controls and audit done (2026-10-11); the Mac release carrying the new feed URL is the last item | spec sections 1 and 8 | n/a | PRs 88 to 91 |
-| 1 `calendar-connectors` repository | in progress: library published as 1.0.0 (2026-10-13), flip pull request open; `timetug-bot` loop and drill remain | spec section 1, [phase spec](../specs/2026-10-12-phase-1-calendar-connectors-design.md) | [plan](2026-10-12-phase-1-calendar-connectors.md) | the flip PR |
+| 1 `calendar-connectors` repository | in progress: library published as 1.0.0 (2026-10-13), flip pull request open; `timetug-bot` loop and drill remain | spec section 1, [phase spec](../specs/2026-10-12-phase-1-calendar-connectors-design.md) | [plan](2026-10-12-phase-1-calendar-connectors.md) | PR 97 |
 | 2 `timetug-shared` repository | not started | spec section 1 | to write | |
 | 3 Engine | not started | spec section 2 | to write | |
 | 4 C interface and NuGet | not started | spec section 2 | to write | |
