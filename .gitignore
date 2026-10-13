@@ -9,6 +9,9 @@ build/
 __pycache__/
 *.pyc
 
+# SwiftPM resolution files of the local packages (pins live in Package.swift and project.yml)
+Packages/*/Package.resolved
+
 # Release output and signing material: never commit these
 dist/
 *.xcarchive
