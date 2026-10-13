@@ -53,7 +53,7 @@ Details: `docs/decisions/0009-duplicate-detection-and-on-device-inference.md`.
 With [Homebrew](https://brew.sh):
 
 ```bash
-brew install --cask digital-companion-llc/tap/timetug
+brew install --cask binary-companion/tap/timetug
 ```
 
 Or download the `.dmg` from the [Releases page](https://github.com/binary-companion/timetug/releases), open it and drag
