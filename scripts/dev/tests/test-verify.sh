@@ -58,6 +58,14 @@ grep -q 'python3 scripts/ci/check-repository-contracts.py' "$VERIFY_CALLS" || fa
 grep -q 'python3 scripts/ci/check-shared-pins.py' "$VERIFY_CALLS" || fail 'shared pin check omitted'
 if grep -q '^swift\|^xcodebuild' "$VERIFY_CALLS"; then fail 'documentation ran build'; fi
 rm docs/change.md
+# Editing a manifest or the project file can change which version the app resolves, so the pin check runs.
+mkdir -p Packages/TimeTugCore Apps/macOS
+for changed in Packages/TimeTugCore/Package.swift 'Packages/TimeTugCore/Package@swift-5.9.swift' Apps/macOS/project.yml; do
+  echo x > "$changed"
+  run_mode affected
+  grep -q 'python3 scripts/ci/check-shared-pins.py' "$VERIFY_CALLS" || fail "shared pin check omitted for $changed"
+  rm "$changed"
+done
 mkdir -p Packages/CalendarApple/Sources/CalendarApple
 echo model > Packages/CalendarApple/Sources/CalendarApple/'model with spaces.swift'
 run_mode affected
