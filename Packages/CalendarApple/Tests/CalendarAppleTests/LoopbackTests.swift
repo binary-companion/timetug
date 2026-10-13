@@ -40,9 +40,22 @@ private func authorizationURL(for session: any OAuthRedirectSession, state: Stri
     return parts.url!
 }
 
+/// Starts `authorize` and returns once it has recorded its expected state. A request that reaches the
+/// listener earlier is answered 404 (and replayed to `authorize` later), so a test that asserts the
+/// response status must not send before this returns. `openURL` runs only after the state is recorded.
+private func beginArmedAuthorization() async throws -> (session: any OAuthRedirectSession, waiting: Task<URL, any Error>) {
+    let (armed, arm) = AsyncStream<Void>.makeStream()
+    let session = try await interaction(opened: { _ in arm.yield() }).beginOAuthRedirect()
+    let waiting = Task {
+        defer { arm.finish() }
+        return try await session.authorize(at: authorizationURL(for: session))
+    }
+    for await _ in armed { break }
+    return (session, waiting)
+}
+
 @Test func invalidCallbacksKeepWaitingUntilCorrectStateArrives() async throws {
-    let session = try await interaction().beginOAuthRedirect()
-    let waiting = Task { try await session.authorize(at: authorizationURL(for: session)) }
+    let (session, waiting) = try await beginArmedAuthorization()
     for path in ["/?code=bad&state=wrong", "/?code=bad", "/?code=bad&state=xyz&state=xyz",
                  "/?code=bad&code=other&state=xyz", "/?error=access_denied&error=other&state=xyz",
                  "/unexpected?code=bad&state=xyz", "/favicon.ico"] {
@@ -56,8 +69,7 @@ private func authorizationURL(for session: any OAuthRedirectSession, state: Stri
 }
 
 @Test func correctStateAccessDeniedIsDelivered() async throws {
-    let session = try await interaction().beginOAuthRedirect()
-    let waiting = Task { try await session.authorize(at: authorizationURL(for: session)) }
+    let (session, waiting) = try await beginArmedAuthorization()
     let response = try await rawGET(session.redirectURI, path: "/?error=access_denied&state=xyz")
     #expect(response.hasPrefix("HTTP/1.1 200"))
     #expect(try await waiting.value.query?.contains("error=access_denied") == true)
