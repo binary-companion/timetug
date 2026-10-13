@@ -35,13 +35,12 @@ never() {
 }
 
 UI="AppKit SwiftUI UIKit WidgetKit"
-LIB="$(ls Packages/CalendarConnectors/Sources 2>/dev/null | tr '\n' ' ')"
 P=Packages
+# The connector library lives in its own repository and is consumed by released version (scripts/ci/check-shared-pins.py).
+LIBURL=https://github.com/binary-companion/calendar-connectors
 
 # Core is platform-neutral and builds on Linux: Foundation and the connector model only.
 only TimeTugCore "Foundation CalendarCore TimeTugCore Testing" $P/TimeTugCore/Sources $P/TimeTugCore/Tests
-# The connector library imports nothing from TimeTug and nothing Apple-only (it builds on Linux).
-only CalendarConnectors "Foundation FoundationNetworking FoundationXML Testing $LIB" $P/CalendarConnectors/Sources $P/CalendarConnectors/Tests
 # The bridge is minimal glue between Core and the library.
 only CalendarBridge "Foundation TimeTugCore CalendarCore" $P/CalendarBridge/Sources
 # Source adapters speak the library, contain no UI and never see TimeTug.
@@ -66,12 +65,11 @@ if [ -d $P/TimeTugCore/Sources ]; then
     grep -E '^[^:]+:[0-9]+:(.*[^A-Za-z0-9_])?Date(\(\)|\.now([^A-Za-z0-9_]|$)|\(timeIntervalSinceNow)' || true)
 fi
 
-# Package dependencies point toward Core and the connector library, which has none.
+# Package dependencies point toward Core and the released connector library (by URL; scripts/ci/check-shared-pins.py checks the pin).
 allowed_deps() {
   case "$1" in
-    CalendarConnectors) echo "" ;;
-    TimeTugCore | EventKitSource | CalendarApple) echo "../CalendarConnectors" ;;
-    CalendarBridge | AppleIntelligenceInference) echo "../TimeTugCore ../CalendarConnectors" ;;
+    TimeTugCore | EventKitSource | CalendarApple) echo "$LIBURL" ;;
+    CalendarBridge | AppleIntelligenceInference) echo "../TimeTugCore $LIBURL" ;;
     *) return 1 ;;
   esac
 }

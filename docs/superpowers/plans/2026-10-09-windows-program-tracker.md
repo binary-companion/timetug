@@ -22,7 +22,7 @@ Status values: `not started`, `planning`, `in progress`, `blocked` (say on what)
 | A Secrets into environments (standalone, Mac repo) | done except one check: the `release` environment is verified by the 2.1.0 release run | spec section 8 | [plan](2026-10-09-phase-a-secrets-into-environments.md) | PR 75 |
 | 1.5 Domain and branding | in progress: site, redirects, Google and Entra branding done; waiting on the Microsoft Partner Program vetting, then publisher verification | spec section 1.5 | [plan](2026-10-10-phase-1-5-domain-and-branding.md) | PRs 78, 79 |
 | 0 Organization move and hardening | in progress: transfers, controls and audit done (2026-10-11); the Mac release carrying the new feed URL is the last item | spec sections 1 and 8 | n/a | PRs 88 to 91 |
-| 1 `calendar-connectors` repository | planning: [phase spec](../specs/2026-10-12-phase-1-calendar-connectors-design.md) drafted 2026-10-12, awaiting the owner's review | spec section 1, phase spec | to write | |
+| 1 `calendar-connectors` repository | in progress: library published as 1.0.0 (2026-10-13), flip pull request open; `timetug-bot` loop and drill remain | spec section 1, [phase spec](../specs/2026-10-12-phase-1-calendar-connectors-design.md) | [plan](2026-10-12-phase-1-calendar-connectors.md) | PR 97 |
 | 2 `timetug-shared` repository | not started | spec section 1 | to write | |
 | 3 Engine | not started | spec section 2 | to write | |
 | 4 C interface and NuGet | not started | spec section 2 | to write | |
@@ -85,6 +85,10 @@ Agents keep this list current; the owner checks items off (or tells an agent to)
 - [ ] Create the `timetug-bot` GitHub App and install it on the dependent repositories.
 - [ ] Audit script written (2026-10-11): `scripts/security/audit-github.sh [--strict] binary-companion website darkarena1/timetug` (it moves to the organization's `.github` repository, as spec section 8 says, once that exists after the transfer). It must pass with `--strict` after `gh auth refresh -s admin:org`. Last run: fails because (1) organization 2FA is not required, (2) members can create repositories, (3) `darkarena1/timetug` still has repository-level secrets (the environment copies exist; delete the repository copies after the owner verifies `release`, `appstore` and `hosting`); the Actions policy check is skipped without `admin:org`. `appstore` admin bypass was turned off on 2026-10-11.
 
+### 1 `calendar-connectors` repository
+- [ ] **(owner)** Create the `timetug-bot` GitHub App (plan Task 11).
+- [ ] **(owner)** Review and merge the flip pull request (the app consumes the released library; the in-repo copy is removed on merge).
+
 ### Later phases
 - Phase 4: create the Binary Companion nuget.org account and configure trusted publishing for `TimeTug.Engine`.
 - Phase 6: add the WAM broker redirect URI to the Entra app registration.
@@ -125,6 +129,7 @@ Append one line per session: date, what was done, what is next.
 - 2026-10-11 (support email, Docker Hub): The Google consent screen's support email is now the group `support@binarycompanion.com` (created by the owner in the Workspace admin console, because the dropdown lists only primary addresses and `sobryan@` is an alias); branding re-verified and published. `scott@obryan.cloud` accepted its ownership invitation on project `timetug`. Docker Hub secrets moved to the organization as described above; the audit script no longer allows any repository-level secret.
 - 2026-10-12: Owner merged the tap PRs (2 pinned `actions/checkout`, 3 authenticated the cask audit after a rate-limit failure, 4 set the license holder to Binary Companion LLC); `support@binarycompanion.com` confirmed to reach the owner. Found master CI red on a loopback test race (`correctStateAccessDeniedIsDelivered` sent before `authorize` armed); fixed with a helper that waits for `openURL`, 12 clean local runs. Fixed the stale `binary-companion-llc` tap references. Next: owner merges that PR, the agent drafts `v2.1.0`, the owner publishes and approves `release`; then phase 1 planning.
 - 2026-10-12 (phase 1 design): Owner approved the design in chat: MIT license, `CalendarApple` stays in `timetug` (program design table amended), plain `X.Y.Z` library tags, library releases from `main` with the `timetug-bot` token for dispatch only. Phase spec written. Mac release: waiting for a beta from `b1e9021` (includes #92, connector transport cache removal) to soak before drafting `v2.1.0`. Next: owner reviews the phase spec, then the plan.
+- 2026-10-13 (phase 1): Extracted the connector library with its history (23 commits) to `binary-companion/calendar-connectors` (public, MIT, holder Binary Companion LLC) and released `1.0.0` (commit `c75f3e0`); `Sources` is byte-identical to the in-repo copy and `Tests` differs by two doc-comment lines. Rulesets `Protect main` (required checks macos, linux, architecture) and `Protect version tags` are active, the `publish` environment exists, and the strict audit passed (0 failed, 0 skipped); CI is green on the library's `main` and its first Release run released nothing, as designed. The flip pull request in this repository consumes `1.0.0` by released version and removes the in-repo copy. Next: the owner reviews and merges the flip PR and creates the `timetug-bot` GitHub App; then the notify job and bump workflow, the drill and the cross-repo skill.
 
 ## Where each secret comes from
 

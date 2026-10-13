@@ -27,6 +27,7 @@ cat > "$T/repo/scripts/ci/tests/test-dummy.sh" <<'SCRIPT'
 exit 0
 SCRIPT
 cp "$T/repo/scripts/ci/tests/test-dummy.sh" "$T/repo/scripts/release/tests/test-dummy.sh"
+cp "$T/repo/scripts/ci/tests/test-dummy.sh" "$T/repo/scripts/dev/tests/test-use-local-connectors.sh"
 cd "$T/repo"
 git init -q
 git config user.email test@example.com
@@ -40,7 +41,7 @@ fail() { echo "FAIL: $*" >&2; exit 1; }
 run_mode() { : > "$VERIFY_CALLS"; scripts/dev/verify.sh "$@" >/dev/null; }
 run_mode core
 grep -q 'swift test --package-path Packages/TimeTugCore' "$VERIFY_CALLS" || fail 'core omitted'
-[ "$(grep -c 'swift test --package-path Packages/CalendarConnectors' "$VERIFY_CALLS")" = 1 ] || fail 'connectors duplicated'
+if grep -q 'Packages/CalendarConnectors' "$VERIFY_CALLS"; then fail 'the library is tested from this repository'; fi
 export TIMETUG_LIVE_EVENTKIT=1 TIMETUG_LIVE_GOOGLE=1 TIMETUG_LIVE_MICROSOFT=1
 run_mode core
 if grep -q LIVE_FLAGS_INHERITED "$VERIFY_CALLS"; then fail 'live-test flags reached package tests'; fi
@@ -54,14 +55,15 @@ mkdir -p docs
 echo docs > docs/change.md
 run_mode affected
 grep -q 'python3 scripts/ci/check-repository-contracts.py' "$VERIFY_CALLS" || fail 'documentation check omitted'
+grep -q 'python3 scripts/ci/check-shared-pins.py' "$VERIFY_CALLS" || fail 'shared pin check omitted'
 if grep -q '^swift\|^xcodebuild' "$VERIFY_CALLS"; then fail 'documentation ran build'; fi
 rm docs/change.md
-mkdir -p Packages/CalendarConnectors/Sources/CalendarCore
-echo model > Packages/CalendarConnectors/Sources/CalendarCore/'model with spaces.swift'
+mkdir -p Packages/CalendarApple/Sources/CalendarApple
+echo model > Packages/CalendarApple/Sources/CalendarApple/'model with spaces.swift'
 run_mode affected
-grep -q 'swift test --package-path Packages/CalendarApple' "$VERIFY_CALLS" || fail 'connector dependents omitted'
-grep -q 'xcodebuild ' "$VERIFY_CALLS" || fail 'connector app dependent omitted'
-rm Packages/CalendarConnectors/Sources/CalendarCore/'model with spaces.swift'
+grep -q 'swift test --package-path Packages/CalendarApple' "$VERIFY_CALLS" || fail 'adapter tests omitted'
+grep -q 'xcodebuild ' "$VERIFY_CALLS" || fail 'adapter app dependent omitted'
+rm Packages/CalendarApple/Sources/CalendarApple/'model with spaces.swift'
 mkdir -p .github/workflows
 echo workflow > .github/workflows/new.yml
 run_mode affected

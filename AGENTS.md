@@ -5,10 +5,18 @@ Start with [current architecture](docs/architecture.md), then [development and v
 ## Boundaries
 
 - `Packages/TimeTugCore` answers what and when. Pass `now: Date`; keep UI, Apple imports and display strings out of Core. Test each Core behavior with Swift Testing, writing the failing test first.
-- `Packages/CalendarConnectors` is portable and dependency-free. Its `CalendarCore` model underpins Google, Microsoft, CalDAV, iCal subscriptions and Core. `CalendarOAuth` handles PKCE and refresh. `Packages/CalendarBridge` connects library sources to Core; `EventKitSource` and `CalendarApple` contain Apple adapters. Only `AppleIntelligenceInference` imports Foundation Models.
+- The connector library is its own repository, [binary-companion/calendar-connectors](https://github.com/binary-companion/calendar-connectors), consumed by released version (`Apps/macOS/project.yml` pins it with `exactVersion`; the local packages say `from:`); to change it, use the `working-across-timetug-repos` skill (planned; see Repositories below for the interim rule). It is portable and dependency-free. Its `CalendarCore` model underpins Google, Microsoft, CalDAV, iCal subscriptions and Core. `CalendarOAuth` handles PKCE and refresh. `Packages/CalendarBridge` connects library sources to Core; `EventKitSource` and `CalendarApple` contain Apple adapters. Only `AppleIntelligenceInference` imports Foundation Models.
 - `Apps/macOS` composes sources, UI, widgets and Sparkle. `AppConnectors.swift` registers providers; the app owns credentials, source configuration and presentation. The direct and App Store targets share an App Group but must use separate build directories. Keep Sparkle imports inside `#if !APPSTORE`.
 - Calendar writes are opt-in through `WritableCalendarSource`; unsupported fields throw `WriteError.unsupported`, and stale versions are resolved per touched field. Microsoft sign-in currently requests read-only scopes under [ADR 0017](docs/decisions/0017-microsoft-read-only-scopes.md); its library write implementation remains. Do not change scopes or capabilities incidentally.
 - App state belongs in the App Group; credentials belong in Keychain. Use `AppSupportFiles.url(_:)` for app state and `WidgetSnapshotStore` for the widget snapshot; never construct a path under the real home directory for a sandboxed build. Keep secrets and certificates out of git. Record significant decisions in `docs/decisions/`.
+
+## Repositories
+
+- `calendar-connectors`: the connector library (MIT). Tags `X.Y.Z`, released automatically on every merge to `main`.
+- `timetug-shared` (phase 2) and `timetug-windows` (later) join it per the [program design](docs/superpowers/specs/2026-10-09-windows-program-design.md).
+- `timetug` (this repository): the Mac app, the Apple adapters and the product website.
+
+Planned (`docs/superpowers/plans/2026-10-12-phase-1-calendar-connectors.md`, Tasks 11 to 14): a library release sends this repository a "Bump calendar-connectors to X.Y.Z" pull request (opened by `timetug-bot`, merged by the owner), and the pin is never edited by hand except through `scripts/ci/bump-pin.sh`. Until that loop lands, a new library version is adopted by hand: edit `exactVersion` in `Apps/macOS/project.yml` and the `from:` floors in the five `Packages/*/Package.swift` together; `scripts/ci/check-shared-pins.py` verifies the result. Never commit the output of `scripts/dev/use-local-connectors.sh`.
 
 ## Verify
 

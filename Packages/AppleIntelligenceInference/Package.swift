@@ -5,7 +5,7 @@ let package = Package(
     name: "AppleIntelligenceInference",
     platforms: [.macOS(.v14)],
     products: [.library(name: "AppleIntelligenceInference", targets: ["AppleIntelligenceInference"])],
-    dependencies: [.package(path: "../TimeTugCore"), .package(path: "../CalendarConnectors")],
+    dependencies: [.package(path: "../TimeTugCore"), .package(url: "https://github.com/binary-companion/calendar-connectors", from: "1.0.0")],
     targets: [
         .target(
             name: "AppleIntelligenceInference",
@@ -17,7 +17,7 @@ let package = Package(
             dependencies: [
                 "AppleIntelligenceInference",
                 .product(name: "TimeTugCore", package: "TimeTugCore"),
-                .product(name: "CalendarCore", package: "CalendarConnectors"),
+                .product(name: "CalendarCore", package: "calendar-connectors"),
             ],
             swiftSettings: [.swiftLanguageMode(.v5)]
         ),

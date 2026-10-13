@@ -118,7 +118,7 @@ git log --oneline | head -3
 ls
 ```
 
-Expected: `COUNT-OK`; `Sources identical`; `Tests identical`; the first-commit line dated 2026-09-20; top-level has `Package.swift Sources Tests docs`. If `Sources` or `Tests` differ, the in-repo copy moved after the clone: re-run Task 1 from step 1.
+Expected: `COUNT-OK`; `Sources identical`; `Tests identical`; the first-commit line dated 2026-09-20; top-level has `Package.swift Sources Tests docs`. If `Sources` or `Tests` differ, the in-repo copy moved after the clone: re-run Task 1 from step 1. (Task 2 later edits two doc comments inside `Tests`, so after Task 2 only `Sources` stays identical and `Tests` differs by exactly those two lines; later freeze checks compare `Sources` exactly and `Tests` with that known difference.)
 
 - [ ] **Step 4: Commit nothing; record**
 
@@ -977,7 +977,7 @@ for d in Sources Tests; do
 done
 ```
 
-Expected: both identical. If either differs, a library change merged after Task 1: port it into `$LIB` through a pull request there, release it, and use that version below instead of `1.0.0` (replace the version everywhere in this Part).
+Expected: `Sources` identical. `Tests` differs by exactly the two doc-comment lines that Task 2 edited (the `--package-path Packages/CalendarConnectors` hint in `Tests/ICalSubscriptionTests/LiveTests.swift` and `Tests/CalDAVCalendarTests/ICloudLiveSmokeTests.swift`); check that with `git diff --stat <in-repo Tests tree> 1.0.0:Tests` (or `git diff-tree`) showing only those two files and one line each. If `Sources` differs or `Tests` differs by anything else, a library change merged after Task 1: port it into `$LIB` through a pull request there, release it, and use that version below instead of `1.0.0` (replace the version everywhere in this Part).
 
 - [ ] **Step 2: Manifests**
 
@@ -1037,8 +1037,9 @@ git add -A && git commit -m "Consume calendar-connectors 1.0.0 by released versi
 
 The library moved to binary-companion/calendar-connectors with its history.
 The five local packages depend on it by URL with a 1.0.0 floor and the app
-pins exactVersion 1.0.0. No source changes: the library's Sources and Tests
-trees are identical to the ones removed here.
+pins exactVersion 1.0.0. No source changes: the library's Sources tree is
+identical to the one removed here (the Tests trees differ only by the removed
+--package-path hint in two opt-in live-test doc comments).
 
 Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>"
 ```
@@ -1597,7 +1598,7 @@ gh pr create --repo binary-companion/timetug --base master --head claude/phase-1
 Phase 1 of the Windows program. The connector library now lives in https://github.com/binary-companion/calendar-connectors (history preserved, MIT, released as 1.0.0). This pull request makes `timetug` consume it by released version.
 
 - Five local packages: `.package(url: ..., from: "1.0.0")`; `project.yml`: `exactVersion: 1.0.0`.
-- `Packages/CalendarConnectors` is removed. Its `Sources` and `Tests` trees are byte-identical to the released ones (verified by tree hash).
+- `Packages/CalendarConnectors` is removed. Its `Sources` tree is byte-identical to the released one (verified by tree hash); the `Tests` trees differ only by the removed `--package-path` hint in two opt-in live-test doc comments.
 - New contract `scripts/ci/check-shared-pins.py`; `scripts/dev/use-local-connectors.sh` for working on both repositories.
 - Guards, wrapper scripts, CI and documents no longer name the old path; the library's moved documents are removed here.
 

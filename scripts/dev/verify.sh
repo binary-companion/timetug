@@ -54,7 +54,7 @@ run_app() {
 run_release() {
   need bash; need python3; need node
   python3 -c 'import yaml' >/dev/null 2>&1 || { echo 'missing prerequisite: PyYAML (scripts/ci/requirements-test.txt)' >&2; exit 2; }
-  for test in scripts/ci/tests/test-*.sh scripts/release/tests/test-*.sh; do run "$(basename "$test" .sh)" bash "$test"; done
+  for test in scripts/ci/tests/test-*.sh scripts/release/tests/test-*.sh scripts/dev/tests/test-use-local-connectors.sh; do run "$(basename "$test" .sh)" bash "$test"; done
   run wrapper-tests bash scripts/dev/tests/test-verify.sh
   run python-appcast python3 -m unittest discover -s scripts/release/tests -p 'test_*.py'
   run website node --test site/tests/download.test.js
@@ -62,7 +62,11 @@ run_release() {
   run website-syntax node --check site/public/download.js
   run website-config python3 -m json.tool site/firebase.json
 }
-run_contracts() { need python3; run repository-contracts python3 scripts/ci/check-repository-contracts.py; }
+run_contracts() {
+  need python3
+  run repository-contracts python3 scripts/ci/check-repository-contracts.py
+  run shared-pins python3 scripts/ci/check-shared-pins.py
+}
 skip_check() { SKIP=$((SKIP+1)); printf 'SKIP %s (not selected)\n' "$1" >> "$SUMMARY"; }
 # Files are NUL-delimited so spaces and unusual source names route correctly.
 if [[ "$MODE" == affected ]]; then
@@ -78,7 +82,7 @@ if [[ "$MODE" == affected ]]; then
   WANT_CORE=0; WANT_CONNECTORS=0; WANT_APP=0; WANT_RELEASE=0; WANT_CONTRACTS=0
   for file in "${CHANGED[@]}"; do
     case "$file" in
-      Packages/CalendarConnectors/*|Packages/CalendarApple/*|Packages/EventKitSource/*)
+      Packages/CalendarApple/*|Packages/EventKitSource/*)
         WANT_CONNECTORS=1; WANT_CORE=1; WANT_APP=1;;
       Packages/TimeTugCore/*|Packages/CalendarBridge/*|Packages/AppleIntelligenceInference/*)
         WANT_CORE=1; WANT_APP=1;;
@@ -100,19 +104,16 @@ else
   esac
 fi
 [[ "$WANT_CORE" == 1 ]] || { skip_check core; skip_check bridge; skip_check inference; }
-[[ "$WANT_CONNECTORS" == 1 || "$WANT_CORE" == 1 ]] || skip_check connectors
 [[ "$WANT_CONNECTORS" == 1 ]] || { skip_check calendar-apple; skip_check eventkit; }
 [[ "$WANT_APP" == 1 ]] || skip_check app
 [[ "$WANT_RELEASE" == 1 ]] || skip_check release-tools
 [[ "$WANT_CONTRACTS" == 1 ]] || skip_check repository-contracts
 if [[ "$WANT_CONNECTORS" == 1 ]]; then
-  run_pkg connectors Packages/CalendarConnectors
   run_pkg calendar-apple Packages/CalendarApple
   run_pkg eventkit Packages/EventKitSource
 fi
 if [[ "$WANT_CORE" == 1 ]]; then
   run_pkg core Packages/TimeTugCore
-  [[ "$WANT_CONNECTORS" == 1 ]] || run_pkg connectors Packages/CalendarConnectors
   run_pkg bridge Packages/CalendarBridge
   run_pkg inference Packages/AppleIntelligenceInference
 fi

@@ -12,7 +12,7 @@ Live write tests are opt-in, touch the user's real calendars and never run in CI
 | Apple Calendar (EventKit) | `TIMETUG_LIVE_EVENTKIT=1 swift test --package-path Packages/EventKitSource --filter eventKit` |
 | Google | `TIMETUG_LIVE_GOOGLE=1 GOOGLE_OAUTH_CLIENT_ID=... GOOGLE_OAUTH_CLIENT_SECRET=... swift test --package-path Packages/CalendarApple --filter googleWriteSmoke` |
 | Microsoft | `TIMETUG_LIVE_MICROSOFT=1 MICROSOFT_OAUTH_CLIENT_ID=... swift test --package-path Packages/CalendarApple --filter microsoftWriteSmoke` |
-| iCloud | `TIMETUG_LIVE_ICLOUD=1 swift test --package-path Packages/CalendarConnectors --filter iCloudLiveSmoke` |
+| iCloud | `TIMETUG_LIVE_ICLOUD=1 swift test --filter iCloudLiveSmoke` (run in a checkout of `binary-companion/calendar-connectors`) |
 
 - EventKit: every live test id starts with `eventKit`, so `--filter Live` matches nothing. xctest may lack calendar permission. If so, run the tests from a bundled context.
 - Google and Microsoft write attendee-free events named "TimeTug write smoke" to the primary calendar and then delete them. Google's events scope cannot create calendars, so the primary calendar is used.
