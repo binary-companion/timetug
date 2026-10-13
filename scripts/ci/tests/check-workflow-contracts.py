@@ -60,6 +60,7 @@ EXPECTED_ENVIRONMENTS = {
     'release.yml': 'release',
     'appstore.yml': 'appstore',
     'firebase-hosting-merge.yml': 'hosting',
+    'bump-dependencies.yml': 'bump',
 }
 for file_name, document in workflows.items():
     allowed = ALLOWED_OUTSIDE_ENVIRONMENT.get(file_name, set())
