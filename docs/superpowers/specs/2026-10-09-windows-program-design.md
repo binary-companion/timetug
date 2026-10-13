@@ -52,9 +52,9 @@ All in the `binary-companion` organization:
 
 | Repository | Contents | Released as |
 |---|---|---|
-| `calendar-connectors` | The general-purpose connector library (CalendarCore, CalendarOAuth, Google, Microsoft, ICalendar, CalDAV, ICalSubscription, test support) and optional platform adapters (today's `CalendarApple`: Keychain credential store, loopback sign-in, CryptoKit hashing) | SwiftPM tags |
+| `calendar-connectors` | The general-purpose connector library (CalendarCore, CalendarOAuth, Google, Microsoft, ICalendar, CalDAV, ICalSubscription, test support). MIT license. Platform adapters are not part of it: each app owns the adapters for its platform (amended 2026-10-12, see the phase 1 spec) | SwiftPM tags (`X.Y.Z`, no `v`) |
 | `timetug-shared` | TimeTugCore, CalendarBridge, TimeTugEngine (new), TimeTugEngineProtocol (new), TimeTugEngineC (new) | SwiftPM tags, plus the `TimeTug.Engine` NuGet package on nuget.org |
-| `timetug` | The Mac app, Apple-only adapters (EventKitSource, AppleIntelligenceInference), and the product website (`site/`), which serves both platforms: the Windows download page is added there in phase 9 | Unchanged: `v*` releases, DMG, Sparkle, Mac App Store |
+| `timetug` | The Mac app, Apple-only adapters (EventKitSource, AppleIntelligenceInference, and `CalendarApple`: Keychain credential store, loopback sign-in, CryptoKit hashing), and the product website (`site/`), which serves both platforms: the Windows download page is added there in phase 9 | Unchanged: `v*` releases, DMG, Sparkle, Mac App Store |
 | `timetug-windows` | The WinUI app, its platform services, widgets, MSIX packaging, Store submission | `v*` releases in its own repository |
 
 `timetug` is the existing `darkarena1/timetug`, transferred with its history, releases and stars. `homebrew-tap` moves from `binary-companion-llc` to `binary-companion` (nobody uses it yet), after which `binary-companion-llc` can be deleted.
@@ -71,7 +71,7 @@ Every repository carries a `.gitattributes` with `* text=auto eol=lf`, so Git fo
 
 ### Library releases
 
-- Every merge to `main` in `calendar-connectors` or `timetug-shared` publishes a new version automatically. The bump comes from a PR label (`semver:major`, `semver:minor`, `semver:patch`; default patch).
+- Every merge to `main` in `calendar-connectors` or `timetug-shared` publishes a new version automatically. Library tags are plain `X.Y.Z`; the `v*` tag rules belong to the app repositories. The bump comes from a PR label (`semver:major`, `semver:minor`, `semver:patch`; default patch).
 - A `timetug-shared` release also builds the engine on Windows runners (x64 and native ARM64) and publishes `TimeTug.Engine` to nuget.org under a Binary Companion account. nuget.org is chosen over GitHub Packages because GitHub Packages needs a token even to read a public package, which would burden Dependabot and outside users.
 
 ### Bump pull requests
