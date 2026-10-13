@@ -82,7 +82,7 @@ if [[ "$MODE" == affected ]]; then
   WANT_CORE=0; WANT_CONNECTORS=0; WANT_APP=0; WANT_RELEASE=0; WANT_CONTRACTS=0
   for file in "${CHANGED[@]}"; do
     case "$file" in
-      Packages/CalendarConnectors/*|Packages/CalendarApple/*|Packages/EventKitSource/*)
+      Packages/CalendarApple/*|Packages/EventKitSource/*)
         WANT_CONNECTORS=1; WANT_CORE=1; WANT_APP=1;;
       Packages/TimeTugCore/*|Packages/CalendarBridge/*|Packages/AppleIntelligenceInference/*)
         WANT_CORE=1; WANT_APP=1;;
@@ -104,19 +104,16 @@ else
   esac
 fi
 [[ "$WANT_CORE" == 1 ]] || { skip_check core; skip_check bridge; skip_check inference; }
-[[ "$WANT_CONNECTORS" == 1 || "$WANT_CORE" == 1 ]] || skip_check connectors
 [[ "$WANT_CONNECTORS" == 1 ]] || { skip_check calendar-apple; skip_check eventkit; }
 [[ "$WANT_APP" == 1 ]] || skip_check app
 [[ "$WANT_RELEASE" == 1 ]] || skip_check release-tools
 [[ "$WANT_CONTRACTS" == 1 ]] || skip_check repository-contracts
 if [[ "$WANT_CONNECTORS" == 1 ]]; then
-  run_pkg connectors Packages/CalendarConnectors
   run_pkg calendar-apple Packages/CalendarApple
   run_pkg eventkit Packages/EventKitSource
 fi
 if [[ "$WANT_CORE" == 1 ]]; then
   run_pkg core Packages/TimeTugCore
-  [[ "$WANT_CONNECTORS" == 1 ]] || run_pkg connectors Packages/CalendarConnectors
   run_pkg bridge Packages/CalendarBridge
   run_pkg inference Packages/AppleIntelligenceInference
 fi

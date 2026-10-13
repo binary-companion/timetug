@@ -9,30 +9,30 @@ fail() { echo "FAIL: $*" >&2; exit 1; }
 "$S" >/dev/null || { "$S" >&2; fail "the repository itself violates the architecture rules"; }
 
 # A minimal repo shaped like this one that follows every rule.
-pkg() { # pkg <name> <dependency paths...>
+pkg() { # pkg <name> <dependencies: ../Local paths or https URLs...>
   local name="$1" deps="" d; shift
-  for d in "$@"; do deps="$deps.package(path: \"$d\"), "; done
+  for d in "$@"; do
+    case "$d" in
+      http*) deps="$deps.package(url: \"$d\", from: \"1.0.0\"), " ;;
+      *) deps="$deps.package(path: \"$d\"), " ;;
+    esac
+  done
   mkdir -p "$T/Packages/$name/Sources/$name" "$T/Packages/$name/Tests/${name}Tests"
   printf '// swift-tools-version: 6.0\nlet package = Package(name: "%s", dependencies: [%s])\n' "$name" "$deps" \
     > "$T/Packages/$name/Package.swift"
   printf 'import Foundation\n' > "$T/Packages/$name/Sources/$name/A.swift"
 }
-pkg CalendarConnectors
-mkdir -p "$T/Packages/CalendarConnectors/Sources/CalendarCore" "$T/Packages/CalendarConnectors/Sources/CalendarOAuth"
-pkg TimeTugCore ../CalendarConnectors
-pkg CalendarBridge ../TimeTugCore ../CalendarConnectors
-pkg EventKitSource ../CalendarConnectors
-pkg CalendarApple ../CalendarConnectors
-pkg AppleIntelligenceInference ../TimeTugCore ../CalendarConnectors
+LIB=https://github.com/binary-companion/calendar-connectors
+pkg TimeTugCore "$LIB"
+pkg CalendarBridge ../TimeTugCore "$LIB"
+pkg EventKitSource "$LIB"
+pkg CalendarApple "$LIB"
+pkg AppleIntelligenceInference ../TimeTugCore "$LIB"
 printf 'import FoundationModels\nimport TimeTugCore\n' > "$T/Packages/AppleIntelligenceInference/Sources/AppleIntelligenceInference/B.swift"
 printf 'import EventKit\n' > "$T/Packages/EventKitSource/Sources/EventKitSource/B.swift"
 printf 'import AppKit\nimport CalendarOAuth\n' > "$T/Packages/CalendarApple/Sources/CalendarApple/B.swift"
 printf '@preconcurrency import CalendarCore\nimport struct Foundation.Date\n' > "$T/Packages/TimeTugCore/Sources/TimeTugCore/B.swift"
 printf 'import Testing\n@testable import TimeTugCore\n' > "$T/Packages/TimeTugCore/Tests/TimeTugCoreTests/T.swift"
-printf '#if canImport(FoundationNetworking)\nimport FoundationNetworking\n#endif\nimport CalendarOAuth\n' \
-  > "$T/Packages/CalendarConnectors/Sources/CalendarCore/B.swift"
-printf '#if canImport(FoundationXML)\nimport FoundationXML\n#endif\nimport CalendarCore\n' \
-  > "$T/Packages/CalendarConnectors/Sources/CalendarOAuth/X.swift"
 printf 'func f(now: Date) -> Date { now } // never Date() here\n// Date() in a comment is fine\nlet a = x.startDate(); let b = someDate.now; let c = Date.distantPast\nlet s = "a"  // Date() here is a comment\nlet e = Date(timeIntervalSince1970: 0)\n' \
   > "$T/Packages/TimeTugCore/Sources/TimeTugCore/Clock.swift"
 mkdir -p "$T/Apps/macOS/Sources" "$T/Apps/macOS/Widgets" "$T/Apps/macOS/Shared"
@@ -61,9 +61,6 @@ expect "$C" 'f(x:Date())\n' "Date()"
 expect "$C" 'if Date.now > x {}\n' "Date()"
 expect "$C" 'let t = Date(timeIntervalSinceNow: 5)\n' "Date()"
 expect Packages/TimeTugCore/Tests/TimeTugCoreTests/X.swift 'import EventKit\n' "TimeTugCore may not import EventKit"
-expect Packages/CalendarConnectors/Sources/CalendarCore/X.swift 'import TimeTugCore\n' "CalendarConnectors may not import TimeTugCore"
-expect Packages/CalendarConnectors/Tests/CalendarCoreTests/X.swift 'import Security\n' "CalendarConnectors may not import Security"
-expect Packages/CalendarConnectors/Sources/CalendarCore/X.swift 'import XMLCoder\n' "CalendarConnectors may not import XMLCoder"
 expect Packages/CalendarBridge/Sources/CalendarBridge/X.swift 'import SwiftUI\n' "CalendarBridge may not import SwiftUI"
 expect Packages/EventKitSource/Sources/EventKitSource/X.swift 'import AppKit\n' "EventKitSource may not import AppKit"
 expect Packages/EventKitSource/Sources/EventKitSource/X.swift 'import TimeTugCore\n' "EventKitSource may not import TimeTugCore"
@@ -76,9 +73,11 @@ expect Apps/macOS/Widgets/X.swift 'import EventKit\n' "may not import EventKit"
 expect Apps/macOS/Shared/X.swift 'import Sparkle\n' "may not import Sparkle"
 expect Packages/TimeTugCore/Package.swift 'let package = Package(dependencies: [.package(path: "../CalendarBridge")])\n' \
   "TimeTugCore may not depend on ../CalendarBridge"
-expect Packages/CalendarConnectors/Package.swift \
+expect Packages/TimeTugCore/Package.swift 'let package = Package(dependencies: [.package(path: "../CalendarConnectors")])\n' \
+  "TimeTugCore may not depend on ../CalendarConnectors"
+expect Packages/TimeTugCore/Package.swift \
   'let package = Package(dependencies: [.package(url: "https://github.com/x/y", from: "1.0.0")])\n' \
-  "CalendarConnectors may not depend on https://github.com/x/y"
+  "TimeTugCore may not depend on https://github.com/x/y"
 expect Packages/TimeTugCore/Package.swift 'let package = Package(\n  dependencies: [\n    .package(\n      path: "../CalendarBridge"\n    ),\n  ]\n)\n' \
   "Package.swift:4: TimeTugCore may not depend on ../CalendarBridge"
 expect "$C" 'let u = "https://example.com/?at=\\(Date().timeIntervalSince1970)"\n' "X.swift:1: TimeTugCore reads the clock"

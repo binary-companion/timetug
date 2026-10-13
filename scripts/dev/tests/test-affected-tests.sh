@@ -37,10 +37,7 @@ check "leaf package" "$(lines $ARCH "$(st CalendarBridge)" "$APP")" Packages/Cal
 check "Core and its dependents" \
   "$(lines $ARCH "$(st TimeTugCore)" "$(st AppleIntelligenceInference)" "$(st CalendarBridge)" "$APP")" \
   Packages/TimeTugCore/Sources/A.swift
-check "the library reaches everything, dependencies first" \
-  "$(lines $ARCH "$(st CalendarConnectors)" "$(st EventKitSource)" "$(st TimeTugCore)" \
-     "$(st AppleIntelligenceInference)" "$(st CalendarApple)" "$(st CalendarBridge)" "$APP")" \
-  Packages/CalendarConnectors/Package.swift
+check "an adapter reaches the app only" "$(lines $ARCH "$(st CalendarApple)" "$APP")" Packages/CalendarApple/Sources/A.swift
 check "absolute paths work" "$(lines $ARCH "$(st CalendarBridge)" "$APP")" "$T/Packages/CalendarBridge/Sources/A.swift"
 check "existing app file" "$(lines $ARCH "$APP")" Apps/macOS/Sources/App.swift
 check "project.yml regenerates" "$(lines "$GEN" "$APP")" Apps/macOS/project.yml
