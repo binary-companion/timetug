@@ -1,6 +1,6 @@
 # Calendar connectors, Phase 6: iCal subscription link connector
 
-Status: implemented on the branch that adds `docs/superpowers/plans/2026-10-06-calendar-connectors-phase6-ical-link.md`; see that plan. Phases 1 to 5 are merged; the API contract is in `docs/calendar-connectors-api.md`. The Phase 5 spec listed "No ICS subscription connector (the `ICalendar` product makes one cheap later)" as a non-goal; this phase builds it.
+Status: implemented; see [the plan](https://github.com/binary-companion/calendar-connectors/blob/1.0.0/docs/superpowers/plans/2026-10-06-calendar-connectors-phase6-ical-link.md) in the library repository (at the 1.0.0 tag). Phases 1 to 5 are merged; the API contract is in the library repository's [`docs/api.md`](https://github.com/binary-companion/calendar-connectors/blob/1.0.0/docs/api.md). The Phase 5 spec listed "No ICS subscription connector (the `ICalendar` product makes one cheap later)" as a non-goal; this phase builds it.
 
 ## Goal
 

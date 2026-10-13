@@ -24,6 +24,6 @@ Live write tests are opt-in, touch the user's real calendars and never run in CI
   starting with "TimeTug write smoke"). Optional: `TIMETUG_LIVE_ICLOUD_ATTENDEE=<an address the user reads>` checks
   whether iCloud honors `SCHEDULE-AGENT=CLIENT`; if it does not, iCloud may send a real invitation and cancellation to
   that address, so use one the user owns and ask first.
-- Paste the `LIVE` lines into the Phase 5 spec's "Live findings".
+- Paste the `LIVE` lines into the Phase 5 spec's "Live findings" (in the library repository).
 
 The write rules these tests exercise are in `AGENTS.md` under "Gotchas" ("Calendar writes are opt-in").

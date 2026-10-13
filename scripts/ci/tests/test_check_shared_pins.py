@@ -16,7 +16,7 @@ MANIFEST = '''let package = Package(
 )
 '''
 
-def make(root: Path, project=PROJECT % (URL, '1.2.0'), manifests=None, siblings=()):
+def make(root: Path, project=PROJECT % (URL, '1.2.0'), manifests=None, siblings=(), extra_manifests=None):
     (root / 'Apps/macOS').mkdir(parents=True)
     (root / 'Apps/macOS/project.yml').write_text(project)
     for name in siblings:
@@ -25,6 +25,10 @@ def make(root: Path, project=PROJECT % (URL, '1.2.0'), manifests=None, siblings=
         d = root / 'Packages' / name
         d.mkdir(parents=True)
         (d / 'Package.swift').write_text(MANIFEST % (name, dependency))
+    # Version-specific manifests (Package@swift-5.9.swift) that SwiftPM prefers over Package.swift.
+    for relative, dependency in (extra_manifests or {}).items():
+        path = root / 'Packages' / relative
+        path.write_text(MANIFEST % (path.parent.name, dependency))
 
 def run(root):
     return subprocess.run([sys.executable, str(SCRIPT), str(root)], capture_output=True, text=True)
@@ -96,6 +100,74 @@ class SharedPins(unittest.TestCase):
     def test_multi_line_form_that_is_not_allowed_fails(self):
         self.check(False, 'Packages/TimeTugCore/Package.swift',
                    manifests={'TimeTugCore': f'.package(\n        url: "{URL}",\n        branch: "main"\n    )'})
+
+
+    # Any other project.yml entry that reaches the library defeats the pin: XcodeGen emits a local package
+    # reference and SwiftPM resolves the checkout over exactVersion.
+    def test_second_package_key_with_path_to_the_library_fails(self):
+        self.check(False, 'CCLocal', project=PROJECT % (URL, '1.2.0') +
+                   '  CCLocal:\n    path: ../../../calendar-connectors\n')
+
+    def test_second_package_key_with_the_library_url_fails(self):
+        self.check(False, 'Whatever', project=PROJECT % (URL, '1.2.0') +
+                   '  Whatever:\n    url: https://github.com/binary-companion/Calendar-Connectors.git\n'
+                   '    exactVersion: 1.2.0\n')
+
+    def test_second_package_key_with_github_shorthand_for_the_library_fails(self):
+        self.check(False, 'Shorthand', project=PROJECT % (URL, '1.2.0') +
+                   '  Shorthand:\n    github: binary-companion/calendar-connectors\n    exactVersion: 1.2.0\n')
+
+    def test_local_packages_entry_pointing_at_the_library_fails(self):
+        self.check(False, 'localPackages', project=PROJECT % (URL, '1.2.0') +
+                   'localPackages:\n  - ../../../calendar-connectors\n')
+
+    def test_local_packages_mapping_entry_pointing_at_the_library_fails(self):
+        self.check(False, 'localPackages', project=PROJECT % (URL, '1.2.0') +
+                   'localPackages:\n  - path: ../../../calendar-connectors\n')
+
+    def test_local_packages_entry_outside_packages_fails(self):
+        self.check(False, 'localPackages', project=PROJECT % (URL, '1.2.0') + 'localPackages:\n  - ../Elsewhere\n')
+
+    def test_local_packages_entry_for_an_existing_sibling_passes(self):
+        self.check(True, siblings=['Shared'],
+                   project=PROJECT % (URL, '1.2.0') + 'localPackages:\n  - ../../Packages/Shared\n')
+
+    def test_second_package_key_with_a_sibling_path_passes(self):
+        self.check(True, siblings=['Shared'], project=PROJECT % (URL, '1.2.0') +
+                   '  Shared:\n    path: ../../Packages/Shared\n')
+
+    def test_second_package_key_with_an_external_url_passes(self):
+        self.check(True, project=PROJECT % (URL, '1.2.0') +
+                   '  Sparkle:\n    url: https://github.com/sparkle-project/Sparkle\n    exactVersion: 2.10.0\n')
+
+    def test_second_package_key_with_a_missing_sibling_path_fails(self):
+        self.check(False, 'Missing', project=PROJECT % (URL, '1.2.0') +
+                   '  Missing:\n    path: ../../Packages/Missing\n')
+
+    def test_second_package_key_with_a_case_variant_sibling_path_fails(self):
+        self.check(False, 'Shared', siblings=['Shared'], project=PROJECT % (URL, '1.2.0') +
+                   '  Shared:\n    path: ../../Packages/shared\n')
+
+    def test_second_package_key_with_a_path_outside_packages_fails(self):
+        self.check(False, 'Elsewhere', project=PROJECT % (URL, '1.2.0') +
+                   '  Elsewhere:\n    path: ../../../Elsewhere\n')
+
+    def test_second_package_key_that_is_not_a_mapping_fails(self):
+        self.check(False, 'Odd', project=PROJECT % (URL, '1.2.0') + '  Odd: ../../../calendar-connectors\n')
+
+    # SwiftPM prefers Package@swift-X.Y.swift over Package.swift, so every Package*.swift is scanned.
+    def test_version_specific_manifest_with_a_path_to_the_library_fails(self):
+        self.check(False, 'Package@swift-5.9.swift',
+                   extra_manifests={'TimeTugCore/Package@swift-5.9.swift':
+                                    '.package(path: "../../../calendar-connectors")'})
+
+    def test_clean_version_specific_manifest_passes(self):
+        self.check(True, extra_manifests={'TimeTugCore/Package@swift-5.9.swift':
+                                          f'.package(url: "{URL}", from: "1.0.0")'})
+
+    def test_version_specific_manifest_with_a_floor_above_the_pin_fails(self):
+        self.check(False, 'below', extra_manifests={'TimeTugCore/Package@swift-5.9.swift':
+                                                    f'.package(url: "{URL}", from: "1.3.0")'})
 
 
 # XcodeGen gives `path` precedence over `url`, so an entry with any key besides url and exactVersion can hide a

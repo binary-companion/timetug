@@ -81,6 +81,11 @@ if [[ "$MODE" == affected ]]; then
   if [[ ${#CHANGED[@]} -eq 0 ]]; then echo 'No changed files; no checks selected.' | tee -a "$SUMMARY"; exit 0; fi
   WANT_CORE=0; WANT_CONNECTORS=0; WANT_APP=0; WANT_RELEASE=0; WANT_CONTRACTS=0
   for file in "${CHANGED[@]}"; do
+    # Manifests and the project file decide which library version the app resolves, so they also run the
+    # contracts (shared-pins) check, in addition to what their directory selects below.
+    case "$file" in
+      Packages/*/Package.swift|Packages/*/Package@swift-*.swift|Apps/macOS/project.yml) WANT_CONTRACTS=1;;
+    esac
     case "$file" in
       Packages/CalendarApple/*|Packages/EventKitSource/*)
         WANT_CONNECTORS=1; WANT_CORE=1; WANT_APP=1;;
