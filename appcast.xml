@@ -3,6 +3,41 @@
   <channel>
     <title>TimeTug</title>
     <item>
+      <title>TimeTug 2.0.0-beta.20261013212507</title>
+      <pubDate>Tue, 13 Oct 2026 21:29:24 GMT</pubDate>
+      <sparkle:version>20261013212507</sparkle:version>
+      <sparkle:shortVersionString>2.0.0-beta.20261013212507</sparkle:shortVersionString>
+      <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
+      <sparkle:channel>beta</sparkle:channel>
+      <description>&lt;!DOCTYPE html&gt;
+&lt;html&gt;
+&lt;head&gt;
+&lt;meta charset="utf-8"&gt;
+&lt;style&gt;
+body {
+  font: 13px -apple-system, BlinkMacSystemFont, "Helvetica Neue", sans-serif;
+  color: #1d1d1f;
+  margin: 12px 16px;
+  word-wrap: break-word;
+}
+a { color: #0068da; }
+h1, h2, h3 { font-size: 1.05em; }
+pre, code { font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 0.95em; }
+pre { white-space: pre-wrap; overflow-wrap: anywhere; }
+@media (prefers-color-scheme: dark) {
+  body { color: #f5f5f7; }
+  a { color: #4da3ff; }
+}
+&lt;/style&gt;
+&lt;/head&gt;
+&lt;body&gt;
+&lt;p dir="auto"&gt;Beta build from &lt;a class="commit-link" data-hovercard-type="commit" data-hovercard-url="https://github.com/binary-companion/timetug/commit/9d3a2523cae7416ba691f06bc2251f3c094b6df8/hovercard" href="https://github.com/binary-companion/timetug/commit/9d3a2523cae7416ba691f06bc2251f3c094b6df8"&gt;&lt;tt&gt;9d3a252&lt;/tt&gt;&lt;/a&gt;&lt;/p&gt;
+&lt;/body&gt;
+&lt;/html&gt;
+</description>
+      <enclosure url="https://github.com/binary-companion/timetug/releases/download/beta-20261013212507/TimeTug-2.0.0-beta.20261013212507.zip" length="9407675" type="application/octet-stream" sparkle:edSignature="bsSf/D6z7zNlLd0qkKMagKUzk2HfDmTJx3bOLC+AXcPnkoJHDv+LHSVkCBtR9kSG1L9ik7IMQvCY4D5IYd41AA==" />
+    </item>
+    <item>
       <title>TimeTug 2.0.0-beta.20261013151458</title>
       <pubDate>Tue, 13 Oct 2026 15:18:55 GMT</pubDate>
       <sparkle:version>20261013151458</sparkle:version>
@@ -141,41 +176,6 @@ pre { white-space: pre-wrap; overflow-wrap: anywhere; }
 &lt;/html&gt;
 </description>
       <enclosure url="https://github.com/binary-companion/timetug/releases/download/beta-20261013030919/TimeTug-2.0.0-beta.20261013030919.zip" length="9407601" type="application/octet-stream" sparkle:edSignature="MemE2wz2iPVhQqu+CKZ4BT0ShKDL5PcXqHh4L2Nm9+GoTQtctGnB9GsLcZoDv7NEHWec344S8DS6Cr6+e8HXDg==" />
-    </item>
-    <item>
-      <title>TimeTug 2.0.0-beta.20261013025759</title>
-      <pubDate>Tue, 13 Oct 2026 03:02:30 GMT</pubDate>
-      <sparkle:version>20261013025759</sparkle:version>
-      <sparkle:shortVersionString>2.0.0-beta.20261013025759</sparkle:shortVersionString>
-      <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
-      <sparkle:channel>beta</sparkle:channel>
-      <description>&lt;!DOCTYPE html&gt;
-&lt;html&gt;
-&lt;head&gt;
-&lt;meta charset="utf-8"&gt;
-&lt;style&gt;
-body {
-  font: 13px -apple-system, BlinkMacSystemFont, "Helvetica Neue", sans-serif;
-  color: #1d1d1f;
-  margin: 12px 16px;
-  word-wrap: break-word;
-}
-a { color: #0068da; }
-h1, h2, h3 { font-size: 1.05em; }
-pre, code { font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 0.95em; }
-pre { white-space: pre-wrap; overflow-wrap: anywhere; }
-@media (prefers-color-scheme: dark) {
-  body { color: #f5f5f7; }
-  a { color: #4da3ff; }
-}
-&lt;/style&gt;
-&lt;/head&gt;
-&lt;body&gt;
-&lt;p dir="auto"&gt;Beta build from &lt;a class="commit-link" data-hovercard-type="commit" data-hovercard-url="https://github.com/binary-companion/timetug/commit/ef27fee1b5b258da8f8e1729d296ef2e6b47f51a/hovercard" href="https://github.com/binary-companion/timetug/commit/ef27fee1b5b258da8f8e1729d296ef2e6b47f51a"&gt;&lt;tt&gt;ef27fee&lt;/tt&gt;&lt;/a&gt;&lt;/p&gt;
-&lt;/body&gt;
-&lt;/html&gt;
-</description>
-      <enclosure url="https://github.com/binary-companion/timetug/releases/download/beta-20261013025759/TimeTug-2.0.0-beta.20261013025759.zip" length="9407658" type="application/octet-stream" sparkle:edSignature="yKFdWcrk5ruWX+J3kADKBT0gI40Mqw3CON4Xdt2eDi7vHJHG3Bc0eQYfxSY83rRhsPB18msA4Xb3h/tP6oiLBg==" />
     </item>
     <item>
       <title>TimeTug 2.0.0</title>
