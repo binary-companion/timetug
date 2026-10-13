@@ -1,6 +1,6 @@
 # Calendar connectors, Phase 2: plug the library into TimeTug
 
-Status: draft for review. Phase 1 (the portable `Packages/CalendarConnectors` library with a read-only Google connector) is merged (#16, `51f9a6d`). This phase makes TimeTug use it: Google accounts appear in Settings, their calendars feed the same store and dedup as Apple Calendar, and EventKit itself moves onto the library's abstraction. Roadmap and earlier decisions: `docs/superpowers/specs/2026-09-20-calendar-connectors-phase1-design.md` and ADR `docs/decisions/0012-calendar-connector-library.md`.
+Status: draft for review. Phase 1 (the portable `Packages/CalendarConnectors` library with a read-only Google connector) is merged (#16, `51f9a6d`). This phase makes TimeTug use it: Google accounts appear in Settings, their calendars feed the same store and dedup as Apple Calendar, and EventKit itself moves onto the library's abstraction. Roadmap and earlier decisions: the library repository's [phase 1 design](https://github.com/binary-companion/calendar-connectors/blob/1.0.0/docs/superpowers/specs/2026-09-20-calendar-connectors-phase1-design.md) and ADR `docs/decisions/0012-calendar-connector-library.md`.
 
 ## Goals
 
