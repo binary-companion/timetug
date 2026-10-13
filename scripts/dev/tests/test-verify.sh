@@ -27,6 +27,7 @@ cat > "$T/repo/scripts/ci/tests/test-dummy.sh" <<'SCRIPT'
 exit 0
 SCRIPT
 cp "$T/repo/scripts/ci/tests/test-dummy.sh" "$T/repo/scripts/release/tests/test-dummy.sh"
+cp "$T/repo/scripts/ci/tests/test-dummy.sh" "$T/repo/scripts/dev/tests/test-use-local-connectors.sh"
 cd "$T/repo"
 git init -q
 git config user.email test@example.com
@@ -54,6 +55,7 @@ mkdir -p docs
 echo docs > docs/change.md
 run_mode affected
 grep -q 'python3 scripts/ci/check-repository-contracts.py' "$VERIFY_CALLS" || fail 'documentation check omitted'
+grep -q 'python3 scripts/ci/check-shared-pins.py' "$VERIFY_CALLS" || fail 'shared pin check omitted'
 if grep -q '^swift\|^xcodebuild' "$VERIFY_CALLS"; then fail 'documentation ran build'; fi
 rm docs/change.md
 mkdir -p Packages/CalendarConnectors/Sources/CalendarCore

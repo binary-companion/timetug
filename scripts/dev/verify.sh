@@ -54,7 +54,7 @@ run_app() {
 run_release() {
   need bash; need python3; need node
   python3 -c 'import yaml' >/dev/null 2>&1 || { echo 'missing prerequisite: PyYAML (scripts/ci/requirements-test.txt)' >&2; exit 2; }
-  for test in scripts/ci/tests/test-*.sh scripts/release/tests/test-*.sh; do run "$(basename "$test" .sh)" bash "$test"; done
+  for test in scripts/ci/tests/test-*.sh scripts/release/tests/test-*.sh scripts/dev/tests/test-use-local-connectors.sh; do run "$(basename "$test" .sh)" bash "$test"; done
   run wrapper-tests bash scripts/dev/tests/test-verify.sh
   run python-appcast python3 -m unittest discover -s scripts/release/tests -p 'test_*.py'
   run website node --test site/tests/download.test.js
@@ -62,7 +62,11 @@ run_release() {
   run website-syntax node --check site/public/download.js
   run website-config python3 -m json.tool site/firebase.json
 }
-run_contracts() { need python3; run repository-contracts python3 scripts/ci/check-repository-contracts.py; }
+run_contracts() {
+  need python3
+  run repository-contracts python3 scripts/ci/check-repository-contracts.py
+  run shared-pins python3 scripts/ci/check-shared-pins.py
+}
 skip_check() { SKIP=$((SKIP+1)); printf 'SKIP %s (not selected)\n' "$1" >> "$SUMMARY"; }
 # Files are NUL-delimited so spaces and unusual source names route correctly.
 if [[ "$MODE" == affected ]]; then
