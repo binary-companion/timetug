@@ -6,6 +6,7 @@ import CalendarCore
 import Combine
 import EventKitSource
 import KeyboardShortcuts
+import Network
 import OSLog
 import SwiftUI
 import TimeTugCore
@@ -14,7 +15,10 @@ import WidgetKit
 /// Wires sources, store, scheduler and the UI. Holds no presentation logic itself.
 @MainActor
 final class AppCoordinator {
-    private static let periodicRefresh: TimeInterval = 300
+    /// Backstop only: change signals (source polls, EventKit, wake, network return) drive the real refreshes.
+    private static let periodicRefresh: TimeInterval = 900
+    /// Cheap self-heal for a dropped settings notification from the widget extension.
+    private static let settingsSelfHeal: TimeInterval = 300
     /// Meetings that started longer than this before launch are treated as already handled.
     private static let launchGrace: TimeInterval = 120
 
@@ -46,6 +50,7 @@ final class AppCoordinator {
     private var launchAcknowledgement = LaunchAcknowledgement(launchedAt: Date())
     private var fireTimer: Timer?
     private var tickTimer: Timer?
+    private var networkMonitor: NWPathMonitor?
     private var cancellables = Set<AnyCancellable>()
     private var statusItem: StatusItemController?
     private let snapshotStore = WidgetSnapshotStore()
@@ -162,6 +167,10 @@ final class AppCoordinator {
         Timer.scheduledTimer(withTimeInterval: Self.periodicRefresh, repeats: true) { [weak self] _ in
             Task { @MainActor in await self?.refresh() }
         }
+        Timer.scheduledTimer(withTimeInterval: Self.settingsSelfHeal, repeats: true) { [weak self] _ in
+            Task { @MainActor in self?.settings.reloadFromShared() }
+        }
+        observeNetworkReturn()
         let loadedDedup = dedupStore.load()
         lastSavedDedupState = loadedDedup
         await store.load(loadedDedup)
@@ -387,6 +396,19 @@ final class AppCoordinator {
         }
     }
 
+    /// A source poll backs off for up to 15 minutes after a failure, so refresh as soon as the network returns.
+    private func observeNetworkReturn() {
+        let monitor = NWPathMonitor()
+        let wasSatisfied = PathState()
+        monitor.pathUpdateHandler = { [weak self] path in
+            let satisfied = path.status == .satisfied
+            guard wasSatisfied.update(to: satisfied), satisfied else { return }
+            Task { @MainActor in await self?.refresh() }
+        }
+        monitor.start(queue: DispatchQueue(label: "com.timetug.network-path"))
+        networkMonitor = monitor
+    }
+
     private var isOverlayVisible: Bool { overlay.isVisible }
 
     private func present(_ request: TakeoverRequest) {
@@ -433,5 +455,19 @@ final class AppCoordinator {
     func openSettings(pane: SettingsPane? = nil) {
         if let pane { navigation.pane = pane }
         settingsWindow.show(on: statusItem?.clickedScreen)
+    }
+}
+
+/// Last reported network reachability; the path handler runs on one serial queue, the lock keeps it Sendable.
+private final class PathState: @unchecked Sendable {
+    private let lock = NSLock()
+    private var satisfied = true
+
+    /// Stores `new` and returns whether it differs from the previous value.
+    func update(to new: Bool) -> Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        defer { satisfied = new }
+        return satisfied != new
     }
 }
