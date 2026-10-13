@@ -166,7 +166,7 @@ jobs:
           scripts/dev/tests/test-affected-tests.sh
           scripts/release/tests/test-preflight.sh
 
-  # Core and the connector library are meant to be portable (no Apple-only imports). This job checks that on Linux.
+  # Core is meant to be portable (no Apple-only imports). This job checks that on Linux; the connector library tests its own portability in its repository.
   # Linux passed on master in runs 38138250241 and 38138726121; regressions now block merges.
   core-linux:
     runs-on: ubuntu-latest

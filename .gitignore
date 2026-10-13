@@ -9,7 +9,7 @@ build/
 __pycache__/
 *.pyc
 
-# SwiftPM resolution files of the local packages (pins live in Package.swift and project.yml)
+# SwiftPM resolution files of the local packages (the version floors live in Package.swift, the exact pin in project.yml)
 Packages/*/Package.resolved
 
 # Release output and signing material: never commit these

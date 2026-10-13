@@ -8,7 +8,7 @@ TimeTug is a macOS menu bar app that takes over the screen before meetings. Star
 ## Layout
 - `Packages/TimeTugCore`: pure Swift, platform-neutral logic. NO UI or Apple-only imports.
 - `Packages/EventKitSource`: Apple Calendar adapter (macOS only); speaks the library's `CalendarSource`.
-- `Packages/CalendarConnectors`: portable connector library (ADR 0012), no external dependencies, pure Swift that builds on Linux. Products: `CalendarCore` (model, `CalendarSource`, `ConnectorKind`, `ChangeMonitor`, `AllDay`, `ConferenceDetector`, connection/sync stores and optional write API), `CalendarOAuth` (OAuth PKCE and refresh), `GoogleCalendar`, `MicrosoftCalendar`, `ICalendar`, `CalDAVCalendar`, `ICalSubscription` and `CalendarTestSupport`. Imports nothing from TimeTug. The host app supplies credential storage, OAuth interaction and persistence; Microsoft sign-in remains read-only (ADR 0017) while library write code remains available.
+- `calendar-connectors` (its own repository, consumed by released version; ADR 0012): portable connector library, no external dependencies, pure Swift that builds on Linux. Products: `CalendarCore` (model, `CalendarSource`, `ConnectorKind`, `ChangeMonitor`, `AllDay`, `ConferenceDetector`, connection/sync stores and optional write API), `CalendarOAuth` (OAuth PKCE and refresh), `GoogleCalendar`, `MicrosoftCalendar`, `ICalendar`, `CalDAVCalendar`, `ICalSubscription` and `CalendarTestSupport`. Imports nothing from TimeTug. The host app supplies credential storage, OAuth interaction and persistence; Microsoft sign-in remains read-only (ADR 0017) while library write code remains available.
 - `Packages/CalendarBridge`: minimal glue. `EventMapper` wraps library events in `TimeTugCalendarEvent` (drops cancelled ones, adds calendar info); `ConnectedSource` adapts a library source to Core's source protocol and translates errors and changes.
 - `Packages/CalendarApple`: Apple-side adapters for the library (Keychain `CredentialStore`, loopback OAuth interaction, `WebAuthenticationSessionPresenter` (the `ASWebAuthenticationSession` sign-in sheet), `CryptoKitSHA256`, injected in `AppConnectors.swift`).
 - `Packages/AppleIntelligenceInference`: Apple on-device model adapter for duplicate detection (macOS 26+, compile-guarded). Only place with Foundation Models imports.
@@ -31,7 +31,7 @@ TimeTug is a macOS menu bar app that takes over the screen before meetings. Star
 - EventKitSource tests: `swift test --package-path Packages/EventKitSource`
 - Bridge tests: `swift test --package-path Packages/CalendarBridge`
 - Apple adapter tests: `swift test --package-path Packages/CalendarApple`
-- Connector library tests: `swift test --package-path Packages/CalendarConnectors`.
+- Connector library tests run in its own repository (`swift test` there). To exercise a local library change in the app, use `scripts/dev/use-local-connectors.sh`.
 - Inference package tests: `swift test --package-path Packages/AppleIntelligenceInference`
 - Generate app project: `xcodegen generate --spec Apps/macOS/project.yml`
 - Build app: `xcodebuild -project Apps/macOS/TimeTug.xcodeproj -scheme TimeTug -destination 'platform=macOS' build`
