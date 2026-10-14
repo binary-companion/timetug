@@ -90,6 +90,27 @@ for job_name, job in hosting['jobs'].items():
     if not auth or not {'workload_identity_provider', 'service_account'} <= set(auth[0].get('with', {})):
         errors.append(f'firebase-hosting-merge.yml/{job_name}: must sign in with google-github-actions/auth and Workload Identity Federation')
 
+# The dependency bump workflow opens (and supersedes) pull requests but never merges one. Its app token carries
+# only the two permissions it needs, whatever the installation itself holds.
+bump = workflows['bump-dependencies.yml']
+bump_triggers = bump.get('on', bump.get(True)) or {}
+if (bump_triggers.get('repository_dispatch') or {}).get('types') != ['library-released']:
+    errors.append('bump-dependencies.yml: repository_dispatch types must be exactly [library-released]')
+for job_name, job in bump['jobs'].items():
+    token_steps = [step for step in job['steps'] if str(step.get('uses', '')).startswith('actions/create-github-app-token@')]
+    if len(token_steps) != 1:
+        errors.append(f'bump-dependencies.yml/{job_name}: must create exactly one app token')
+        continue
+    token_inputs = {key for key in token_steps[0].get('with', {}) if key.startswith('permission-')}
+    if token_inputs != {'permission-contents', 'permission-pull-requests'}:
+        errors.append(f'bump-dependencies.yml/{job_name}: app token must request exactly permission-contents and '
+                      f'permission-pull-requests, got {sorted(token_inputs)}')
+    elif (token_steps[0]['with']['permission-contents'], token_steps[0]['with']['permission-pull-requests']) != ('write', 'write'):
+        errors.append(f'bump-dependencies.yml/{job_name}: app token permissions must both be write')
+bump_runs = '\n'.join(step.get('run', '') for job in bump['jobs'].values() for step in job['steps'])
+if re.search(r'gh\s+pr\s+merge|--auto\b|\bmerge\b', bump_runs):
+    errors.append('bump-dependencies.yml: must never merge a pull request (no gh pr merge, --auto or merge)')
+
 if errors:
     for error in errors:
         print(f'FAIL: {error}', file=sys.stderr)

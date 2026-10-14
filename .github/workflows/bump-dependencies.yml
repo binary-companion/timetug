@@ -1,6 +1,7 @@
 # Opens "Bump calendar-connectors to X.Y.Z" when the library releases (repository_dispatch from its
 # release workflow), or on demand. The pull request is opened with a timetug-bot token so its CI runs;
-# the bot cannot merge. The version is validated by scripts/ci/bump-pin.sh before it touches a file.
+# the workflow never merges anything: the owner merges. A newer bump closes the open bump pull requests for
+# older versions. The version is validated by scripts/ci/bump-pin.sh before it touches a file.
 name: Bump dependencies
 
 on:
@@ -36,6 +37,8 @@ jobs:
           private-key: ${{ secrets.BUMP_APP_PRIVATE_KEY }}
           owner: ${{ github.repository_owner }}
           repositories: timetug
+          permission-contents: write
+          permission-pull-requests: write
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           ref: master
@@ -50,29 +53,48 @@ jobs:
           if git diff --quiet; then echo "Already at $VERSION; nothing to do."; exit 0; fi
           branch="bump/calendar-connectors-$VERSION"
           # A re-delivered event or a manual re-run must not fail on work that is already in flight.
-          open_prs="$(gh pr list --head "$branch" --state open --json number --jq 'length')"
-          if [ "$open_prs" != "0" ]; then
-            echo "A pull request for $branch is already open; nothing to do."
-            exit 0
+          number="$(gh pr list --head "$branch" --state open --json number --jq '.[0].number // empty')"
+          if [ -n "$number" ]; then
+            echo "A pull request for $branch is already open (#$number)."
+          else
+            branch_pushed=false
+            if git ls-remote --exit-code --heads origin "$branch" >/dev/null 2>&1; then
+              # An earlier run pushed the branch but could not open the pull request; open it from that branch.
+              branch_pushed=true
+              echo "Branch $branch exists without an open pull request; opening one from it."
+            fi
+            # Build the body first so that a failure here cannot leave a pushed branch without a pull request.
+            {
+              echo "Moves the pinned connector library to $VERSION. CI on this pull request proves the app still builds and passes its tests."
+              echo
+              echo "## Release notes"
+              gh release view "$VERSION" --repo binary-companion/calendar-connectors --json body --jq .body \
+                || echo "(The release notes could not be read; see the release $VERSION in binary-companion/calendar-connectors.)"
+              echo
+              echo "🤖 Opened by timetug-bot"
+            } > "$RUNNER_TEMP/body.md"
+            if [ "$branch_pushed" = false ]; then
+              git config user.name "timetug-bot[bot]"
+              git config user.email "342080999+timetug-bot[bot]@users.noreply.github.com"
+              git switch -c "$branch"
+              git commit -am "Bump calendar-connectors to $VERSION"
+              git push origin "$branch"
+            fi
+            url="$(gh pr create --base master --head "$branch" \
+              --title "Bump calendar-connectors to $VERSION" --body-file "$RUNNER_TEMP/body.md")"
+            echo "$url"
+            number="${url##*/}"
           fi
-          if git ls-remote --exit-code --heads origin "$branch" >/dev/null 2>&1; then
-            echo "::warning::Branch $branch already exists without an open pull request; open or delete it by hand."
-            exit 0
-          fi
-          # Build the body first so that a failure here cannot leave a pushed branch without a pull request.
-          {
-            echo "Moves the pinned connector library to $VERSION. CI on this pull request proves the app still builds and passes its tests."
-            echo
-            echo "## Release notes"
-            gh release view "$VERSION" --repo binary-companion/calendar-connectors --json body --jq .body \
-              || echo "(The release notes could not be read; see the release $VERSION in binary-companion/calendar-connectors.)"
-            echo
-            echo "🤖 Opened by timetug-bot"
-          } > "$RUNNER_TEMP/body.md"
-          git config user.name "timetug-bot"
-          git config user.email "timetug-bot@users.noreply.github.com"
-          git switch -c "$branch"
-          git commit -am "Bump calendar-connectors to $VERSION"
-          git push origin "$branch"
-          gh pr create --base master --head "$branch" \
-            --title "Bump calendar-connectors to $VERSION" --body-file "$RUNNER_TEMP/body.md"
+          # Supersede older bump pull requests. Only same-repository pull requests whose head branch is exactly
+          # bump/calendar-connectors-X.Y.Z with a lower version are closed (versions compared numerically with
+          # sort -V, never as strings); every other pull request is left alone.
+          gh pr list --state open --limit 100 --json number,headRefName,isCrossRepository \
+            --jq '.[] | select(.isCrossRepository | not) | "\(.number) \(.headRefName)"' |
+          while read -r old_number old_head; do
+            [[ "$old_head" =~ ^bump/calendar-connectors-([0-9]+\.[0-9]+\.[0-9]+)$ ]] || continue
+            old_version="${BASH_REMATCH[1]}"
+            [ "$old_version" != "$VERSION" ] || continue
+            [ "$(printf '%s\n%s\n' "$old_version" "$VERSION" | sort -V | head -n 1)" = "$old_version" ] || continue
+            echo "Closing #$old_number ($old_head): superseded by #$number."
+            gh pr close "$old_number" --comment "Superseded by #$number" --delete-branch
+          done
