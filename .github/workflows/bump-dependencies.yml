@@ -53,7 +53,9 @@ jobs:
           if git diff --quiet; then echo "Already at $VERSION; nothing to do."; exit 0; fi
           branch="bump/calendar-connectors-$VERSION"
           # A re-delivered event or a manual re-run must not fail on work that is already in flight.
-          number="$(gh pr list --head "$branch" --state open --json number --jq '.[0].number // empty')"
+          # `--head` matches the head branch name across forks, so only same-repository heads count.
+          number="$(gh pr list --head "$branch" --state open --json number,isCrossRepository \
+            --jq 'map(select(.isCrossRepository | not)) | .[0].number // empty')"
           if [ -n "$number" ]; then
             echo "A pull request for $branch is already open (#$number)."
           else
@@ -87,14 +89,18 @@ jobs:
           fi
           # Supersede older bump pull requests. Only same-repository pull requests whose head branch is exactly
           # bump/calendar-connectors-X.Y.Z with a lower version are closed (versions compared numerically with
-          # sort -V, never as strings); every other pull request is left alone.
-          gh pr list --state open --limit 100 --json number,headRefName,isCrossRepository \
-            --jq '.[] | select(.isCrossRepository | not) | "\(.number) \(.headRefName)"' |
+          # sort -V, never as strings); every other pull request is left alone. Each close is independent: one
+          # failure is reported and the step fails at the end, after the other closes were tried.
+          open_prs="$(gh pr list --state open --limit 100 --json number,headRefName,isCrossRepository \
+            --jq '.[] | select(.isCrossRepository | not) | "\(.number) \(.headRefName)"')"
+          failed=0
           while read -r old_number old_head; do
             [[ "$old_head" =~ ^bump/calendar-connectors-([0-9]+\.[0-9]+\.[0-9]+)$ ]] || continue
             old_version="${BASH_REMATCH[1]}"
             [ "$old_version" != "$VERSION" ] || continue
             [ "$(printf '%s\n%s\n' "$old_version" "$VERSION" | sort -V | head -n 1)" = "$old_version" ] || continue
             echo "Closing #$old_number ($old_head): superseded by #$number."
-            gh pr close "$old_number" --comment "Superseded by #$number" --delete-branch
-          done
+            gh pr close "$old_number" --comment "Superseded by #$number" --delete-branch \
+              || { echo "::warning::could not close #$old_number"; failed=1; }
+          done <<< "$open_prs"
+          exit "$failed"
