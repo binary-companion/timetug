@@ -87,8 +87,9 @@ if [[ "$MODE" == affected ]]; then
       Packages/*/Package.swift|Packages/*/Package@swift-*.swift|Apps/macOS/project.yml) WANT_CONTRACTS=1;;
     esac
     case "$file" in
+      # No local package depends on the adapters, so only the adapters and the app are affected.
       Packages/CalendarApple/*|Packages/EventKitSource/*)
-        WANT_CONNECTORS=1; WANT_CORE=1; WANT_APP=1;;
+        WANT_CONNECTORS=1; WANT_APP=1;;
       Packages/TimeTugCore/*|Packages/CalendarBridge/*|Packages/AppleIntelligenceInference/*)
         WANT_CORE=1; WANT_APP=1;;
       Apps/macOS/*) WANT_APP=1;;

@@ -16,11 +16,18 @@ MANIFEST = '''let package = Package(
 )
 '''
 
-def make(root: Path, project=PROJECT % (URL, '1.2.0'), manifests=None, siblings=(), extra_manifests=None):
+def make(root: Path, project=PROJECT % (URL, '1.2.0'), manifests=None, siblings=(), extra_manifests=None,
+         symlinks=()):
     (root / 'Apps/macOS').mkdir(parents=True)
     (root / 'Apps/macOS/project.yml').write_text(project)
     for name in siblings:
         (root / 'Packages' / name).mkdir(parents=True)
+    # A symlink under Packages/ to a real directory elsewhere: it must not count as a sibling.
+    for name in symlinks:
+        target = root / 'elsewhere' / name
+        target.mkdir(parents=True)
+        (root / 'Packages').mkdir(exist_ok=True)
+        (root / 'Packages' / name).symlink_to(target, target_is_directory=True)
     for name, dependency in (manifests or {'TimeTugCore': f'.package(url: "{URL}", from: "1.0.0")'}).items():
         d = root / 'Packages' / name
         d.mkdir(parents=True)
@@ -28,6 +35,7 @@ def make(root: Path, project=PROJECT % (URL, '1.2.0'), manifests=None, siblings=
     # Version-specific manifests (Package@swift-5.9.swift) that SwiftPM prefers over Package.swift.
     for relative, dependency in (extra_manifests or {}).items():
         path = root / 'Packages' / relative
+        path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(MANIFEST % (path.parent.name, dependency))
 
 def run(root):
@@ -168,6 +176,81 @@ class SharedPins(unittest.TestCase):
     def test_version_specific_manifest_with_a_floor_above_the_pin_fails(self):
         self.check(False, 'below', extra_manifests={'TimeTugCore/Package@swift-5.9.swift':
                                                     f'.package(url: "{URL}", from: "1.3.0")'})
+
+    # XcodeGen `include:` can add packages from a file this check does not read.
+    def test_top_level_include_key_fails(self):
+        self.check(False, 'include', project=PROJECT % (URL, '1.2.0') + 'include:\n  - extra.yml\n')
+
+    # A symlink under Packages/ may point anywhere, so it is not an existing sibling directory.
+    def test_symlinked_sibling_in_a_manifest_fails(self):
+        self.check(False, 'Packages/TimeTugCore/Package.swift', symlinks=['Shared'],
+                   manifests={'TimeTugCore': '.package(path: "../Shared")'})
+
+    def test_symlinked_sibling_in_the_project_fails(self):
+        self.check(False, 'Shared', symlinks=['Shared'],
+                   project=PROJECT % (URL, '1.2.0') + '  Shared:\n    path: ../../Packages/Shared\n')
+
+    def test_symlinked_sibling_in_local_packages_fails(self):
+        self.check(False, 'localPackages', symlinks=['Shared'],
+                   project=PROJECT % (URL, '1.2.0') + 'localPackages:\n  - ../../Packages/Shared\n')
+
+    # Manifests are found at any depth under Packages/ (except .build and build directories).
+    def test_nested_manifest_with_a_path_to_the_library_fails(self):
+        self.check(False, 'Packages/TimeTugCore/Tests/Fixture/Package.swift',
+                   extra_manifests={'TimeTugCore/Tests/Fixture/Package.swift':
+                                    '.package(path: "../../../../../calendar-connectors")'})
+
+    def test_nested_manifest_with_a_branch_dependency_fails(self):
+        self.check(False, 'Packages/TimeTugCore/Sub/Package@swift-5.9.swift',
+                   extra_manifests={'TimeTugCore/Sub/Package@swift-5.9.swift':
+                                    f'.package(url: "{URL}", branch: "main")'})
+
+    def test_nested_manifest_with_a_floor_above_the_pin_fails(self):
+        self.check(False, 'below', extra_manifests={'TimeTugCore/Sub/Package.swift':
+                                                    f'.package(url: "{URL}", from: "1.3.0")'})
+
+    def test_clean_nested_manifest_passes(self):
+        self.check(True, extra_manifests={'TimeTugCore/Sub/Package.swift': f'.package(url: "{URL}", from: "1.0.0")'})
+
+    def test_nested_manifest_path_is_resolved_from_its_own_directory(self):
+        self.check(True, siblings=['Shared'],
+                   extra_manifests={'TimeTugCore/Tests/Fixture/Package.swift': '.package(path: "../../../Shared")'})
+
+    def test_nested_manifest_path_to_a_missing_sibling_fails(self):
+        self.check(False, 'Packages/TimeTugCore/Tests/Fixture/Package.swift',
+                   extra_manifests={'TimeTugCore/Tests/Fixture/Package.swift': '.package(path: "../../../Missing")'})
+
+    def test_manifests_under_build_directories_are_skipped(self):
+        bad = '.package(path: "../../../../calendar-connectors")'
+        self.check(True, extra_manifests={'TimeTugCore/.build/checkouts/Dep/Package.swift': bad,
+                                          'TimeTugCore/build/Dep/Package.swift': bad})
+
+    # A trailing slash is a different url from the pinned one; it is never accepted as the library.
+    def test_pinned_project_url_with_a_trailing_slash_fails(self):
+        self.check(False, 'must use url', project=PROJECT % (URL + '/', '1.2.0'))
+
+    def test_manifest_url_with_a_trailing_slash_fails(self):
+        self.check(False, 'Packages/TimeTugCore/Package.swift',
+                   manifests={'TimeTugCore': f'.package(url: "{URL}/", from: "1.0.0")'})
+
+    def test_second_package_key_with_a_trailing_slash_library_url_fails(self):
+        self.check(False, 'Slashed', project=PROJECT % (URL, '1.2.0') +
+                   f'  Slashed:\n    url: {URL}/\n    exactVersion: 1.2.0\n')
+
+    # Wording: an entry that reaches the library "points at" it; a third-party name that merely contains the
+    # library name "names" it (it is rejected either way).
+    def test_entry_that_reaches_the_library_says_points_at(self):
+        self.check(False, 'points at the shared library', project=PROJECT % (URL, '1.2.0') +
+                   '  Fork:\n    url: https://github.com/someone/calendar-connectors.git\n    exactVersion: 1.2.0\n')
+
+    def test_third_party_name_containing_the_library_name_says_names(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            make(Path(tmp), project=PROJECT % (URL, '1.2.0') +
+                 '  Extras:\n    url: https://github.com/someone/calendar-connectors-extras\n    exactVersion: 1.0.0\n')
+            result = run(tmp)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn('names the shared library', result.stderr)
+        self.assertNotIn('points at', result.stderr)
 
 
 # XcodeGen gives `path` precedence over `url`, so an entry with any key besides url and exactVersion can hide a

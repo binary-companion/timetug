@@ -83,7 +83,7 @@ Apple Intelligence adapter tests: `swift test --package-path Packages/AppleIntel
 See `docs/architecture.md`. Agents and contributors: read `AGENTS.md`.
 
 ## Third-party
-Uses KeyboardShortcuts by Sindre Sorhus (MIT).
+Uses KeyboardShortcuts by Sindre Sorhus (MIT) and the `calendar-connectors` library by Binary Companion LLC (MIT).
 
 ## Status
 Early development.

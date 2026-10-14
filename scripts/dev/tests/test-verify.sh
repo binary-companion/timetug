@@ -43,6 +43,10 @@ run_mode core
 grep -q 'swift test --package-path Packages/TimeTugCore' "$VERIFY_CALLS" || fail 'core omitted'
 if grep -q 'Packages/CalendarConnectors' "$VERIFY_CALLS"; then fail 'the library is tested from this repository'; fi
 export TIMETUG_LIVE_EVENTKIT=1 TIMETUG_LIVE_GOOGLE=1 TIMETUG_LIVE_MICROSOFT=1
+for mode in connectors all; do
+  run_mode "$mode"
+  if grep -q 'Packages/CalendarConnectors' "$VERIFY_CALLS"; then fail "mode $mode tests the library from this repository"; fi
+done
 run_mode core
 if grep -q LIVE_FLAGS_INHERITED "$VERIFY_CALLS"; then fail 'live-test flags reached package tests'; fi
 mkdir -p Apps/macOS
@@ -71,6 +75,8 @@ echo model > Packages/CalendarApple/Sources/CalendarApple/'model with spaces.swi
 run_mode affected
 grep -q 'swift test --package-path Packages/CalendarApple' "$VERIFY_CALLS" || fail 'adapter tests omitted'
 grep -q 'xcodebuild ' "$VERIFY_CALLS" || fail 'adapter app dependent omitted'
+# No local package depends on the adapters, so an adapter change must not select the core packages.
+if grep -q 'Packages/TimeTugCore' "$VERIFY_CALLS"; then fail 'adapter change ran core'; fi
 rm Packages/CalendarApple/Sources/CalendarApple/'model with spaces.swift'
 mkdir -p .github/workflows
 echo workflow > .github/workflows/new.yml
