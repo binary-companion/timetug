@@ -73,17 +73,17 @@ xcodegen generate --spec Apps/macOS/project.yml
 xcodebuild -project Apps/macOS/TimeTug.xcodeproj -scheme TimeTug -destination 'platform=macOS' build
 ```
 
-Core logic tests: `swift test --package-path Packages/TimeTugCore`
+Core logic tests live in the [timetug-shared](https://github.com/binary-companion/timetug-shared) repository (`swift test` there).
 
 Apple Intelligence adapter tests: `swift test --package-path Packages/AppleIntelligenceInference`
 
 ## Architecture
-`Packages/TimeTugCore` (portable logic, including the merge rules), `Packages/EventKitSource` (Apple Calendar),
+`TimeTugCore` and `CalendarBridge` (portable logic, including the merge rules; the [timetug-shared](https://github.com/binary-companion/timetug-shared) repository), `Packages/EventKitSource` (Apple Calendar),
 `Packages/AppleIntelligenceInference` (on-device Apple Intelligence adapter for merging), `Apps/macOS` (the app).
 See `docs/architecture.md`. Agents and contributors: read `AGENTS.md`.
 
 ## Third-party
-Uses KeyboardShortcuts by Sindre Sorhus (MIT) and the `calendar-connectors` library by Binary Companion LLC (MIT).
+Uses KeyboardShortcuts by Sindre Sorhus (MIT), the `calendar-connectors` library by Binary Companion LLC (MIT) and the `timetug-shared` package by Binary Companion LLC (MIT with the Commons Clause).
 
 ## Status
 Early development.

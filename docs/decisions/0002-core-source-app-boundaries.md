@@ -9,7 +9,7 @@ The app integrates multiple calendar sources and must evolve to support Google C
 ## Decision
 
 Organize into three layers:
-- **Core** (`Packages/TimeTugCore`): Pure Swift, no AppKit/SwiftUI/EventKit imports. Defines the `CalendarSource` protocol and all business logic (scheduling, policy, merging, link detection). Returns only Core's normalized `TimeTugCalendarEvent` model.
+- **Core** (`Packages/TimeTugCore`; since 2026-10-15 in the `timetug-shared` repository, ADR 0020): Pure Swift, no AppKit/SwiftUI/EventKit imports. Defines the `CalendarSource` protocol and all business logic (scheduling, policy, merging, link detection). Returns only Core's normalized `TimeTugCalendarEvent` model.
 - **Sources** (e.g., `Packages/EventKitSource`): Implement `CalendarSource` for a specific backend. May import platform frameworks but no UI. Sources contain no display logic or settings storage.
 - **App** (`Apps/macOS`): The composition root. Owns the UI, wires sources into the store, configures credential storage, and renders settings. The only place that instantiates sources and knows which exist at runtime.
 
@@ -28,3 +28,7 @@ Rejected alternative: Shared source configuration UI in the source package itsel
 **Trade-off:** Up-front cost to define `CalendarSource` protocol carefully. Mitigation: protocol is small (5 methods) and driven by real sources (EventKit, Google Meet API, Exchange EWS).
 
 No credential storage yet lives in sources; the app owns `UserDefaults` and future secure storage, keyed by `sourceID`.
+
+## Update 2026-10-15
+
+`TimeTugCore` and `CalendarBridge` moved to the `timetug-shared` repository and are consumed by released version ([ADR 0020](0020-timetug-shared-repository.md)). The layering and the dependency direction above are unchanged.

@@ -11,7 +11,7 @@ Users want a global keyboard shortcut, chosen by them, that shows or hides the m
 Use the MIT-licensed SwiftPM package [KeyboardShortcuts](https://github.com/sindresorhus/KeyboardShortcuts) by Sindre Sorhus. It provides the SwiftUI recorder, stores the shortcut in UserDefaults, registers the hotkey through Carbon (no Accessibility permission) and warns about reserved system shortcuts. There is no default shortcut: it stays empty until the user records one, so it cannot conflict with anything.
 
 - **Pin:** `exactVersion: 2.4.0` in `Apps/macOS/project.yml`. `Package.resolved` lives in the git-ignored generated project, so the exact pin is the only reproducible record. 3.x exists; upgrade deliberately.
-- **Scope:** app layer only (`Apps/macOS`). `Packages/TimeTugCore` stays dependency-free and portable.
+- **Scope:** app layer only (`Apps/macOS`). `Packages/TimeTugCore` (now in `timetug-shared`, ADR 0020) stays dependency-free and portable.
 - **Rejected:** hand-rolled Carbon `RegisterEventHotKey` plus a custom recorder view. It is a lot of subtle code (key-code mapping, modifier handling, layout changes, reserved-shortcut detection, accessibility) for no benefit over a small, widely used library.
 - **Rejected:** `NSEvent` global monitors. They need Accessibility permission and cannot consume the key.
 

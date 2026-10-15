@@ -3,13 +3,14 @@
 This is the current module map. The [2026-09-18 core design](superpowers/specs/2026-09-18-timetug-core-design.md) records original rationale; later ADRs and code supersede changed details.
 
 ## Modules
-- `Packages/TimeTugCore`: pure Swift; depends only on `CalendarCore`. `TimeTugCalendarEvent` model (wraps the library `CalendarEvent`, adds merge and display state), `CalendarSource` protocol, `CalendarStore`
+- The [timetug-shared](https://github.com/binary-companion/timetug-shared) repository (ADR 0020), consumed by released version, holds `TimeTugCore` and `CalendarBridge` (below) with their tests and the dedup benchmark; Windows is a CI target there.
+- `TimeTugCore` (`Sources/TimeTugCore` in `timetug-shared`): pure Swift; depends only on `CalendarCore`. `TimeTugCalendarEvent` model (wraps the library `CalendarEvent`, adds merge and display state), `CalendarSource` protocol, `CalendarStore`
   (merge/dedupe/last-good), duplicate rules, resolver, lessons and the adjudicator interface (ADR 0009), `TakeoverPolicy`, `TakeoverLedger` + `Scheduler`,
   `DayAgenda`, `TakeoverRequest`, `TakeoverSettings` (including `enabled`), `WidgetSnapshot` and `WidgetTimeline` (widget data and entry dates, ADR 0010). Note: `additionalCalendarKeys` tracks when a meeting
   appears on multiple opted-in calendars so takeover opt-in on any calendar counts.
 - `Packages/EventKitSource`: Apple Calendar adapter. Only place EventKit is imported.
 - The [calendar-connectors](https://github.com/binary-companion/calendar-connectors) repository: the portable calendar connector library (ADR 0012), no external dependencies, consumed by released version. Products: `CalendarCore` (model, `AllDay`, `ConferenceDetector`, `JoinURLPolicy`, file-backed connection and sync-state stores, optional write API), `CalendarOAuth` (PKCE and refresh), `GoogleCalendar`, `MicrosoftCalendar`, `ICalendar`, `CalDAVCalendar` (including iCloud), `ICalSubscription` and `CalendarTestSupport`. The app supplies OAuth configuration and credentials (see [operations](development/runbooks/operations.md)). Microsoft sign-in requests read-only scopes under [ADR 0017](decisions/0017-microsoft-read-only-scopes.md); the library's write implementation remains available for a host that grants wider scopes.
-- `Packages/CalendarBridge`: minimal glue. `EventMapper` wraps library events (drops cancelled, adds calendar info); `ConnectedSource` adapts a library source to Core and translates errors and changes.
+- `CalendarBridge` (`Sources/CalendarBridge` in `timetug-shared`): minimal glue. `EventMapper` wraps library events (drops cancelled, adds calendar info); `ConnectedSource` adapts a library source to Core and translates errors and changes.
 - `Packages/CalendarApple`: Keychain credential store, loopback OAuth and `CryptoKitSHA256` for the library.
 - `Packages/AppleIntelligenceInference`: Apple on-device model adapter for duplicate detection (macOS 26+, compile-guarded). Only place with Foundation Models imports.
 - `Apps/macOS`: menu bar item, popover, overlay windows, settings, wiring (`AppCoordinator`). XcodeGen builds direct and App Store distributions from one specification; they share an App Group but use separate build directories. The App Store target excludes Sparkle.
@@ -18,7 +19,7 @@ This is the current module map. The [2026-09-18 core design](superpowers/specs/2
 
 ## Dependencies
 
-`TimeTugCore -> CalendarCore`; `CalendarBridge -> TimeTugCore + CalendarCore`; `EventKitSource -> CalendarCore`; `CalendarApple -> CalendarCore + CalendarOAuth`. The inference package depends on TimeTugCore and the connector package. Inside the library: `CalendarOAuth`, `ICalendar` and `CalendarTestSupport` depend on `CalendarCore`; Google and Microsoft each depend on `CalendarCore + CalendarOAuth`; CalDAV and iCal subscriptions each depend on `CalendarCore + ICalendar`. The app composes these packages. Keep this map aligned with the package manifests and `scripts/ci/check-architecture.sh`.
+`TimeTugCore -> CalendarCore`; `CalendarBridge -> TimeTugCore + CalendarCore` (both in `timetug-shared`, which depends on the connector library by range); `EventKitSource -> CalendarCore`; `CalendarApple -> CalendarCore + CalendarOAuth`. The inference package depends on `timetug-shared` (TimeTugCore) and the connector package; the app depends on `timetug-shared` (TimeTugCore, CalendarBridge). Inside the library: `CalendarOAuth`, `ICalendar` and `CalendarTestSupport` depend on `CalendarCore`; Google and Microsoft each depend on `CalendarCore + CalendarOAuth`; CalDAV and iCal subscriptions each depend on `CalendarCore + ICalendar`. The app composes these packages. Keep this map aligned with the package manifests and `scripts/ci/check-architecture.sh`; the rules for Core and Bridge are enforced by the same script in `timetug-shared`.
 
 ## Flow
 EventKit, Google, Microsoft, CalDAV and iCal subscriptions -> `CalendarBridge.ConnectedSource` -> `CalendarStore.refresh` (fetch window) -> `CalendarSnapshot` -> `Scheduler.next` -> one timer
