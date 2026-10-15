@@ -13,7 +13,7 @@ packages:
     path: ../../Packages/AppleIntelligenceInference
   CalendarConnectors:
     url: https://github.com/binary-companion/calendar-connectors
-    exactVersion: 1.0.2
+    exactVersion: 1.0.3
   CalendarBridge:
     path: ../../Packages/CalendarBridge
   CalendarApple:
