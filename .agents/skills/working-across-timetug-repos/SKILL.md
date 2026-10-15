@@ -23,7 +23,7 @@ Two libraries live outside `timetug` (public, released as plain `X.Y.Z` tags, wh
 1. Work in a checkout of `timetug-shared`. Branch, write the failing test first, change, `swift test`, `scripts/ci/check-architecture.sh`. Core never reads the clock (`now: Date` is passed in) and imports only Foundation and `CalendarCore`.
 2. To try the change in the app before it is released: in `timetug`, run `scripts/dev/use-local-library.sh timetug-shared <path to a checkout named timetug-shared>`, build and test (`xcodegen generate`, then the app tests), then `scripts/dev/use-local-library.sh --restore`. Same guards and refusal rules as above; never commit the result.
 3. Open the `timetug-shared` pull request with one `semver:*` label as above. CI there must pass on all four platforms. The owner merges; the merge releases `X.Y.Z` automatically.
-4. A bump pull request in `timetug` ("Bump timetug-shared to X.Y.Z") moves the `TimeTugShared` pin and also raises the `CalendarConnectors` pin to at least the version recorded in that release's `Package.resolved`. That workflow is planned and not live yet (Part C of the phase 2 plan, tracked in the program tracker). Until it is proven, make the same change in an ordinary pull request: `scripts/ci/bump-pin.sh timetug-shared X.Y.Z`, then `scripts/ci/bump-pin.sh --at-least calendar-connectors <version in that release's Package.resolved>`.
+4. A bump pull request in `timetug` ("Bump timetug-shared to X.Y.Z") moves the `TimeTugShared` pin and also raises the `CalendarConnectors` pin to at least the version recorded in that release's `Package.resolved`. `.github/workflows/bump-dependencies.yml` does exactly that (it reads `Package.resolved` at the `timetug-shared` tag `X.Y.Z`, fails loudly when the tag has none or no connector version pin, runs `bump-pin.sh timetug-shared X.Y.Z` and then `bump-pin.sh --at-least calendar-connectors <that version>`, so a connector pin is never lowered). The automatic chain that triggers it from a `timetug-shared` release is planned and not proven yet (Part C of the phase 2 plan, tracked in the program tracker). Until it is, start the workflow by hand (`gh workflow run "Bump dependencies" --repo binary-companion/timetug -f library=timetug-shared -f version=X.Y.Z`) or make the same change in an ordinary pull request with the two `bump-pin.sh` commands.
 5. App code that needs the change goes in the same bump pull request (or the one that follows it), never before the release exists.
 
 When `calendar-connectors` releases, `timetug-shared` needs its own bump (`Package.resolved`) before `timetug` can take the connector version through it; that chain is also planned. Today `timetug` takes a connector release directly through the automatic bump below.
@@ -32,17 +32,17 @@ When `calendar-connectors` releases, `timetug-shared` needs its own bump (`Packa
 
 1. The library's Release workflow tags `X.Y.Z` and publishes release notes.
 2. Its `notify` job (environment `bump`) mints a `timetug-bot` token and sends `repository_dispatch` `library-released` to `timetug`.
-3. `.github/workflows/bump-dependencies.yml` (environment `bump`) runs `scripts/ci/bump-pin.sh calendar-connectors X.Y.Z` and opens "Bump calendar-connectors to X.Y.Z" with the release notes. It is opened with the app token, so CI runs on it.
+3. `.github/workflows/bump-dependencies.yml` (environment `bump`) checks the library name and version, runs `scripts/ci/bump-pin.sh calendar-connectors X.Y.Z` and opens "Bump calendar-connectors to X.Y.Z" with the release notes. It is opened with the app token, so CI runs on it.
 4. CI proves the app against the new version. The workflow never merges; the owner merges. If the change needs app code in the same step, you can push that code to the bump pull request's branch (`bump/calendar-connectors-X.Y.Z`); CI runs again on the branch. This has not been exercised on a real bump yet.
-5. A newer bump closes the open bump pull requests for lower versions (comment "Superseded by #N", branch deleted).
+5. A newer bump closes the open bump pull requests of the same library for lower versions (comment "Superseded by #N", branch deleted). A `timetug-shared` bump that carried the connector pin also closes the open `bump/calendar-connectors-*` pull requests at or below that connector version.
 
 `bump-pin.sh <library> X.Y.Z` always sets `exactVersion` for that library in `Apps/macOS/project.yml` and never touches the other library's pin. It raises the library's `from:` floors in `Packages/*/Package*.swift` only on a major bump; raise a floor by hand only when the code needs the new version, and keep every floor at most the pin and within one major (`scripts/ci/check-shared-pins.py`, which checks both libraries). `--at-least` makes it a no-op when the pin is already at or above the version.
 
 ## When a bump does not arrive
 
-- Run the workflow by hand: `gh workflow run "Bump dependencies" --repo binary-companion/timetug -f version=X.Y.Z` (connector library; `timetug-shared` follows when its workflow lands).
+- Run the workflow by hand: `gh workflow run "Bump dependencies" --repo binary-companion/timetug -f library=<calendar-connectors|timetug-shared> -f version=X.Y.Z`.
 - If the library's `notify` job failed, re-run that job alone from the library's Actions page. The bump bot key for `timetug-shared` is an owner step; until it exists that repository's `notify` job fails after a release.
-- The workflow is idempotent: with the pin already at the version, or a pull request already open for it, it opens nothing. A leftover `bump/calendar-connectors-X.Y.Z` branch with no open pull request (an earlier run pushed it but could not open the pull request) is used: the workflow opens the pull request from it.
+- The workflow is idempotent: with the pin already at the version, or a pull request already open for it, it opens nothing. A leftover `bump/<library>-X.Y.Z` branch with no open pull request (an earlier run pushed it but could not open the pull request) is used: the workflow opens the pull request from it.
 
 ## Rules
 
