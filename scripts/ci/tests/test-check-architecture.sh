@@ -36,6 +36,18 @@ printf 'import WidgetKit\nimport TimeTugCore\n' > "$T/Apps/macOS/Widgets/W.swift
 
 out="$("$S" "$T")" || fail "clean fixture rejected: $out"
 
+# SwiftPM prefers Package@swift-X.Y.swift over Package.swift, so clean version-specific manifests (also nested ones)
+# must pass, and build output (.build, build), which holds other people's manifests, is not scanned.
+for name in EventKitSource CalendarApple AppleIntelligenceInference; do
+  cp "$T/Packages/$name/Package.swift" "$T/Packages/$name/Package@swift-6.0.swift"
+done
+mkdir -p "$T/Packages/EventKitSource/.build/checkouts/Dep" "$T/Packages/EventKitSource/build"
+printf 'let package = Package(dependencies: [.package(url: "https://example.com/dep", from: "1.0.0"), .package(path: "../Other")])\n' \
+  > "$T/Packages/EventKitSource/.build/checkouts/Dep/Package.swift"
+cp "$T/Packages/EventKitSource/.build/checkouts/Dep/Package.swift" "$T/Packages/EventKitSource/build/Package.swift"
+out="$("$S" "$T")" || fail "clean versioned manifests rejected: $out"
+rm -rf "$T/Packages/EventKitSource/.build" "$T/Packages/EventKitSource/build" "$T"/Packages/*/Package@swift-6.0.swift
+
 # expect <file> <content> <message substring>: writing <content> to <file> must make the check fail with the message.
 expect() {
   local f="$T/$1" had=0 out
@@ -74,5 +86,24 @@ for adapter in EventKitSource CalendarApple; do
     "$adapter may not depend on ../TimeTugCore"
 done
 expect Packages/NewThing/Package.swift 'let package = Package()\n' "no rule for Packages/NewThing"
+# Version-specific manifests (which SwiftPM prefers) follow the same rules, and the violation names the file it is in.
+V='let package = Package(dependencies: [.package(path: "../CalendarApple")])\n'
+expect Packages/EventKitSource/Package@swift-6.0.swift "$V" \
+  "Packages/EventKitSource/Package@swift-6.0.swift:1: EventKitSource may not depend on ../CalendarApple"
+expect Packages/CalendarApple/Package@swift-5.9.swift \
+  'let package = Package(dependencies: [.package(url: "https://github.com/x/y", from: "1.0.0")])\n' \
+  "Packages/CalendarApple/Package@swift-5.9.swift:1: CalendarApple may not depend on https://github.com/x/y"
+expect Packages/EventKitSource/Package@swift-6.0.swift \
+  'let package = Package(dependencies: [.package(url: "'$SHARED'", from: "1.0.0")])\n' \
+  "Packages/EventKitSource/Package@swift-6.0.swift:1: EventKitSource may not depend on $SHARED"
+expect Packages/AppleIntelligenceInference/Package@swift-6.0.swift \
+  'let package = Package(\n  dependencies: [\n    .package(\n      path: "../TimeTugCore"\n    ),\n  ]\n)\n' \
+  "Packages/AppleIntelligenceInference/Package@swift-6.0.swift:4: AppleIntelligenceInference may not depend on ../TimeTugCore"
+expect Packages/EventKitSource/Tests/Fixture/Package.swift "$V" \
+  "Packages/EventKitSource/Tests/Fixture/Package.swift:1: EventKitSource may not depend on ../CalendarApple"
+expect Packages/EventKitSource/Tests/Fixture/Package@swift-6.0.swift "$V" \
+  "Packages/EventKitSource/Tests/Fixture/Package@swift-6.0.swift:1: EventKitSource may not depend on ../CalendarApple"
+expect Packages/NewThing/Package@swift-6.0.swift 'let package = Package()\n' \
+  "Packages/NewThing/Package@swift-6.0.swift:1: no rule for Packages/NewThing"
 
 echo "PASS"
