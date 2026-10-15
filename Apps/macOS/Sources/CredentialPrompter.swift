@@ -1,9 +1,10 @@
 import CalendarCore
 import Foundation
+import TimeTugEngine
 
 /// The model behind the credential sheet. A `.password` connector kind's `promptCredentials` waits in `prompt` until the
-/// user signs in or cancels. Before each attempt the accounts controller prepares the title, help, prefilled values and
-/// the last error; the sheet shows `request` and answers with `submit` or `cancel`.
+/// user signs in or cancels. Before each attempt the engine's account manager prepares (through `signIn`) the title,
+/// help, prefilled values and the last error; the sheet shows `request` and answers with `submit` or `cancel`.
 @MainActor
 final class CredentialPrompter: ObservableObject {
     struct Request: Identifiable, Equatable {
@@ -59,5 +60,23 @@ final class CredentialPrompter: ObservableObject {
         guard let waiting = continuation else { return }
         continuation = nil
         waiting.resume(throwing: CancellationError())
+    }
+}
+
+extension CredentialPrompter {
+    /// The engine's view of this prompter (`EngineHost.signIn`). A wrapper rather than a conformance because the
+    /// seam's `lastNonSecretValues()` method would clash with the property of the same name.
+    var signIn: some SignInPrompting { SignIn(prompter: self) }
+
+    private struct SignIn: SignInPrompting {
+        let prompter: CredentialPrompter
+
+        func prepare(title: String, help: CredentialHelp?, values: [String: String], error: String?) async {
+            await prompter.prepare(title: title, help: help, values: values, error: error)
+        }
+
+        func lastNonSecretValues() async -> [String: String]? {
+            await prompter.lastNonSecretValues
+        }
     }
 }

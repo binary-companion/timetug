@@ -1,5 +1,6 @@
 import Foundation
 import TimeTugCore
+import TimeTugEngine
 
 enum MenuBarDisplayMode: String, CaseIterable, Codable {
     case iconOnly, nextMeeting, countdown
@@ -13,32 +14,40 @@ enum MenuBarDisplayMode: String, CaseIterable, Codable {
     }
 }
 
-/// Persists settings in UserDefaults. Core defines the shape; storage is the app's concern.
+/// The Mac app's settings. Presentation preferences (menu bar mode, appearance, popup card style) live here; the
+/// behaviour settings (takeover rules, inference, the Apple Calendar switch) belong to the engine and are mirrored
+/// here for the views. Both are stored in UserDefaults under the keys the app has always used.
+///
+/// Once `AppCoordinator` attaches the engine (`sendBehaviourChange`, `requestExternalReload`), a behaviour edit is
+/// sent to the engine, which saves it through the shared `UserDefaultsSettingsStorage`, and the engine's state flows
+/// back through `applyEngineSettings`. Detached (tests, before launch finishes), edits are saved directly.
 @MainActor
 final class SettingsStore: ObservableObject {
-    private static let takeoverKey = "takeoverSettings.v1"
+    /// One edit of a behaviour setting, for the engine. A takeover edit carries the value before and after, so only
+    /// the fields the user changed are applied (see `TakeoverSettings.applyEdit(from:to:)`).
+    enum BehaviourChange {
+        case takeover(from: TakeoverSettings, to: TakeoverSettings)
+        case inference(Bool)
+        case systemCalendar(Bool)
+    }
+
     private static let modeKey = "menuBarMode.v1"
     private static let appearanceKey = "appearanceMode.v1"
     private static let cardStyleKey = "popupCardStyle.v1"
-    private static let inferenceKey = "dedupInference.v1"
-    private static let eventKitKey = "eventKitEnabled.v1"
     private let defaults: UserDefaults
     let shared: SharedSettings
-    /// True while `reloadFromShared()` assigns values that came from the suite; the observers must not write them back.
+    /// The engine's settings storage over the same suite; the coordinator hands it to the engine.
+    let storage: UserDefaultsSettingsStorage
+    /// True while values that came from outside (the suite or the engine) are assigned; they are not sent back.
     private var isApplyingSharedValues = false
 
+    /// Set by the coordinator: behaviour edits go to the engine instead of being saved here.
+    var sendBehaviourChange: ((BehaviourChange) -> Void)?
+    /// Set by the coordinator: `reloadFromShared()` asks the engine to re-read the storage.
+    var requestExternalReload: (() -> Void)?
+
     @Published var takeover: TakeoverSettings {
-        didSet {
-            save()
-            guard !isApplyingSharedValues else { return }
-            // Mirror only what changed: unrelated edits must not overwrite a pending external toggle.
-            if takeover.skipAllDayEvents != oldValue.skipAllDayEvents {
-                shared.set(takeover.skipAllDayEvents, for: .skipAllDay)
-            }
-            if takeover.enabled != oldValue.enabled {
-                shared.set(takeover.enabled, for: .enableTug)
-            }
-        }
+        didSet { behaviourDidChange(.takeover(from: oldValue, to: takeover)) }
     }
     @Published var menuBarMode: MenuBarDisplayMode {
         didSet { defaults.set(menuBarMode.rawValue, forKey: Self.modeKey) }
@@ -50,26 +59,20 @@ final class SettingsStore: ObservableObject {
         didSet { defaults.set(popupCardStyle.rawValue, forKey: Self.cardStyleKey) }
     }
     @Published var eventKitEnabled: Bool {
-        didSet { defaults.set(eventKitEnabled, forKey: Self.eventKitKey) }
+        didSet { behaviourDidChange(.systemCalendar(eventKitEnabled)) }
     }
     @Published var inferenceEnabled: Bool {
-        didSet {
-            defaults.set(inferenceEnabled, forKey: Self.inferenceKey)
-            if !isApplyingSharedValues, oldValue != inferenceEnabled {
-                shared.set(inferenceEnabled, for: .useIntelligence)
-            }
-        }
+        didSet { behaviourDidChange(.inference(inferenceEnabled)) }
     }
 
     init(defaults: UserDefaults = .standard, shared: SharedSettings? = nil) {
         self.defaults = defaults
         let shared = shared ?? SharedSettings(defaults: defaults)
         self.shared = shared
-        var loaded = defaults.data(forKey: Self.takeoverKey)
-            .flatMap { try? JSONDecoder().decode(TakeoverSettings.self, from: $0) } ?? TakeoverSettings()
-        if let skip = shared.bool(.skipAllDay) { loaded.skipAllDayEvents = skip }
-        if let enabled = shared.bool(.enableTug) { loaded.enabled = enabled }
-        self.takeover = loaded
+        let storage = UserDefaultsSettingsStorage(defaults: defaults, shared: shared)
+        self.storage = storage
+        let loaded = storage.load()
+        self.takeover = loaded.takeover
         self.menuBarMode = defaults.string(forKey: Self.modeKey)
             .flatMap(MenuBarDisplayMode.init(rawValue:)) ?? .iconOnly
         self.appearanceMode = defaults.string(forKey: Self.appearanceKey)
@@ -77,36 +80,56 @@ final class SettingsStore: ObservableObject {
         self.popupCardStyle = defaults.string(forKey: Self.cardStyleKey)
             .flatMap(PopupCardStyle.init(rawValue:))
             .flatMap { PopupCardStyle.available.contains($0) ? $0 : nil } ?? PopupCardStyle.defaultStyle
-        self.inferenceEnabled = shared.bool(.useIntelligence) ?? defaults.bool(forKey: Self.inferenceKey)
-        self.eventKitEnabled = defaults.object(forKey: Self.eventKitKey) as? Bool ?? true
+        self.inferenceEnabled = loaded.inferenceEnabled
+        self.eventKitEnabled = loaded.systemCalendarEnabled
         // One-time migration: seed the suite so widgets and controls see current values.
-        mirrorToShared()
-        shared.set(inferenceEnabled, for: .useIntelligence)
+        storage.seedSharedSuite(from: loaded)
     }
 
-    /// Applies values a Control Center toggle wrote to the shared suite while the app was running.
+    /// The behaviour settings as this store currently shows them.
+    var behaviour: EngineSettings {
+        EngineSettings(takeover: takeover, inferenceEnabled: inferenceEnabled, systemCalendarEnabled: eventKitEnabled)
+    }
+
+    /// Applies values a Control Center toggle wrote to the shared suite while the app was running. With the engine
+    /// attached, the engine re-reads the storage and its state updates this store.
     func reloadFromShared() {
-        // Read everything first: assigning `takeover` mirrors back into the suite and would clobber unread keys.
-        let skip = shared.bool(.skipAllDay)
-        let enabled = shared.bool(.enableTug)
-        let intelligence = shared.bool(.useIntelligence)
+        if let requestExternalReload { return requestExternalReload() }
+        applyExternal(storage.load())
+    }
+
+    /// Mirrors the engine's behaviour settings without sending them back.
+    func applyEngineSettings(_ settings: EngineSettings) {
+        applyExternal(settings)
+    }
+
+    private func applyExternal(_ settings: EngineSettings) {
         isApplyingSharedValues = true
         defer { isApplyingSharedValues = false }
-        var updated = takeover
-        if let skip { updated.skipAllDayEvents = skip }
-        if let enabled { updated.enabled = enabled }
-        if updated != takeover { takeover = updated }
-        if let intelligence, intelligence != inferenceEnabled { inferenceEnabled = intelligence }
+        if settings.takeover != takeover { takeover = settings.takeover }
+        if settings.inferenceEnabled != inferenceEnabled { inferenceEnabled = settings.inferenceEnabled }
+        if settings.systemCalendarEnabled != eventKitEnabled { eventKitEnabled = settings.systemCalendarEnabled }
     }
 
-    private func mirrorToShared() {
-        shared.set(takeover.skipAllDayEvents, for: .skipAllDay)
-        shared.set(takeover.enabled, for: .enableTug)
+    private func behaviourDidChange(_ change: BehaviourChange) {
+        guard !isApplyingSharedValues else { return }
+        if let sendBehaviourChange { sendBehaviourChange(change) } else { storage.save(behaviour) }
     }
+}
 
-    private func save() {
-        if let data = try? JSONEncoder().encode(takeover) {
-            defaults.set(data, forKey: Self.takeoverKey)
-        }
+extension TakeoverSettings {
+    /// Applies to `self` only what changed between `old` and `new`: the scalar fields that differ, and the calendar
+    /// keys added or removed. A field the engine changed meanwhile (a Control Center toggle, an account removal
+    /// forgetting its calendars) is left alone, as the old store's "mirror only what changed" rule did.
+    mutating func applyEdit(from old: TakeoverSettings, to new: TakeoverSettings) {
+        if new.leadTime != old.leadTime { leadTime = new.leadTime }
+        if new.requireConferenceLink != old.requireConferenceLink { requireConferenceLink = new.requireConferenceLink }
+        if new.requireOtherAttendees != old.requireOtherAttendees { requireOtherAttendees = new.requireOtherAttendees }
+        if new.skipAllDayEvents != old.skipAllDayEvents { skipAllDayEvents = new.skipAllDayEvents }
+        if new.enabled != old.enabled { enabled = new.enabled }
+        takeoverCalendarKeys.subtract(old.takeoverCalendarKeys.subtracting(new.takeoverCalendarKeys))
+        takeoverCalendarKeys.formUnion(new.takeoverCalendarKeys.subtracting(old.takeoverCalendarKeys))
+        hiddenCalendarKeys.subtract(old.hiddenCalendarKeys.subtracting(new.hiddenCalendarKeys))
+        hiddenCalendarKeys.formUnion(new.hiddenCalendarKeys.subtracting(old.hiddenCalendarKeys))
     }
 }

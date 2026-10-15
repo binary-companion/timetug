@@ -7,7 +7,7 @@ options:
 packages:
   TimeTugShared:
     url: https://github.com/binary-companion/timetug-shared
-    exactVersion: 1.0.9
+    exactVersion: 1.3.0
   EventKitSource:
     path: ../../Packages/EventKitSource
   AppleIntelligenceInference:
@@ -44,6 +44,8 @@ targetTemplates:
     dependencies:
       - package: TimeTugShared
         product: TimeTugCore
+      - package: TimeTugShared
+        product: TimeTugEngine
       - package: EventKitSource
         product: EventKitSource
       - package: AppleIntelligenceInference
@@ -207,6 +209,8 @@ targets:
       - target: TimeTug
       - package: TimeTugShared
         product: TimeTugCore
+      - package: TimeTugShared
+        product: TimeTugEngine
       - package: CalendarConnectors
         product: CalendarCore
       - package: CalendarConnectors
