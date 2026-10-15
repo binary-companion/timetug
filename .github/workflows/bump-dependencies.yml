@@ -1,7 +1,10 @@
-# Opens "Bump calendar-connectors to X.Y.Z" when the library releases (repository_dispatch from its
-# release workflow), or on demand. The pull request is opened with a timetug-bot token so its CI runs;
-# the workflow never merges anything: the owner merges. A newer bump closes the open bump pull requests for
-# older versions. The version is validated by scripts/ci/bump-pin.sh before it touches a file.
+# Opens "Bump <library> to X.Y.Z" when calendar-connectors or timetug-shared releases (repository_dispatch from
+# the library's release workflow), or on demand. The pull request is opened with a timetug-bot token so its CI
+# runs; the workflow never merges anything: the owner merges. A timetug-shared bump also raises the
+# calendar-connectors pin to the version that tag resolves (never lowers it), so the two libraries' pins cannot
+# drift apart; the open connector bump pull requests that this makes redundant are closed. A newer bump closes
+# the open bump pull requests for older versions of its own library. LIBRARY and VERSION are validated by the
+# "Move the pin" step before either reaches an API path or a command line.
 name: Bump dependencies
 
 on:
@@ -9,25 +12,33 @@ on:
     types: [library-released]
   workflow_dispatch:
     inputs:
+      library:
+        description: "Library to bump"
+        required: true
+        type: choice
+        options:
+          - calendar-connectors
+          - timetug-shared
       version:
-        description: "calendar-connectors version (X.Y.Z)"
+        description: "Library version (X.Y.Z)"
         required: true
         type: string
 
 concurrency:
-  group: bump-calendar-connectors
+  group: bump-${{ github.event.client_payload.library || inputs.library }}
   cancel-in-progress: false
 
 permissions: {}
 
 jobs:
   bump:
-    if: github.event_name == 'workflow_dispatch' || github.event.client_payload.library == 'calendar-connectors'
+    if: github.event_name == 'workflow_dispatch' || contains(fromJSON('["calendar-connectors","timetug-shared"]'), github.event.client_payload.library)
     runs-on: ubuntu-latest
     environment: bump
     permissions:
       contents: read
     env:
+      LIBRARY: ${{ github.event.client_payload.library || inputs.library }}
       VERSION: ${{ github.event.client_payload.version || inputs.version }}
     steps:
       - id: app
@@ -44,14 +55,55 @@ jobs:
           ref: master
           token: ${{ steps.app.outputs.token }}
       - name: Move the pin
-        run: scripts/ci/bump-pin.sh calendar-connectors "$VERSION"
+        env:
+          GH_TOKEN: ${{ steps.app.outputs.token }}
+        run: |
+          set -euo pipefail
+          # Both values come from a dispatch payload or an input. contains() in the job `if` compares without
+          # case, so the allow-list is checked again here, exactly, before either value is used in a path or
+          # a command.
+          case "$LIBRARY" in
+            calendar-connectors|timetug-shared) ;;
+            *) echo "::error::not a library this workflow bumps: $LIBRARY"; exit 2 ;;
+          esac
+          pattern='^(0|[1-9][0-9]{0,8})\.(0|[1-9][0-9]{0,8})\.(0|[1-9][0-9]{0,8})$'
+          if ! [[ "$VERSION" =~ $pattern ]]; then
+            echo "::error::not X.Y.Z (at most 9 digits per number): $VERSION"
+            exit 2
+          fi
+          recorded=""
+          if [ "$LIBRARY" = timetug-shared ]; then
+            # The connector version the timetug-shared tag resolves. Read before anything is moved, and fail
+            # loudly when it is not there: a bump that silently skipped the connector move would leave the app
+            # resolving two connector versions.
+            file="$RUNNER_TEMP/shared.resolved"
+            if ! gh api "repos/binary-companion/timetug-shared/contents/Package.resolved?ref=refs/tags/$VERSION" \
+                --jq .content | base64 -d > "$file"; then
+              echo "::error::cannot read Package.resolved at the timetug-shared tag $VERSION"
+              exit 1
+            fi
+            if ! recorded="$(scripts/ci/resolved-version.py "$file" calendar-connectors)"; then
+              echo "::error::the timetug-shared tag $VERSION has no calendar-connectors version pin in Package.resolved"
+              exit 1
+            fi
+            if ! [[ "$recorded" =~ $pattern ]]; then
+              echo "::error::the calendar-connectors pin of timetug-shared $VERSION is not X.Y.Z: $recorded"
+              exit 1
+            fi
+          fi
+          scripts/ci/bump-pin.sh "$LIBRARY" "$VERSION"
+          if [ -n "$recorded" ]; then
+            # The connector pin follows the version the tag was built and tested with, but is never lowered.
+            scripts/ci/bump-pin.sh --at-least calendar-connectors "$recorded"
+            echo "RECORDED=$recorded" >> "$GITHUB_ENV"
+          fi
       - name: Open the pull request
         env:
           GH_TOKEN: ${{ steps.app.outputs.token }}
         run: |
           set -euo pipefail
           if git diff --quiet; then echo "Already at $VERSION; nothing to do."; exit 0; fi
-          branch="bump/calendar-connectors-$VERSION"
+          branch="bump/$LIBRARY-$VERSION"
           # A re-delivered event or a manual re-run must not fail on work that is already in flight.
           # `--head` matches the head branch name across forks, so only same-repository heads count.
           number="$(gh pr list --head "$branch" --state open --json number,isCrossRepository \
@@ -67,11 +119,15 @@ jobs:
             fi
             # Build the body first so that a failure here cannot leave a pushed branch without a pull request.
             {
-              echo "Moves the pinned connector library to $VERSION. CI on this pull request proves the app still builds and passes its tests."
+              echo "Moves the pinned $LIBRARY to $VERSION. CI on this pull request proves the app still builds and passes its tests."
+              if [ -n "${RECORDED:-}" ]; then
+                echo
+                echo "timetug-shared $VERSION resolves calendar-connectors $RECORDED, so the calendar-connectors pin is at least $RECORDED after this change (an already higher pin is left alone)."
+              fi
               echo
               echo "## Release notes"
-              gh release view "$VERSION" --repo binary-companion/calendar-connectors --json body --jq .body \
-                || echo "(The release notes could not be read; see the release $VERSION in binary-companion/calendar-connectors.)"
+              gh release view "$VERSION" --repo "binary-companion/$LIBRARY" --json body --jq .body \
+                || echo "(The release notes could not be read; see the release $VERSION in binary-companion/$LIBRARY.)"
               echo
               echo "🤖 Opened by timetug-bot"
             } > "$RUNNER_TEMP/body.md"
@@ -79,26 +135,39 @@ jobs:
               git config user.name "timetug-bot[bot]"
               git config user.email "342080999+timetug-bot[bot]@users.noreply.github.com"
               git switch -c "$branch"
-              git commit -am "Bump calendar-connectors to $VERSION"
+              git commit -am "Bump $LIBRARY to $VERSION"
               git push origin "$branch"
             fi
             url="$(gh pr create --base master --head "$branch" \
-              --title "Bump calendar-connectors to $VERSION" --body-file "$RUNNER_TEMP/body.md")"
+              --title "Bump $LIBRARY to $VERSION" --body-file "$RUNNER_TEMP/body.md")"
             echo "$url"
             number="${url##*/}"
           fi
           # Supersede older bump pull requests. Only same-repository pull requests whose head branch is exactly
-          # bump/calendar-connectors-X.Y.Z with a lower version are closed (versions compared numerically with
-          # sort -V, never as strings); every other pull request is left alone. Each close is independent: one
-          # failure is reported and the step fails at the end, after the other closes were tried.
+          # bump/<library>-X.Y.Z are considered (versions compared numerically with sort -V, never as strings);
+          # every other pull request is left alone. Two kinds are closed:
+          #   - the same library's with a lower version than this one;
+          #   - when this is a timetug-shared bump that carried the connector pin (RECORDED), the
+          #     calendar-connectors bump pull requests at or below that version: they would move the same
+          #     exactVersion line to something this pull request already contains or exceeds.
+          # Each close is independent: one failure is reported and the step fails at the end, after the other
+          # closes were tried.
+          at_or_below() { [ "$(printf '%s\n%s\n' "$1" "$2" | sort -V | head -n 1)" = "$1" ]; }
           open_prs="$(gh pr list --state open --limit 100 --json number,headRefName,isCrossRepository \
             --jq '.[] | select(.isCrossRepository | not) | "\(.number) \(.headRefName)"')"
           failed=0
           while read -r old_number old_head; do
-            [[ "$old_head" =~ ^bump/calendar-connectors-([0-9]+\.[0-9]+\.[0-9]+)$ ]] || continue
-            old_version="${BASH_REMATCH[1]}"
-            [ "$old_version" != "$VERSION" ] || continue
-            [ "$(printf '%s\n%s\n' "$old_version" "$VERSION" | sort -V | head -n 1)" = "$old_version" ] || continue
+            [[ "$old_head" =~ ^bump/(calendar-connectors|timetug-shared)-([0-9]+\.[0-9]+\.[0-9]+)$ ]] || continue
+            old_library="${BASH_REMATCH[1]}"
+            old_version="${BASH_REMATCH[2]}"
+            if [ "$old_library" = "$LIBRARY" ]; then
+              [ "$old_version" != "$VERSION" ] || continue
+              at_or_below "$old_version" "$VERSION" || continue
+            elif [ "$LIBRARY" = timetug-shared ] && [ "$old_library" = calendar-connectors ] && [ -n "${RECORDED:-}" ]; then
+              at_or_below "$old_version" "$RECORDED" || continue
+            else
+              continue
+            fi
             echo "Closing #$old_number ($old_head): superseded by #$number."
             gh pr close "$old_number" --comment "Superseded by #$number" --delete-branch \
               || { echo "::warning::could not close #$old_number"; failed=1; }

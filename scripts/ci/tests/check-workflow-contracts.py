@@ -1,10 +1,13 @@
 """Checks security and coverage invariants that shell syntax validation cannot see."""
 from pathlib import Path
+import json
+import os
 import re
 import sys
 import yaml
 
-root = Path(__file__).resolve().parents[3]
+# WORKFLOW_CONTRACTS_ROOT points at another tree (test-workflows.sh uses it to prove that mutated copies fail).
+root = Path(os.environ.get('WORKFLOW_CONTRACTS_ROOT') or Path(__file__).resolve().parents[3])
 workflows = {}
 errors = []
 for path in sorted((root / '.github/workflows').glob('*.yml')):
@@ -116,6 +119,37 @@ for job_name, job in bump['jobs'].items():
 bump_runs = '\n'.join(step.get('run', '') for job in bump['jobs'].values() for step in job['steps'])
 if re.search(r'gh\s+pr\s+merge|--auto\b|\bmerge\b', bump_runs):
     errors.append('bump-dependencies.yml: must never merge a pull request (no gh pr merge, --auto or merge)')
+# Two libraries release into this repository; the workflow accepts exactly these and nothing else, in the manual
+# input, in the job `if` and (through the same expression) in the concurrency group and the step's environment.
+BUMP_LIBRARIES = ['calendar-connectors', 'timetug-shared']
+dispatch_inputs = (bump_triggers.get('workflow_dispatch') or {}).get('inputs') or {}
+if set(dispatch_inputs) != {'library', 'version'}:
+    errors.append(f'bump-dependencies.yml: workflow_dispatch inputs must be exactly library and version, got {sorted(dispatch_inputs)}')
+elif (dispatch_inputs['library'].get('type') != 'choice' or dispatch_inputs['library'].get('options') != BUMP_LIBRARIES):
+    errors.append(f'bump-dependencies.yml: the library input must be a choice of exactly {BUMP_LIBRARIES}')
+PAYLOAD_LIBRARY = 'github.event.client_payload.library'
+for job_name, job in bump['jobs'].items():
+    condition = str(job.get('if', ''))
+    allow_list = re.fullmatch(
+        r"github\.event_name == 'workflow_dispatch' \|\| contains\(fromJSON\('(\[[^']*\])'\), "
+        + re.escape(PAYLOAD_LIBRARY) + r"\)", condition)
+    if allow_list is None or json.loads(allow_list.group(1)) != BUMP_LIBRARIES:
+        errors.append(f'bump-dependencies.yml/{job_name}: the job `if` must be a manual dispatch or a payload library in '
+                      f'exactly {BUMP_LIBRARIES}, got {condition!r}')
+    expected_env = {'LIBRARY': '${{ %s || inputs.library }}' % PAYLOAD_LIBRARY,
+                    'VERSION': '${{ github.event.client_payload.version || inputs.version }}'}
+    if job.get('env') != expected_env:
+        errors.append(f'bump-dependencies.yml/{job_name}: the job env must be exactly LIBRARY and VERSION from the payload or the input')
+    for token_step in (step for step in job['steps'] if str(step.get('uses', '')).startswith('actions/create-github-app-token@')):
+        if token_step.get('with', {}).get('repositories') != 'timetug':
+            errors.append(f'bump-dependencies.yml/{job_name}: the app token must be scoped to repositories: timetug')
+    checks_input = [step for step in job['steps'] if step.get('name') == 'Move the pin']
+    move_run = checks_input[0].get('run', '') if len(checks_input) == 1 else ''
+    if 'calendar-connectors|timetug-shared)' not in move_run or '${{' in move_run:
+        errors.append(f'bump-dependencies.yml/{job_name}: the Move the pin step must check LIBRARY against the two-name '
+                      'allow-list itself and receive its values through env')
+if (bump.get('concurrency') or {}).get('group') != 'bump-${{ %s || inputs.library }}' % PAYLOAD_LIBRARY:
+    errors.append('bump-dependencies.yml: concurrency group must be bump-<library> (one queue per library)')
 
 if errors:
     for error in errors:
