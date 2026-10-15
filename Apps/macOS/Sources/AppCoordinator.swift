@@ -10,17 +10,16 @@ import Network
 import OSLog
 import SwiftUI
 import TimeTugCore
+import TimeTugEngine
 import WidgetKit
 
-/// Wires sources, store, scheduler and the UI. Holds no presentation logic itself.
+/// Hosts the engine on the Mac: builds it from the Mac's adapters, forwards commands, and mirrors its state into the
+/// views, the status item, the overlay and the widgets. The engine decides what happens and when; this class only
+/// decides how it looks.
 @MainActor
 final class AppCoordinator {
-    /// Backstop only: change signals (source polls, EventKit, wake, network return) drive the real refreshes.
-    private static let periodicRefresh: TimeInterval = 900
     /// Cheap self-heal for a dropped settings notification from the widget extension.
     private static let settingsSelfHeal: TimeInterval = 300
-    /// Meetings that started longer than this before launch are treated as already handled.
-    private static let launchGrace: TimeInterval = 120
 
     let settings = SettingsStore(defaults: GroupDefaults.suite, shared: .appGroup)
     let model = AppModel()
@@ -40,16 +39,21 @@ final class AppCoordinator {
     }
 
     private let eventKit = EventKitSource()
-    private let store: CalendarStore
-    private var snapshot = CalendarSnapshot.empty
-    private let ledgerStore = LedgerStore()
-    private static let maxResolvePasses = 10
-    private let dedupStore = DedupStateStore()
-    private var lastSavedDedupState: DedupState?
-    private var ledger: TakeoverLedger
-    private var launchAcknowledgement = LaunchAcknowledgement(launchedAt: Date())
-    private var fireTimer: Timer?
-    private var tickTimer: Timer?
+    private lazy var engine = Engine(host: makeHost())
+    private lazy var commands = EngineCommandQueue { [engine] command in await engine.send(command) }
+    private let engineDiagnostics = OSLogEngineDiagnostics()
+    /// The last state rendered; the status item is redrawn from it when a presentation setting changes.
+    private var lastState = EngineState.empty
+    /// The takeover on screen, until its one closing command (join, snooze, dismiss or closed) is sent.
+    private var shownTakeoverID: String?
+    /// Behaviour edits sent to the engine and not yet handled, per setting. While a setting has one in flight its
+    /// value in the engine's state is older than the one on screen, so it is not mirrored back.
+    private var pendingBehaviourWrites: [String: Int] = [:]
+    /// States older than this were published before the last settled behaviour edit and never overwrite it.
+    private var minimumSettingsRevision: UInt64 = 0
+    private var lastPublishedInferenceStatus: InferenceStatus?
+    private var stateTask: Task<Void, Never>?
+    private var eventTask: Task<Void, Never>?
     private var networkMonitor: NWPathMonitor?
     private var cancellables = Set<AnyCancellable>()
     private var statusItem: StatusItemController?
@@ -58,7 +62,6 @@ final class AppCoordinator {
     private var widgetReloadTask: Task<Void, Never>?
     private var settingsSignal: SettingsChangeSignal.Observer?
     private static let widgetLog = Logger(subsystem: "com.timetug.app", category: "widgets")
-    private static let dedupLog = Logger(subsystem: "com.timetug.app", category: "dedup")
     private let overlay = OverlayController()
     private lazy var googleOAuthConfig = GoogleOAuthSettings.config()
     private lazy var microsoftOAuthConfig = MicrosoftOAuthSettings.config()
@@ -67,47 +70,36 @@ final class AppCoordinator {
     private lazy var unconfiguredKindIDs: [String] =
         (googleOAuthConfig == nil ? ["google"] : []) + (microsoftOAuthConfig == nil ? ["microsoft"] : [])
     private let credentials: any CredentialStore = AppCredentials.make()
-    private let syncState = FileSyncStateStore(url: AppSupportFiles.url("sync-state.json"))
-    private lazy var sourceRefreshes = SourceRefreshCoordinator { [weak self] ids in
-        await self?.refresh(sourceIDs: ids)
-    }
-    private lazy var reconciler = SourceReconciler(
-        buildAccount: { [unowned self] connection in
-            guard let kind = registry.kind(id: connection.kindID) else { throw CalendarCore.SourceError.invalidResponse("unknown account type") }
-            return ConnectedSource(try kind.makeSource(for: connection, credentials: credentials, syncState: syncState))
-        },
-        buildEventKit: { [unowned self] in ConnectedSource(eventKit) },
-        onChange: { [weak self] change in self?.sourceRefreshes.signal(change) })
     private let credentialPrompter = CredentialPrompter()
+    private lazy var interaction = LoopbackAuthorizationInteraction(
+        openURL: { url in await MainActor.run { NSWorkspace.shared.open(url) } },
+        promptCredentials: { [credentialPrompter] fields in try await credentialPrompter.prompt(fields) },
+        presenter: BrowserPreferringPresenter(
+            sheet: WebAuthenticationSessionPresenter(anchor: { [weak self] in self?.settingsWindow.currentWindow ?? NSApp.keyWindow })))
     lazy var accounts: AccountsController = AccountsController(
-        registry: registry, connectionStore: FileConnectionStore(url: AppSupportFiles.url("accounts.json")),
-        credentials: credentials, syncState: syncState,
-        interaction: LoopbackAuthorizationInteraction(
-            openURL: { url in await MainActor.run { NSWorkspace.shared.open(url) } },
-            promptCredentials: { [credentialPrompter] fields in try await credentialPrompter.prompt(fields) },
-            presenter: BrowserPreferringPresenter(
-                sheet: WebAuthenticationSessionPresenter(anchor: { [weak self] in self?.settingsWindow.currentWindow ?? NSApp.keyWindow }))),
-        settings: settings, reconciler: reconciler,
-        applySources: { [weak self] sources in
-            self?.launchAcknowledgement.registerSources(Set(sources.map(\.id)), now: Date())
-            await self?.store.setSources(sources)
-            await self?.refresh()
-        },
-        requestEventKitAccess: { [unowned self] in _ = await eventKit.requestAccess() },
-        unconfiguredKindIDs: unconfiguredKindIDs, credentialPrompter: credentialPrompter)
+        registry: registry, settings: settings, unconfiguredKindIDs: unconfiguredKindIDs,
+        credentialPrompter: credentialPrompter, send: { [weak self] command in self?.commands.send(command) })
     private lazy var aboutWindow = AboutWindowController()
     private lazy var settingsWindow = SettingsWindowController { [unowned self] in
         SettingsView(settings: settings, model: model, navigation: navigation, accounts: accounts, updates: updates, onTestTug: { [weak self] in self?.fireTest() },
                      onForgetCorrections: { [weak self] in self?.forgetCorrections() })
     }
 
-    init() {
-        store = CalendarStore(sources: [], adjudicator: AppleIntelligence.makeAdjudicator())
-        var loaded = ledgerStore.load()
-        loaded.prune(now: Date())
-        ledger = loaded
-        TakeoverLog.ledgerLoaded(count: loaded.keyCount)
-        persistLedger()
+    /// The engine's host services: today's files, settings keys, Keychain, sign-in UI, connectors and adapters.
+    private func makeHost() -> EngineHost {
+        let eventKit = eventKit
+        return EngineHost(
+            dataDirectory: AppSupportFiles.directory(),
+            settings: settings.storage,
+            credentials: credentials,
+            interaction: interaction,
+            signIn: credentialPrompter.signIn,
+            registry: registry,
+            unconfiguredKindIDs: unconfiguredKindIDs,
+            buildSystemSource: { ConnectedSource(eventKit) },
+            requestSystemAccess: { _ = await eventKit.requestAccess() },
+            textGenerator: AppleIntelligence.makeTextGenerator(),
+            diagnostics: engineDiagnostics.sink)
     }
 
     /// Another copy of TimeTug was opened and left (or was replaced by this one): show the hint unless this pair of
@@ -146,40 +138,42 @@ final class AppCoordinator {
             Task { @MainActor in self?.statusItem?.togglePopover() }
         }
         model.popupCardStyle = settings.popupCardStyle
-        observeSystemEvents()
-        settings.$takeover.dropFirst().sink { [weak self] _ in
-            Task { @MainActor in self?.rearm(); self?.updateUI(); self?.publishWidgetSnapshot() }
-        }.store(in: &cancellables)
+        attachSettings()
         settings.$appearanceMode.dropFirst().sink { mode in
             NSApp.appearance = mode.nsAppearance
         }.store(in: &cancellables)
         settings.$popupCardStyle.dropFirst().sink { [weak self] style in
             self?.model.popupCardStyle = style
         }.store(in: &cancellables)
-        settings.$menuBarMode.dropFirst().sink { [weak self] _ in
-            Task { @MainActor in self?.updateUI() }
+        settings.$menuBarMode.dropFirst().sink { [weak self] mode in
+            self?.commands.send(.setCountdownVisible(mode != .iconOnly), lane: .countdown)
+            // The published value arrives before the property changes; redraw once it has.
+            Task { @MainActor in self?.updateStatusItem() }
         }.store(in: &cancellables)
         settingsSignal = SettingsChangeSignal.Observer { [weak self] in
             DispatchQueue.main.async { self?.settings.reloadFromShared() }
         }
-
-        updateUI()
-        Timer.scheduledTimer(withTimeInterval: Self.periodicRefresh, repeats: true) { [weak self] _ in
-            Task { @MainActor in await self?.refresh() }
-        }
         Timer.scheduledTimer(withTimeInterval: Self.settingsSelfHeal, repeats: true) { [weak self] _ in
             Task { @MainActor in self?.settings.reloadFromShared() }
         }
+
+        let engine = engine
+        let states = await engine.states
+        let events = await engine.events
+        stateTask = Task { [weak self] in
+            for await state in states { self?.render(state) }
+        }
+        eventTask = Task { [weak self] in
+            for await event in events { self?.handle(event) }
+        }
+        commands.send(.setCountdownVisible(settings.menuBarMode != .iconOnly), lane: .countdown)
+        updateStatusItem()
+        observeSystemEvents()
         observeNetworkReturn()
-        let loadedDedup = dedupStore.load()
-        lastSavedDedupState = loadedDedup
-        await store.load(loadedDedup)
-        _ = await store.setInferenceEnabled(settings.inferenceEnabled, now: Date())
-        settings.$inferenceEnabled.dropFirst().sink { [weak self] enabled in
-            Task { @MainActor in await self?.setInference(enabled) }
-        }.store(in: &cancellables)
-        await accounts.start()   // requests Apple Calendar access if enabled, builds the sources and refreshes
-        if settings.takeover.takeoverCalendarKeys.isEmpty { openSettings(pane: .calendars) }
+        // Loads the ledger and dedup state, requests Apple Calendar access if enabled, builds the sources and
+        // refreshes once.
+        await engine.send(.start)
+        if await engine.currentState().settings.takeover.takeoverCalendarKeys.isEmpty { openSettings(pane: .calendars) }
     }
 
     /// Hosting controller that reports its content size so the popover is exactly as tall as the popup.
@@ -189,63 +183,109 @@ final class AppCoordinator {
         return controller
     }
 
-    func refresh() async {
-        await refresh(sourceIDs: nil)
-    }
+    // MARK: - Settings
 
-    private func refresh(sourceIDs: Set<String>?) async {
-        // Self-heals a dropped Darwin notification from the widget extension.
-        settings.reloadFromShared()
-        apply(await store.refresh(now: Date(), leadTime: settings.takeover.leadTime, sourceIDs: sourceIDs,
-                                  onPublication: { [weak self] snapshot in await self?.apply(snapshot) }))
-        // Inference never blocks a refresh (or start / the change loop).
-        Task { @MainActor [weak self] in await self?.resolvePending() }
-    }
-
-    /// Publishes a snapshot to the model, ledger bookkeeping, timers and UI.
-    private func apply(_ newSnapshot: CalendarSnapshot) {
-        guard newSnapshot.revision > snapshot.revision else { return }
-        snapshot = newSnapshot
-        model.calendars = snapshot.calendars
-        model.statuses = snapshot.statuses
-        model.notices = snapshot.notices
-        model.sourceNames = snapshot.sourceNames
-        model.candidates = snapshot.candidates
-        if ledger.prune(now: Date()) { persistLedger() }
-        let acknowledgementTime = Date()
-        let toAcknowledge = launchAcknowledgement.eventsToAcknowledge(
-            in: snapshot, now: acknowledgementTime, grace: Self.launchGrace)
-        if !toAcknowledge.isEmpty {
-            for event in toAcknowledge { ledger.markFired(event, now: acknowledgementTime) }
-            let count = toAcknowledge.count
-            TakeoverLog.acknowledgedOnLaunch(count: count)
-            persistLedger()
+    /// Behaviour edits in Settings go to the engine; a reload request (widget toggle, self-heal) makes the engine
+    /// re-read the storage.
+    private func attachSettings() {
+        settings.sendBehaviourChange = { [weak self] change in self?.sendBehaviour(change) }
+        settings.requestExternalReload = { [weak self] in
+            self?.commands.send(.settingsChangedExternally, lane: .externalSettings)
         }
-        rearm()
-        updateUI()
-        publishWidgetSnapshot()
     }
 
-    /// Asks the on-device model about look-alike pairs off the refresh path; each verdict republishes.
-    private func resolvePending() async {
-        model.inferenceStatus = await store.inferenceStatus()
-        publishInferenceAvailability()
-        // Bounded backstop: each pass drains a batch, but never loop forever if a verdict fails to stick.
-        var passes = 0
-        while passes < Self.maxResolvePasses, let updated = await store.resolvePending(now: Date()) {
-            apply(updated)
-            passes += 1
+    private func sendBehaviour(_ change: SettingsStore.BehaviourChange) {
+        let key: String
+        let apply: @Sendable (inout EngineSettings) -> Void
+        switch change {
+        case .takeover(let takeover):
+            key = "takeover"
+            apply = { $0.takeover = takeover }
+        case .inference(let enabled):
+            key = "inference"
+            apply = { $0.inferenceEnabled = enabled }
+        case .systemCalendar(let enabled):
+            key = "systemCalendar"
+            apply = { $0.systemCalendarEnabled = enabled }
         }
-        model.inferenceStatus = await store.inferenceStatus()
-        publishInferenceAvailability()
-        await persistDedup()
+        pendingBehaviourWrites[key, default: 0] += 1
+        commands.send(.applySettings(apply), lane: .behaviour(key)) { [weak self] in
+            self?.behaviourWriteFinished(key)
+        }
+    }
+
+    private func behaviourWriteFinished(_ key: String) {
+        pendingBehaviourWrites[key, default: 1] -= 1
+        guard pendingBehaviourWrites[key] == 0 else { return }
+        let engine = engine
+        Task { [weak self] in
+            let state = await engine.currentState()
+            guard let self else { return }
+            minimumSettingsRevision = max(minimumSettingsRevision, state.revision)
+            mirrorSettings(state.settings)
+        }
+    }
+
+    /// Mirrors the engine's behaviour settings, except a setting whose own edit is still in flight.
+    private func mirrorSettings(_ engineSettings: EngineSettings) {
+        var merged = engineSettings
+        let shown = settings.behaviour
+        if pendingBehaviourWrites["takeover", default: 0] > 0 { merged.takeover = shown.takeover }
+        if pendingBehaviourWrites["inference", default: 0] > 0 { merged.inferenceEnabled = shown.inferenceEnabled }
+        if pendingBehaviourWrites["systemCalendar", default: 0] > 0 {
+            merged.systemCalendarEnabled = shown.systemCalendarEnabled
+        }
+        settings.applyEngineSettings(merged)
+    }
+
+    // MARK: - State
+
+    private func render(_ state: EngineState) {
+        guard state.revision >= lastState.revision else { return }
+        lastState = state
+        EngineModelMirror.apply(state, to: model)
+        accounts.apply(state.accountStatus)
+        if state.revision >= minimumSettingsRevision { mirrorSettings(state.settings) }
+        // Revision 0 is the placeholder before the engine's first publication; it says nothing about this Mac.
+        if state.revision > 0, state.inferenceStatus != lastPublishedInferenceStatus {
+            lastPublishedInferenceStatus = state.inferenceStatus
+            publishInferenceAvailability(state.inferenceStatus)
+        }
+        updateStatusItem()
+    }
+
+    private func updateStatusItem() {
+        let now = Date()
+        statusItem?.setTitle(EngineModelMirror.statusTitle(lastState, mode: settings.menuBarMode, now: now))
+        statusItem?.setIconState(EngineModelMirror.iconState(lastState, now: now))
+    }
+
+    private func publishInferenceAvailability(_ status: InferenceStatus) {
+        settings.shared.set(status.isAvailableOnThisMac, for: .inferenceAvailable)
+        if #available(macOS 26.0, *) { ControlCenter.shared.reloadAllControls() }
+    }
+
+    // MARK: - Events
+
+    private func handle(_ event: EngineEvent) {
+        switch event {
+        case .takeoverDue(let request, let calendarTitle):
+            present(request, calendarTitle: calendarTitle)
+        case .takeoverWithdrawn:
+            // The Mac never withdrew a takeover that is on screen; a withdrawn armed one simply never comes.
+            break
+        case .widgetSnapshot(let snapshot):
+            publishWidgetSnapshot(snapshot)
+        case .joinRequested(let url):
+            SafeJoin.open(url, using: { NSWorkspace.shared.open($0) })
+        case .diagnostic:
+            // Already written to the system log by the host's diagnostics sink.
+            break
+        }
     }
 
     /// Writes the agenda snapshot for widgets; reloads their timelines only when the events changed.
-    private func publishWidgetSnapshot() {
-        let widgetSnapshot = WidgetSnapshot.make(
-            events: snapshot.widgetEvents, calendars: snapshot.calendars, settings: settings.takeover,
-            now: Date(), calendar: .current)
+    private func publishWidgetSnapshot(_ widgetSnapshot: WidgetSnapshot) {
         do {
             try snapshotStore.write(widgetSnapshot)
         } catch {
@@ -263,137 +303,77 @@ final class AppCoordinator {
         }
     }
 
-    private func publishInferenceAvailability() {
-        settings.shared.set(model.inferenceStatus.isAvailableOnThisMac, for: .inferenceAvailable)
-        if #available(macOS 26.0, *) { ControlCenter.shared.reloadAllControls() }
+    // MARK: - Takeover
+
+    /// Shows a takeover the engine says is due. Host contract: every takeover gets exactly one closing command
+    /// (join, snooze, dismiss, or closed when something else replaces it) on every path.
+    private func present(_ request: TakeoverRequest, calendarTitle: String?) {
+        if let shown = shownTakeoverID { closeTakeover(shown, with: .takeoverClosed(eventID: shown)) }
+        let id = request.event.id
+        shownTakeoverID = id
+        overlay.show(request, calendarTitle: calendarTitle, actions: .init(
+            join: { [weak self] in self?.closeTakeover(id, with: .join(eventID: id)) },
+            snooze: { [weak self] seconds in self?.closeTakeover(id, with: .snooze(eventID: id, seconds: seconds)) },
+            dismiss: { [weak self] in self?.closeTakeover(id, with: .dismiss(eventID: id)) }
+        ))
+        commands.send(.takeoverPresented(eventID: id, onScreen: true), lane: .takeover)
     }
 
-    private func setInference(_ enabled: Bool) async {
-        apply(await store.setInferenceEnabled(enabled, now: Date()))
-        await resolvePending()
+    /// Hides the takeover `id` and sends its one closing command; later actions for it do nothing.
+    private func closeTakeover(_ id: String, with command: EngineCommand) {
+        guard shownTakeoverID == id else { return }
+        shownTakeoverID = nil
+        overlay.hide()
+        commands.send(command, lane: .takeover)
     }
+
+    /// Settings' "Test tug" button: a sample takeover that never touches the ledger. It replaces a takeover on
+    /// screen, which is closed first.
+    func fireTest() {
+        if let shown = shownTakeoverID { closeTakeover(shown, with: .takeoverClosed(eventID: shown)) }
+        commands.send(.testTug(title: "Sample meeting", calendarTitle: "Sample calendar"), lane: .takeover)
+    }
+
+    // MARK: - Dedup actions
 
     func unmerge(_ event: TimeTugCalendarEvent) {
-        Task { @MainActor in
-            apply(await store.unmerge(event, now: Date()))
-            await persistDedup()
-        }
+        commands.send(.unmerge(event), lane: .dedup)
     }
 
     func separate(_ event: TimeTugCalendarEvent, members: [MergedMember]) {
-        Task { @MainActor in
-            apply(await store.separate(members, from: event, now: Date()))
-            await persistDedup()
-        }
+        commands.send(.separate(event, members: members), lane: .dedup)
     }
 
     func merge(_ a: TimeTugCalendarEvent, _ b: TimeTugCalendarEvent) {
-        Task { @MainActor in
-            // Titles are not logged, as with takeovers.
-            let snapshot = await store.merge(a, b, now: Date())
-            Self.dedupLog.info("Manual merge of \(a.participants.count + b.participants.count, privacy: .public) copies; \(snapshot.events.count, privacy: .public) events now shown")
-            apply(snapshot)
-            await persistDedup()
-        }
+        commands.send(.merge(a, b), lane: .dedup)
     }
 
     private func forgetCorrections() {
-        Task { @MainActor in
-            apply(await store.forgetLessons(now: Date()))
-            await persistDedup()
-            await resolvePending()
-        }
+        commands.send(.forgetCorrections, lane: .dedup)
     }
 
-    private func persistDedup() async {
-        let state = await store.state()
-        guard state != lastSavedDedupState else { return }
-        dedupStore.save(state)
-        lastSavedDedupState = state
-    }
+    // MARK: - System events
 
-    /// Arms one timer for the next takeover. Skipped while an overlay is up (see Task 10).
-    func rearm() {
-        fireTimer?.invalidate()
-        fireTimer = nil
-        guard !isOverlayVisible,
-              let next = Scheduler.next(events: snapshot.events, settings: settings.takeover,
-                                        ledger: ledger, now: Date()) else { return }
-        let timer = Timer(fire: next.fireAt, interval: 0, repeats: false) { [weak self] _ in
-            Task { @MainActor in self?.fire(next.event) }
-        }
-        RunLoop.main.add(timer, forMode: .common)
-        fireTimer = timer
-    }
-
-    private func persistLedger() {
-        ledgerStore.save(ledger, now: Date())
-    }
-
-    /// Always checks the ledger and the current calendar snapshot BEFORE showing anything: the
-    /// event captured when the timer was armed may be stale.
-    private func fire(_ event: TimeTugCalendarEvent) {
-        let now = Date()
-        let decision = TakeoverGuard.evaluate(
-            event: event, currentEvents: snapshot.events, settings: settings.takeover,
-            ledger: ledger, now: now, overlayVisible: overlay.isVisible)
-        switch decision {
-        case .suppress(.overlayVisible):
-            // Stays pending, not marked fired; closeOverlay() re-arms.
-            TakeoverLog.suppressed(.overlayVisible, event: event)
-        case .suppress(let reason):
-            TakeoverLog.suppressed(reason, event: event)
-            rearm()
-        case .present:
-            let current = snapshot.events.first { $0.isSameMeeting(as: event) } ?? event
-            let reason = ledger.isSnoozed(current) ? "snooze expired"
-                : now >= current.start.addingTimeInterval(Self.launchGrace) ? "late after wake" : "lead time"
-            ledger.markFired(current, now: now)
-            persistLedger()
-            TakeoverLog.presented(reason: reason, event: current)
-            present(TakeoverRequest.make(for: current, now: now))
-        }
-    }
-
-    func updateUI(forceStructure: Bool = true) {
-        let now = Date()
-        if forceStructure {
-            let agenda = DayAgenda.make(events: snapshot.events, settings: settings.takeover,
-                                        now: now, calendar: .current)
-            if agenda != model.agenda { model.agenda = agenda }
-        }
-        let agenda = model.agenda
-        if model.leadTime != settings.takeover.leadTime { model.leadTime = settings.takeover.leadTime }
-        statusItem?.setTitle(TimeFormatting.statusTitle(mode: settings.menuBarMode, next: agenda.next, now: now))
-        statusItem?.setIconState(MenuBarIconState.resolve(
-            events: snapshot.events, settings: settings.takeover, ledger: ledger, now: now))
-        tickTimer?.invalidate()
-        tickTimer = nil
-        if let wake = UITickPolicy.next(now: now, mode: settings.menuBarMode, nextEvent: agenda.next,
-                                        events: snapshot.events, leadTime: settings.takeover.leadTime,
-                                        calendar: .current) {
-            let timer = Timer(fire: wake.date, interval: 0, repeats: false) { [weak self] _ in
-                Task { @MainActor in self?.updateUI(forceStructure: wake.rebuildAgenda) }
-            }
-            RunLoop.main.add(timer, forMode: .common)
-            tickTimer = timer
-        }
-    }
-
-    /// Timers alone are not trusted: recompute after wake, clock, timezone and day changes.
+    /// Timers alone are not trusted: the engine recomputes after wake, clock, time zone and day changes. Each one
+    /// also re-reads settings a widget may have changed (a dropped notification heals here, as on every refresh).
     private func observeSystemEvents() {
-        let recompute: @Sendable (Notification) -> Void = { [weak self] _ in
-            Task { @MainActor in
-                guard let self else { return }
-                await self.store.setCalendar(.current)
-                await self.refresh()
-            }
+        let report: @Sendable (SystemEvent) -> Void = { [weak self] event in
+            Task { @MainActor in self?.reportSystemEvent(event) }
         }
         NSWorkspace.shared.notificationCenter.addObserver(
-            forName: NSWorkspace.didWakeNotification, object: nil, queue: .main, using: recompute)
-        for name in [Notification.Name.NSSystemClockDidChange, .NSSystemTimeZoneDidChange, .NSCalendarDayChanged] {
-            NotificationCenter.default.addObserver(forName: name, object: nil, queue: .main, using: recompute)
+            forName: NSWorkspace.didWakeNotification, object: nil, queue: .main) { _ in report(.wake) }
+        let events: [(Notification.Name, SystemEvent)] = [
+            (.NSSystemClockDidChange, .clockChanged), (.NSSystemTimeZoneDidChange, .timeZoneChanged),
+            (.NSCalendarDayChanged, .dayChanged),
+        ]
+        for (name, event) in events {
+            NotificationCenter.default.addObserver(forName: name, object: nil, queue: .main) { _ in report(event) }
         }
+    }
+
+    private func reportSystemEvent(_ event: SystemEvent) {
+        settings.reloadFromShared()
+        commands.send(.system(event))
     }
 
     /// A source poll backs off for up to 15 minutes after a failure, so refresh as soon as the network returns.
@@ -403,53 +383,10 @@ final class AppCoordinator {
         monitor.pathUpdateHandler = { [weak self] path in
             let satisfied = path.status == .satisfied
             guard wasSatisfied.update(to: satisfied), satisfied else { return }
-            Task { @MainActor in await self?.refresh() }
+            Task { @MainActor in self?.reportSystemEvent(.networkReturned) }
         }
         monitor.start(queue: DispatchQueue(label: "com.timetug.network-path"))
         networkMonitor = monitor
-    }
-
-    private var isOverlayVisible: Bool { overlay.isVisible }
-
-    private func present(_ request: TakeoverRequest) {
-        let event = request.event
-        let calendarTitle = snapshot.calendars.first { $0.key == event.calendarKey }?.title
-        overlay.show(request, calendarTitle: calendarTitle, actions: .init(
-            join: { [weak self] in
-                if let url = request.joinURL { SafeJoin.open(url, using: { NSWorkspace.shared.open($0) }) }
-                self?.closeOverlay()
-            },
-            snooze: { [weak self] seconds in
-                self?.ledger.snooze(event, for: seconds, now: Date())
-                self?.persistLedger()
-                self?.closeOverlay()
-            },
-            dismiss: { [weak self] in self?.closeOverlay() }
-        ))
-    }
-
-    private func closeOverlay() {
-        overlay.hide()
-        rearm()
-        updateUI()
-    }
-
-    /// Settings' "Test tug" button: a sample event that never touches the ledger.
-    func fireTest() {
-        let now = Date()
-        var sample = TimeTugCalendarEvent(
-            event: CalendarCore.CalendarEvent(
-                eventID: "test", calendarID: "test", title: "Sample meeting",
-                start: now.addingTimeInterval(settings.takeover.leadTime),
-                end: now.addingTimeInterval(settings.takeover.leadTime + 1800)),
-            sourceID: "test")
-        sample.otherAttendeeCount = 1
-        sample.conferences = [ConferenceInfo(url: URL(string: "https://meet.google.com/aaa-bbbb-ccc")!, provider: .meet)]
-        overlay.show(TakeoverRequest.make(for: sample, now: now), calendarTitle: "Sample calendar", actions: .init(
-            join: { [weak self] in self?.overlay.hide() },
-            snooze: { [weak self] _ in self?.overlay.hide() },
-            dismiss: { [weak self] in self?.overlay.hide() }
-        ))
     }
 
     func openSettings(pane: SettingsPane? = nil) {
