@@ -44,7 +44,7 @@ jobs:
           ref: master
           token: ${{ steps.app.outputs.token }}
       - name: Move the pin
-        run: scripts/ci/bump-pin.sh "$VERSION"
+        run: scripts/ci/bump-pin.sh calendar-connectors "$VERSION"
       - name: Open the pull request
         env:
           GH_TOKEN: ${{ steps.app.outputs.token }}
