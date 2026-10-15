@@ -7,7 +7,7 @@ options:
 packages:
   TimeTugShared:
     url: https://github.com/binary-companion/timetug-shared
-    exactVersion: 1.0.0
+    exactVersion: 1.0.4
   EventKitSource:
     path: ../../Packages/EventKitSource
   AppleIntelligenceInference:
