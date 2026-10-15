@@ -23,9 +23,10 @@ enum MenuBarDisplayMode: String, CaseIterable, Codable {
 /// back through `applyEngineSettings`. Detached (tests, before launch finishes), edits are saved directly.
 @MainActor
 final class SettingsStore: ObservableObject {
-    /// One edit of a behaviour setting, for the engine.
+    /// One edit of a behaviour setting, for the engine. A takeover edit carries the value before and after, so only
+    /// the fields the user changed are applied (see `TakeoverSettings.applyEdit(from:to:)`).
     enum BehaviourChange {
-        case takeover(TakeoverSettings)
+        case takeover(from: TakeoverSettings, to: TakeoverSettings)
         case inference(Bool)
         case systemCalendar(Bool)
     }
@@ -46,7 +47,7 @@ final class SettingsStore: ObservableObject {
     var requestExternalReload: (() -> Void)?
 
     @Published var takeover: TakeoverSettings {
-        didSet { behaviourDidChange(.takeover(takeover)) }
+        didSet { behaviourDidChange(.takeover(from: oldValue, to: takeover)) }
     }
     @Published var menuBarMode: MenuBarDisplayMode {
         didSet { defaults.set(menuBarMode.rawValue, forKey: Self.modeKey) }
@@ -113,5 +114,22 @@ final class SettingsStore: ObservableObject {
     private func behaviourDidChange(_ change: BehaviourChange) {
         guard !isApplyingSharedValues else { return }
         if let sendBehaviourChange { sendBehaviourChange(change) } else { storage.save(behaviour) }
+    }
+}
+
+extension TakeoverSettings {
+    /// Applies to `self` only what changed between `old` and `new`: the scalar fields that differ, and the calendar
+    /// keys added or removed. A field the engine changed meanwhile (a Control Center toggle, an account removal
+    /// forgetting its calendars) is left alone, as the old store's "mirror only what changed" rule did.
+    mutating func applyEdit(from old: TakeoverSettings, to new: TakeoverSettings) {
+        if new.leadTime != old.leadTime { leadTime = new.leadTime }
+        if new.requireConferenceLink != old.requireConferenceLink { requireConferenceLink = new.requireConferenceLink }
+        if new.requireOtherAttendees != old.requireOtherAttendees { requireOtherAttendees = new.requireOtherAttendees }
+        if new.skipAllDayEvents != old.skipAllDayEvents { skipAllDayEvents = new.skipAllDayEvents }
+        if new.enabled != old.enabled { enabled = new.enabled }
+        takeoverCalendarKeys.subtract(old.takeoverCalendarKeys.subtracting(new.takeoverCalendarKeys))
+        takeoverCalendarKeys.formUnion(new.takeoverCalendarKeys.subtracting(old.takeoverCalendarKeys))
+        hiddenCalendarKeys.subtract(old.hiddenCalendarKeys.subtracting(new.hiddenCalendarKeys))
+        hiddenCalendarKeys.formUnion(new.hiddenCalendarKeys.subtracting(old.hiddenCalendarKeys))
     }
 }

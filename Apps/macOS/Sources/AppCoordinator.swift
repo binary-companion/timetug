@@ -198,9 +198,9 @@ final class AppCoordinator {
         let key: String
         let apply: @Sendable (inout EngineSettings) -> Void
         switch change {
-        case .takeover(let takeover):
+        case .takeover(let old, let new):
             key = "takeover"
-            apply = { $0.takeover = takeover }
+            apply = { $0.takeover.applyEdit(from: old, to: new) }
         case .inference(let enabled):
             key = "inference"
             apply = { $0.inferenceEnabled = enabled }
@@ -308,8 +308,9 @@ final class AppCoordinator {
     /// Shows a takeover the engine says is due. Host contract: every takeover gets exactly one closing command
     /// (join, snooze, dismiss, or closed when something else replaces it) on every path.
     private func present(_ request: TakeoverRequest, calendarTitle: String?) {
-        if let shown = shownTakeoverID { closeTakeover(shown, with: .takeoverClosed(eventID: shown)) }
         let id = request.event.id
+        // The same id again (a second test tug that raced the first) replaces the overlay and stays outstanding.
+        if let shown = shownTakeoverID, shown != id { closeTakeover(shown, with: .takeoverClosed(eventID: shown)) }
         shownTakeoverID = id
         overlay.show(request, calendarTitle: calendarTitle, actions: .init(
             join: { [weak self] in self?.closeTakeover(id, with: .join(eventID: id)) },
