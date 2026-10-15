@@ -101,3 +101,7 @@ Branch: claude/calendar-phase2-5-slim-bridge.
 
 ## timetug-shared extraction (2026-10-15; ADR 0020)
 - `Packages/TimeTugCore` and `Packages/CalendarBridge` moved with their history to https://github.com/binary-companion/timetug-shared and are consumed by released version. The entries above that name those paths, or the `core-linux` job, describe the state when they were written; `core-linux` now runs as the `linux` job of `timetug-shared`. Current progress is in `docs/superpowers/plans/2026-10-09-windows-program-tracker.md`.
+
+## Phase 3: the Mac app on `TimeTugEngine` (2026-10-15; spec docs/superpowers/specs/2026-10-15-phase-3-engine-design.md)
+- `TimeTugEngine` ships in `timetug-shared` 1.3.0. The switch (plan Task 13) makes `AppCoordinator` a thin host: adapters in `Apps/macOS/Sources/EngineAdapters`, `SettingsStore` and `AccountsController` as mirrors, `AppleIntelligenceInference` reduced to the `TextGenerator` adapter. The moved helpers (ledger and dedup stores, UI tick policy, launch acknowledgement, source reconciler and refresh coordinator, prompt builder) and their tests are gone from this repository.
+- PENDING the owner: the full [macOS checklist](manual-tests/macos-checklist.md) on a signed build and a beta cycle before release.
