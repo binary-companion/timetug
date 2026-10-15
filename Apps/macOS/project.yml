@@ -14,7 +14,7 @@ packages:
     path: ../../Packages/AppleIntelligenceInference
   CalendarConnectors:
     url: https://github.com/binary-companion/calendar-connectors
-    exactVersion: 1.0.5
+    exactVersion: 1.0.6
   CalendarApple:
     path: ../../Packages/CalendarApple
   KeyboardShortcuts:
