@@ -7,14 +7,14 @@ options:
 packages:
   TimeTugShared:
     url: https://github.com/binary-companion/timetug-shared
-    exactVersion: 1.0.0
+    exactVersion: 1.0.5
   EventKitSource:
     path: ../../Packages/EventKitSource
   AppleIntelligenceInference:
     path: ../../Packages/AppleIntelligenceInference
   CalendarConnectors:
     url: https://github.com/binary-companion/calendar-connectors
-    exactVersion: 1.0.4
+    exactVersion: 1.0.5
   CalendarApple:
     path: ../../Packages/CalendarApple
   KeyboardShortcuts:
