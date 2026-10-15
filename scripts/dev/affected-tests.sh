@@ -35,7 +35,11 @@ fi
 
 packages=""
 for m in Packages/*/Package.swift; do packages="$packages $(basename "$(dirname "$m")")"; done
-deps_of() { grep -oE '\.package\(path:[[:space:]]*"\.\./[^"]+"' "Packages/$1/Package.swift" | sed -E 's#.*"\.\./([^"]+)"#\1#' || true; }
+# SwiftPM prefers Package@swift-X.Y.swift over Package.swift, so a dependency in any of them counts.
+deps_of() {
+  cat "Packages/$1"/Package*.swift 2>/dev/null | grep -oE '\.package\(path:[[:space:]]*"\.\./[^"]+"' |
+    sed -E 's#.*"\.\./([^"]+)"#\1#' | sort -u || true
+}
 app_deps="$(grep -oE 'path:[[:space:]]*\.\./\.\./Packages/[A-Za-z0-9_]+' Apps/macOS/project.yml | sed 's#.*/##' | tr '\n' ' ' || true)"
 
 direct="" app=0 regen=0 arch=0 scripts=()

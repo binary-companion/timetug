@@ -64,9 +64,16 @@ allowed_deps() {
     *) return 1 ;;
   esac
 }
-for manifest in $P/*/Package.swift; do
-  [ -e "$manifest" ] || continue
-  name="$(basename "$(dirname "$manifest")")"
+# SwiftPM prefers Package@swift-X.Y.swift over Package.swift, so every Package*.swift under a package directory (at
+# any depth, not .build or build, which hold other people's manifests) follows its package's rules.
+manifests() {
+  [ -d "$P" ] || return 0
+  find "$P" \( -name .build -o -name build \) -prune -o \
+    -name 'Package*.swift' \( -type f -o -type l \) -print | LC_ALL=C sort
+}
+while IFS= read -r manifest; do
+  name="${manifest#$P/}"
+  case "$name" in */*) name="${name%%/*}" ;; *) continue ;; esac   # a file directly in Packages/ is not a package manifest
   if ! allowed="$(allowed_deps "$name")"; then
     report "$manifest:1" "no rule for $P/$name in scripts/ci/check-architecture.sh; add its allowed dependencies (and update docs/architecture.md)"
     continue
@@ -77,6 +84,6 @@ for manifest in $P/*/Package.swift; do
     has "$allowed" "$dep" || report "$manifest:${line:-1}" "$name may not depend on $dep (allowed: ${allowed:-none})"
   done < <(tr '\n' ' ' < "$manifest" | grep -oE '\.package\([^)]*\)' |
     sed -E 's/.*(path|url):[[:space:]]*"([^"]*)".*/\2/' || true)
-done
+done < <(manifests)
 
 [ "$bad" = 0 ] || { echo "$bad architecture violation(s); the rules are in docs/architecture.md" >&2; exit 1; }

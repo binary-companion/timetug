@@ -40,6 +40,11 @@ check "an adapter reaches the app only" "$(lines $ARCH "$(st CalendarApple)" "$A
 check "the other adapter too" "$(lines $ARCH "$(st EventKitSource)" "$APP")" Packages/EventKitSource/Sources/A.swift
 check "a manifest edit selects its package" "$(lines $ARCH "$(st AppleIntelligenceInference)" "$APP")" \
   Packages/AppleIntelligenceInference/Package.swift
+# SwiftPM prefers Package@swift-X.Y.swift, so a local dependency declared only there still orders and selects tests.
+printf 'let package = Package(dependencies: [.package(path: "../EventKitSource")])\n' > "$T/Packages/CalendarApple/Package@swift-6.0.swift"
+check "a dependency in a version-specific manifest selects its dependent, dependency first" \
+  "$(lines $ARCH "$(st EventKitSource)" "$(st CalendarApple)" "$APP")" Packages/EventKitSource/Sources/A.swift
+rm "$T/Packages/CalendarApple/Package@swift-6.0.swift"
 check "a moved package is not a package here" "$(lines $ARCH)" Packages/TimeTugCore/Sources/A.swift
 check "absolute paths work" "$(lines $ARCH "$(st AppleIntelligenceInference)" "$APP")" \
   "$T/Packages/AppleIntelligenceInference/Sources/A.swift"
