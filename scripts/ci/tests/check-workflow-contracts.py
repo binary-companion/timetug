@@ -19,9 +19,9 @@ for path in sorted((root / '.github/workflows').glob('*.yml')):
 pr = workflows['firebase-hosting-pull-request.yml']
 for name in ('ci.yml', 'firebase-hosting-pull-request.yml'):
     pr_text = (root / '.github/workflows' / name).read_text()
-    # The one exception (docs/superpowers/specs/2026-10-09-windows-program-design.md, section 8): ci.yml may read the
-    # read-only Docker Hub pull token, which fork PRs never receive. Every other secret stays out of PR workflows.
-    allowed_secrets = {'DOCKERHUB_USERNAME', 'DOCKERHUB_TOKEN'} if name == 'ci.yml' else set()
+    # No secret reaches a PR-triggered workflow. (The Docker Hub pull token was the one exception while ci.yml ran
+    # the Linux job; that job moved to timetug-shared, so the exception is gone.)
+    allowed_secrets = set()
     used_secrets = set(re.findall(r'secrets\.([A-Za-z0-9_]+)', pr_text))
     if 'pull_request_target' in pr_text or used_secrets - allowed_secrets or 'firebaseServiceAccount' in pr_text:
         errors.append(f'{name}: PR-triggered workflow must not use pull_request_target or secrets')
@@ -57,9 +57,9 @@ else:
     if 'build/verify-venv/bin:$PATH' not in runs:
         errors.append('CI release-tooling job does not use pinned prerequisites')
 
-# Secrets are only readable through a protected environment (spec section 8). The Docker Hub pull token is the one
-# amended exception, and only in ci.yml.
-ALLOWED_OUTSIDE_ENVIRONMENT = {'ci.yml': {'DOCKERHUB_USERNAME', 'DOCKERHUB_TOKEN'}}
+# Secrets are only readable through a protected environment (spec section 8). There is no exception: the Docker Hub
+# pull token moved with the Linux job to timetug-shared.
+ALLOWED_OUTSIDE_ENVIRONMENT = {}
 IGNORED_SECRETS = {'GITHUB_TOKEN'}
 EXPECTED_ENVIRONMENTS = {
     'beta.yml': 'beta',
