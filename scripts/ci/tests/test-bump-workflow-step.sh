@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
-# Runs the "Open the pull request" step of .github/workflows/bump-dependencies.yml against stub `git` and `gh`
-# and asserts which pull requests it opens and closes. BUMP_WORKFLOW points at another copy of the workflow
-# (used to prove that mutated copies fail).
+# Runs the "Move the pin" step of .github/workflows/bump-dependencies.yml against the real scripts/ci/bump-pin.sh
+# (so the step must use the script's current command line), then its "Open the pull request" step against stub
+# `git` and `gh`, and asserts which pull requests it opens and closes. BUMP_WORKFLOW points at another copy of
+# the workflow (used to prove that mutated copies fail).
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/../../.." && pwd)"
 WORKFLOW="${BUMP_WORKFLOW:-$ROOT/.github/workflows/bump-dependencies.yml}"
@@ -12,12 +13,13 @@ python3 -c 'import yaml' 2>/dev/null || { echo "FAIL: PyYAML is required (pip in
 T="$(mktemp -d)"
 trap 'rm -rf "$T"' EXIT
 mkdir -p "$T/bin"
-python3 - "$WORKFLOW" "$T/step.sh" <<'PY'
+python3 - "$WORKFLOW" "$T/step.sh" "$T/move.sh" <<'PY'
 import sys, yaml
 document = yaml.safe_load(open(sys.argv[1]))
-steps = [step for job in document['jobs'].values() for step in job['steps'] if step.get('name') == 'Open the pull request']
-assert len(steps) == 1, 'the workflow must have exactly one "Open the pull request" step'
-open(sys.argv[2], 'w').write(steps[0]['run'])
+for name, target in (('Open the pull request', sys.argv[2]), ('Move the pin', sys.argv[3])):
+    steps = [step for job in document['jobs'].values() for step in job['steps'] if step.get('name') == name]
+    assert len(steps) == 1, f'the workflow must have exactly one "{name}" step'
+    open(target, 'w').write(steps[0]['run'])
 PY
 cat > "$T/bin/git" <<'SCRIPT'
 #!/usr/bin/env bash
@@ -51,6 +53,24 @@ SCRIPT
 chmod +x "$T/bin/git" "$T/bin/gh"
 fail() { echo "FAIL: $*" >&2; exit 1; }
 pr() { printf '{"number":%s,"headRefName":"%s","isCrossRepository":%s}' "$1" "$2" "${3:-false}"; }
+
+# The "Move the pin" step runs in a checkout of the repository: here a tree holding the real bump-pin.sh and
+# project.yml. It must move the CalendarConnectors pin, accept exactly what the script accepts, and leave the
+# other library's pin alone. pin_in <file> <project.yml key> prints the exactVersion of that entry.
+pin_in() { perl -0ne 'print $1 if m{^[ \t]+'"$2"':[ \t]*\n[ \t]+url:[^\n]*\n[ \t]+exactVersion:[ \t]*([0-9.]+)}m' "$1"; }
+mkdir -p "$T/move/scripts/ci" "$T/move/Apps/macOS"
+cp "$ROOT/scripts/ci/bump-pin.sh" "$T/move/scripts/ci/"
+cp "$ROOT/Apps/macOS/project.yml" "$T/move/Apps/macOS/"
+before_shared="$(pin_in "$T/move/Apps/macOS/project.yml" TimeTugShared)"
+[ -n "$before_shared" ] || fail 'the real project.yml has no TimeTugShared pin'
+MOVE_VERSION=1.998.0
+(cd "$T/move" && VERSION="$MOVE_VERSION" PATH="$T/bin:$PATH" bash "$T/move.sh" > "$T/move.out" 2>&1) ||
+  fail "the Move the pin step failed: $(cat "$T/move.out")"
+[ "$(pin_in "$T/move/Apps/macOS/project.yml" CalendarConnectors)" = "$MOVE_VERSION" ] ||
+  fail "the Move the pin step did not move the calendar-connectors pin to $MOVE_VERSION"
+[ "$(pin_in "$T/move/Apps/macOS/project.yml" TimeTugShared)" = "$before_shared" ] ||
+  fail 'the Move the pin step changed the timetug-shared pin'
+
 PREFIX=bump/calendar-connectors
 BASE_PRS="$(pr 10 $PREFIX-1.0.2),$(pr 11 $PREFIX-1.0.9),$(pr 12 $PREFIX-1.0.10),$(pr 13 $PREFIX-1.0.3),\
 $(pr 14 feature/other),$(pr 15 $PREFIX-1.0.3-rc1),$(pr 16 xbump/calendar-connectors-1.0.1),\

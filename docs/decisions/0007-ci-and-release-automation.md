@@ -24,3 +24,7 @@ TimeTug is going public on GitHub. It needs CI on every change and a repeatable 
 ## 2026-10-11 update
 
 The Linux portability job passed on `master` in [run 38138250241](https://github.com/darkarena1/timetug/actions/runs/38138250241) and [run 38138726121](https://github.com/darkarena1/timetug/actions/runs/38138726121). `core-linux` is now required for pull requests; the original `continue-on-error` period is over. The original decision above is retained as history.
+
+## 2026-10-15 update
+
+Core and Bridge moved to the `timetug-shared` repository ([ADR 0020](0020-timetug-shared-repository.md)). The `core-linux` job moved with them and runs there as the `linux` job (with `windows-x64` and `windows-arm64`); this repository's required checks are `core`, `app`, `dmg` and `architecture`.

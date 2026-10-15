@@ -1,19 +1,24 @@
 #!/usr/bin/env python3
-"""Shared libraries are consumed by released version only (phase 1 spec).
+"""Shared libraries are consumed by released version only (phase 1 and phase 2 specs).
+
+The shared libraries are calendar-connectors (project.yml key CalendarConnectors) and timetug-shared (key
+TimeTugShared); every rule below applies to each of them, and a pin is only ever compared with the floors of
+its own library.
 
 Every `.package(...)` in every Package*.swift at any depth under Packages/ (SwiftPM prefers
 Package@swift-X.Y.swift over Package.swift, so all of them are scanned; `.build` and `build` directories are
-skipped) must be either `.package(url: "<library url>", from: "X.Y.Z")` or a `.package(path: "...")` that,
-resolved from the manifest's own directory, is an existing sibling directory of Packages/ (spelled exactly,
-not a symlink, and not the library itself); anything else fails. Swift comments are not stripped, so a
-`.package(...)` inside a comment is checked like code and fails closed unless it is an allowed form.
-Apps/macOS/project.yml must pin the library with exactly the keys `url` and `exactVersion` (XcodeGen lets
-`path` win over a url, so any other key could hide a local override), and the pin must satisfy every
-manifest's range (same major, not below). The file must not have a top-level `include:` (XcodeGen would read
-packages from a file this check does not). Every other `packages:` entry must be an external dependency that
-is not the library, or `path: ../../Packages/<Name>` for an existing sibling; every `localPackages:` entry must
-be `../../Packages/<Name>` likewise (a second entry that reaches the library would defeat the pin: XcodeGen
-emits a local package reference and SwiftPM resolves the checkout over exactVersion).
+skipped) must be either `.package(url: "<library url>", from: "X.Y.Z")` for one of the libraries or a
+`.package(path: "...")` that, resolved from the manifest's own directory, is an existing sibling directory of
+Packages/ (spelled exactly, not a symlink, and not a library itself); anything else fails. Swift comments are
+not stripped, so a `.package(...)` inside a comment is checked like code and fails closed unless it is an
+allowed form.
+Apps/macOS/project.yml must pin each library with exactly the keys `url` and `exactVersion` (XcodeGen lets
+`path` win over a url, so any other key could hide a local override), and each pin must satisfy every
+manifest's range for that library (same major, not below). The file must not have a top-level `include:`
+(XcodeGen would read packages from a file this check does not). Every other `packages:` entry must be an
+external dependency that is not a library, or `path: ../../Packages/<Name>` for an existing sibling; every
+`localPackages:` entry must be `../../Packages/<Name>` likewise (a second entry that reaches a library would
+defeat its pin: XcodeGen emits a local package reference and SwiftPM resolves the checkout over exactVersion).
 Usage: check-shared-pins.py [repo-root]
 """
 import os
@@ -23,7 +28,10 @@ from pathlib import Path
 
 import yaml
 
-LIBRARIES = {'calendar-connectors': 'CalendarConnectors'}  # repository slug -> project.yml package key
+LIBRARIES = {  # repository slug -> project.yml package key
+    'calendar-connectors': 'CalendarConnectors',
+    'timetug-shared': 'TimeTugShared',
+}
 URL_PREFIX = 'https://github.com/binary-companion/'
 ENTRY_KEYS = {'url', 'exactVersion'}
 LIBRARY_NAMES = {name.lower() for slug, key in LIBRARIES.items() for name in (slug, key)}
@@ -79,8 +87,8 @@ def mentions_library(*values):
     return any(name in text for name in LIBRARY_NAMES)
 
 def reaches_library(*values):
-    """True when a value's last path segment is the library (url, github shorthand or path), as opposed to a
-    third-party name that merely contains the library name."""
+    """True when a value's last path segment is a library (url, github shorthand or path), as opposed to a
+    third-party name that merely contains a library name."""
     for value in values:
         segment = re.split(r'[/:]', str(value).rstrip('/'))[-1].lower()
         if segment.removesuffix('.git') in LIBRARY_NAMES:
@@ -95,7 +103,7 @@ def check_project_path(where, path):
     sibling = PROJECT_SIBLING_PATH.fullmatch(str(path))
     if not sibling or sibling.group(1) not in siblings or sibling.group(1).lower() in LIBRARY_NAMES:
         errors.append(f'Apps/macOS/project.yml: {where} path {path} must be ../../Packages/<Name> for an '
-                      'existing sibling directory of Packages/ (spelled exactly, and not the library)')
+                      'existing sibling directory of Packages/ (spelled exactly, and not a shared library)')
 
 # Every project.yml entry other than the pinned key must stay away from the library: a second entry that
 # reaches it (path, url or github shorthand) defeats the pin.
@@ -108,7 +116,7 @@ for name, entry in (packages or {}).items():
     if mentions_library(*entry.values()):
         pinned = ', '.join(sorted(LIBRARIES.values()))
         errors.append(f'Apps/macOS/project.yml: package {name} {library_reference(*entry.values())}; only the '
-                      f'pinned {pinned} entry (url and exactVersion) may')
+                      f'pinned library entries ({pinned}: url and exactVersion) may')
     elif 'path' in entry:
         check_project_path(f'package {name}', entry['path'])
 
@@ -120,7 +128,7 @@ for item in (local_packages if isinstance(local_packages, list) else ()):
     path = item.get('path') if isinstance(item, dict) else item
     if mentions_library(*values):
         errors.append(f'Apps/macOS/project.yml: localPackages entry {item} {library_reference(*values)}; '
-                      'only the pinned package entry (url and exactVersion) may')
+                      'only the pinned library entries (url and exactVersion) may')
     elif path is None:
         errors.append(f'Apps/macOS/project.yml: localPackages entry {item} needs a path')
     else:
@@ -147,29 +155,32 @@ for manifest in manifests_under(packages_dir) if packages_dir.is_dir() else ():
     for inner in PACKAGE_CALL.findall(manifest.read_text()):
         body = inner.strip()
         dependency = '.package(%s)' % ' '.join(body.split())
-        released = None
+        released, matched = None, None
         for slug in LIBRARIES:
             released = re.fullmatch(r'url:\s*"%s"\s*,\s*from:\s*"([^"]+)"' % re.escape(URL_PREFIX + slug), body)
             if released:
+                matched = slug
                 break
         if released:
             floor = version(released.group(1))
             if floor is None:
-                errors.append(f'{rel}: {slug} needs from: "X.Y.Z", got {dependency}')
+                errors.append(f'{rel}: {matched} needs from: "X.Y.Z", got {dependency}')
                 continue
-            pin = pins.get(slug)
+            pin = pins.get(matched)
             if pin is None:
                 continue
+            shown = '.'.join(map(str, pin))
             if pin[0] != floor[0]:
-                errors.append(f'{rel}: pin {".".join(map(str, pin))} is in another major than from: {released.group(1)}')
+                errors.append(f'{rel}: the {matched} pin {shown} is in another major than from: {released.group(1)}')
             elif pin < floor:
-                errors.append(f'{rel}: pin {".".join(map(str, pin))} is below from: {released.group(1)}')
+                errors.append(f'{rel}: the {matched} pin {shown} is below from: {released.group(1)}')
             continue
         sibling = sibling_name(manifest, body)
         if sibling in siblings and sibling.lower() not in LIBRARY_NAMES:
             continue
         errors.append(f'{rel}: dependency {dependency} is not allowed; use '
-                      f'.package(url: "{URL_PREFIX}<library>", from: "X.Y.Z") for a shared library or '
+                      f'.package(url: "{URL_PREFIX}<library>", from: "X.Y.Z") where <library> is one of '
+                      f'{", ".join(LIBRARIES)}, or '
                       '.package(path: "../<Name>") for a sibling directory of Packages/')
 
 if errors:

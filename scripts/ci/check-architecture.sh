@@ -36,14 +36,13 @@ never() {
 
 UI="AppKit SwiftUI UIKit WidgetKit"
 P=Packages
-# The connector library lives in its own repository and is consumed by released version (scripts/ci/check-shared-pins.py).
+# The connector library and the shared Core live in their own repositories and are consumed by released version
+# (scripts/ci/check-shared-pins.py). Their own layering rules (Core is portable, no clock reads, the bridge is thin)
+# are checked in those repositories.
 LIBURL=https://github.com/binary-companion/calendar-connectors
+SHAREDURL=https://github.com/binary-companion/timetug-shared
 
-# Core is platform-neutral and builds on Linux: Foundation and the connector model only.
-only TimeTugCore "Foundation CalendarCore TimeTugCore Testing" $P/TimeTugCore/Sources $P/TimeTugCore/Tests
-# The bridge is minimal glue between Core and the library.
-only CalendarBridge "Foundation TimeTugCore CalendarCore" $P/CalendarBridge/Sources
-# Source adapters speak the library, contain no UI and never see TimeTug.
+# Source adapters speak the library, contain no UI and never see TimeTug (TimeTugCore, CalendarBridge).
 never EventKitSource "$UI TimeTugCore CalendarBridge CalendarApple AppleIntelligenceInference" $P/EventKitSource/Sources
 never CalendarApple "SwiftUI UIKit WidgetKit TimeTugCore CalendarBridge EventKitSource AppleIntelligenceInference" $P/CalendarApple/Sources
 never AppleIntelligenceInference "$UI CalendarBridge EventKitSource CalendarApple" $P/AppleIntelligenceInference/Sources
@@ -56,20 +55,12 @@ never "$P (Sparkle is app-only)" Sparkle $P
 # Widgets read the snapshot; they never touch EventKit or Sparkle.
 never "Apps/macOS/Widgets and Shared" "EventKit Sparkle" Apps/macOS/Widgets Apps/macOS/Shared
 
-# Time is passed in: Core never reads the clock. Mark a justified exception with "architecture-check: allow".
-if [ -d $P/TimeTugCore/Sources ]; then
-  while IFS= read -r hit; do
-    report "$(echo "$hit" | cut -d: -f1,2)" "TimeTugCore reads the clock (Date()/Date.now); pass now: Date in instead"
-  done < <(grep -rn --include='*.swift' 'Date' $P/TimeTugCore/Sources | grep -v 'architecture-check: allow' |
-    sed -E -e 's#^([^:]+:[0-9]+:)[[:space:]]*//.*#\1#' -e 's#[[:space:]]//.*##' |
-    grep -E '^[^:]+:[0-9]+:(.*[^A-Za-z0-9_])?Date(\(\)|\.now([^A-Za-z0-9_]|$)|\(timeIntervalSinceNow)' || true)
-fi
-
-# Package dependencies point toward Core and the released connector library (by URL; scripts/ci/check-shared-pins.py checks the pin).
+# Package dependencies are URL dependencies on the released libraries (scripts/ci/check-shared-pins.py checks the
+# pin). Only the inference package may use timetug-shared; no package depends on another local package.
 allowed_deps() {
   case "$1" in
-    TimeTugCore | EventKitSource | CalendarApple) echo "$LIBURL" ;;
-    CalendarBridge | AppleIntelligenceInference) echo "../TimeTugCore $LIBURL" ;;
+    EventKitSource | CalendarApple) echo "$LIBURL" ;;
+    AppleIntelligenceInference) echo "$SHAREDURL $LIBURL" ;;
     *) return 1 ;;
   esac
 }

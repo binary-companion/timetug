@@ -2,7 +2,6 @@
 """Focused repository invariants; package tests remain the compiler authority."""
 from pathlib import Path
 import plistlib
-import re
 import sys
 import yaml
 
@@ -22,12 +21,6 @@ for path in ('docs/architecture.md', 'docs/development.md', 'docs/release.md',
              'docs/manual-tests/macos-checklist.md', 'site/README.md',
              'scripts/dev/verify.sh', 'Apps/macOS/project.yml'):
     read(path)
-
-# Core is portable: no Apple or UI imports. (The connector library enforces the same for itself in its own repository.)
-for file in (root / 'Packages' / 'TimeTugCore' / 'Sources').rglob('*.swift'):
-    for match in re.finditer(r'^\s*import\s+(\w+)', file.read_text(), re.M):
-        forbidden = {'AppKit', 'SwiftUI', 'EventKit', 'WidgetKit', 'FoundationModels'}
-        require(match.group(1) not in forbidden, f'Apple/UI import in portable source: {file.relative_to(root)}')
 
 registry = read('Apps/macOS/Sources/AppConnectors.swift')
 for kind in ('EventKitConnectorKind', 'GoogleConnectorKind', 'MicrosoftConnectorKind'):

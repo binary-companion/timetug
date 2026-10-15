@@ -6,7 +6,7 @@ Thanks for helping. TimeTug is a macOS menu bar app that takes over the screen s
 Requires Xcode 26 or newer and [XcodeGen](https://github.com/yonaskolb/XcodeGen) (`brew install xcodegen`).
 
 ```bash
-swift test --package-path Packages/TimeTugCore                # Core logic tests
+swift test --package-path Packages/CalendarApple              # Apple connector adapters
 swift build --package-path Packages/EventKitSource            # Apple Calendar adapter
 xcodegen generate --spec Apps/macOS/project.yml               # generate the (git-ignored) Xcode project
 xcodebuild -project Apps/macOS/TimeTug.xcodeproj -scheme TimeTug -destination 'platform=macOS' build
@@ -16,15 +16,16 @@ xcodebuild -project Apps/macOS/TimeTug.xcodeproj -scheme TimeTug -destination 'p
 Window, overlay and status item behavior is verified by hand: `docs/manual-tests/macos-checklist.md`.
 
 ## Repository layout
-- `Packages/TimeTugCore`: pure Swift, platform-neutral logic.
 - `Packages/EventKitSource`: Apple Calendar adapter (macOS only).
+- `Packages/CalendarApple`, `Packages/AppleIntelligenceInference`: Apple adapters for the connector library and the on-device model.
+- Core logic (`TimeTugCore`, `CalendarBridge`) is its own repository, [binary-companion/timetug-shared](https://github.com/binary-companion/timetug-shared); a change to it is a pull request there, followed by a pin bump here.
 - `Apps/macOS`: AppKit/SwiftUI shell; the Xcode project is generated from `Apps/macOS/project.yml`.
 - `artwork/`: brand images (not open source, see Licensing).
 - `docs/`: architecture, decision records (`docs/decisions/`), manual tests, release process.
 - `scripts/`, `.github/`: CI and release automation.
 
 ## Boundaries
-Core answers "what and when": events, policies, scheduling, link detection. It has no UI, no Apple-only imports,
+Core (in `timetug-shared`) answers "what and when": events, policies, scheduling, link detection. It has no UI, no Apple-only imports,
 no third-party dependencies and no display strings, and time is always passed in (`now: Date`). Every Core
 behavior gets a test, written first.
 

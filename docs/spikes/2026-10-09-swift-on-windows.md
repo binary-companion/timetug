@@ -27,7 +27,7 @@ How the VM was driven: not over SSH. Parallels' `prlctl exec` runs a command as 
 
 First build plus test took about 4 minutes for CalendarConnectors, 1 minute for TimeTugCore and 1 minute for CalendarBridge on the Asserts toolchain.
 
-The four skipped tests are deliberate in the tests themselves: `liveFeedLoads` and `iCloudLiveSmoke` (live services), and `transportCanDeclineRedirects` and `transportFollowsRedirectsByDefault`. The last two are the same redirect tests the Linux job (`core-linux`) skips, so nothing is new.
+The four skipped tests are deliberate in the tests themselves: `liveFeedLoads` and `iCloudLiveSmoke` (live services), and `transportCanDeclineRedirects` and `transportFollowsRedirectsByDefault`. The last two are the same redirect tests the Linux job (`core-linux`, since 2026-10-15 the `linux` job of `timetug-shared`) skips, so nothing is new.
 
 ### Failures by class
 

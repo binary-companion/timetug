@@ -33,12 +33,16 @@ $want
 $got"
 }
 
-check "leaf package" "$(lines $ARCH "$(st CalendarBridge)" "$APP")" Packages/CalendarBridge/Sources/A.swift
-check "Core and its dependents" \
-  "$(lines $ARCH "$(st TimeTugCore)" "$(st AppleIntelligenceInference)" "$(st CalendarBridge)" "$APP")" \
-  Packages/TimeTugCore/Sources/A.swift
+# No package depends on another local package (TimeTugCore and CalendarBridge live in timetug-shared, consumed by
+# URL), so a change selects exactly its own package and the app.
+check "leaf package" "$(lines $ARCH "$(st AppleIntelligenceInference)" "$APP")" Packages/AppleIntelligenceInference/Sources/A.swift
 check "an adapter reaches the app only" "$(lines $ARCH "$(st CalendarApple)" "$APP")" Packages/CalendarApple/Sources/A.swift
-check "absolute paths work" "$(lines $ARCH "$(st CalendarBridge)" "$APP")" "$T/Packages/CalendarBridge/Sources/A.swift"
+check "the other adapter too" "$(lines $ARCH "$(st EventKitSource)" "$APP")" Packages/EventKitSource/Sources/A.swift
+check "a manifest edit selects its package" "$(lines $ARCH "$(st AppleIntelligenceInference)" "$APP")" \
+  Packages/AppleIntelligenceInference/Package.swift
+check "a moved package is not a package here" "$(lines $ARCH)" Packages/TimeTugCore/Sources/A.swift
+check "absolute paths work" "$(lines $ARCH "$(st AppleIntelligenceInference)" "$APP")" \
+  "$T/Packages/AppleIntelligenceInference/Sources/A.swift"
 check "existing app file" "$(lines $ARCH "$APP")" Apps/macOS/Sources/App.swift
 check "project.yml regenerates" "$(lines "$GEN" "$APP")" Apps/macOS/project.yml
 check "new app file regenerates" "$(lines $ARCH "$GEN" "$APP")" Apps/macOS/Sources/New.swift
@@ -46,8 +50,8 @@ check "docs only" "" docs/a.md
 check "script dir tests" "$(lines scripts/release/tests/test-b.sh "python3 scripts/release/tests/test_c.py")" \
   scripts/release/make-dmg.sh
 check "workflows" "$(lines scripts/ci/tests/test-workflows.sh)" .github/workflows/ci.yml
-check "duplicates collapse" "$(lines $ARCH "$(st CalendarBridge)" "$APP")" \
-  Packages/CalendarBridge/Sources/A.swift Packages/CalendarBridge/Package.swift Apps/macOS/Sources/App.swift
+check "duplicates collapse" "$(lines $ARCH "$(st AppleIntelligenceInference)" "$APP")" \
+  Packages/AppleIntelligenceInference/Sources/A.swift Packages/AppleIntelligenceInference/Package.swift Apps/macOS/Sources/App.swift
 
 rmdir "$T/Apps/macOS/TimeTug.xcodeproj"
 check "missing project regenerates" "$(lines $ARCH "$GEN" "$APP")" Apps/macOS/Sources/App.swift
@@ -56,13 +60,13 @@ mkdir "$T/Apps/macOS/TimeTug.xcodeproj"
 # With no paths: committed, staged, unstaged and untracked changes since the merge base with master.
 check "clean branch" ""
 echo x >> "$T/Packages/EventKitSource/Sources/A.swift"; g commit -q -am "committed"
-g checkout -q master; echo x >> "$T/Packages/TimeTugCore/Sources/A.swift"; g commit -q -am "master moved on"; g checkout -q feature
+g checkout -q master; echo x >> "$T/scripts/release/make-dmg.sh"; g commit -q -am "master moved on"; g checkout -q feature
 echo x >> "$T/docs/a.md"; g add docs/a.md
 echo x >> "$T/Packages/CalendarApple/Sources/A.swift"
-touch "$T/Packages/CalendarBridge/Sources/Untracked.swift"
+touch "$T/Packages/AppleIntelligenceInference/Sources/Untracked.swift"
 check "git discovery ignores master's own changes" \
-  "$(lines $ARCH "$(st CalendarApple)" "$(st CalendarBridge)" "$(st EventKitSource)" "$APP")"
-check "--base" "$(lines $ARCH "$(st CalendarApple)" "$(st CalendarBridge)" "$APP")" --base HEAD
+  "$(lines $ARCH "$(st AppleIntelligenceInference)" "$(st CalendarApple)" "$(st EventKitSource)" "$APP")"
+check "--base" "$(lines $ARCH "$(st AppleIntelligenceInference)" "$(st CalendarApple)" "$APP")" --base HEAD
 
 g add -A; g commit -q -m wip; g mv Apps/macOS/Sources/App.swift Apps/macOS/Sources/Renamed.swift; g commit -q -m rename
 check "a renamed app file regenerates" "$(lines $ARCH "$GEN" "$APP")" --base HEAD~1

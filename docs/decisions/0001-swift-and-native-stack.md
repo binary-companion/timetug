@@ -8,7 +8,7 @@ TimeTug is a macOS menu bar application that needs to integrate tightly with the
 
 ## Decision
 
-Use Swift as the primary language with SwiftUI and AppKit for the macOS frontend, organized as Swift Package Manager modules. `Packages/TimeTugCore` is pure Swift with no platform dependencies; `Packages/EventKitSource` wraps Apple Calendar via EventKit; `Apps/macOS` is the native entry point.
+Use Swift as the primary language with SwiftUI and AppKit for the macOS frontend, organized as Swift Package Manager modules. `Packages/TimeTugCore` (since 2026-10-15 the `timetug-shared` repository, ADR 0020) is pure Swift with no platform dependencies; `Packages/EventKitSource` wraps Apple Calendar via EventKit; `Apps/macOS` is the native entry point.
 
 Rejected alternatives:
 - **Rust core + native shell:** Would require language interoperability, limiting Swift's ecosystem on Windows/Linux and complicating maintenance. Swift SPM modules scale better for a team favoring macOS-first development.

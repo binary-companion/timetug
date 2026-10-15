@@ -33,7 +33,7 @@ Build `Packages/CalendarConnectors` in this repository, extract it to its own re
 
 TimeTug now uses the library. Decisions made while plugging it in:
 
-- **Bridge package:** `Packages/CalendarBridge` maps library events to `TimeTugCalendarEvent` and adapts library sources to Core's source protocol. (Superseded by Phase 2.5: Core now depends on `CalendarCore`.) At the time `TimeTugCore` did not depend on the library: the library needs swift-crypto, which needs a newer toolchain than the `swift:6.0` image that proves Core's portability. Core gains only generic pieces (`CalendarStore.setSources`, `TakeoverSettings.removeCalendars`).
+- **Bridge package:** `Packages/CalendarBridge` (now in `timetug-shared`, ADR 0020) maps library events to `TimeTugCalendarEvent` and adapts library sources to Core's source protocol. (Superseded by Phase 2.5: Core now depends on `CalendarCore`.) At the time `TimeTugCore` did not depend on the library: the library needs swift-crypto, which needs a newer toolchain than the `swift:6.0` image that proves Core's portability. Core gains only generic pieces (`CalendarStore.setSources`, `TakeoverSettings.removeCalendars`).
 - **Layering:** anything generic (stores, all-day handling, conformance check) lives in `CalendarCore`; OS-specific code lives in `Packages/CalendarApple` (Keychain, loopback OAuth) and the `EventKitSource` adapter. The app composes them and owns UI and account state.
 - **All-day rule:** a connector emits all-day events in the library's canonical form (`AllDay`); the bridge converts them to TimeTug's native all-day form so the same calendar date shows regardless of time zone. The bridge conversion is interim; Phase 2.5 removes it.
 - **EventKit source id:** EventKit reports one constant source id for the Mac. Selections and status are keyed by `source.id`, never by the calendar's own source identifier.
@@ -95,3 +95,7 @@ Fields a source cannot read used to be filled with defaults that looked like rea
 ## Update 2026-10-13
 
 The library was extracted to [binary-companion/calendar-connectors](https://github.com/binary-companion/calendar-connectors) with its history and released as `1.0.0`. `timetug` consumes it by released version; platform adapters (`CalendarApple`, `EventKitSource`) stay here. See [the phase 1 spec](../superpowers/specs/2026-10-12-phase-1-calendar-connectors-design.md).
+
+## Update 2026-10-15
+
+`TimeTugCore` and `CalendarBridge`, the packages that consume the library's model, moved to [binary-companion/timetug-shared](https://github.com/binary-companion/timetug-shared), which depends on the library by released version range ([ADR 0020](0020-timetug-shared-repository.md)). The Mac app pins both libraries.

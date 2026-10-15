@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# Tests use-local-connectors.sh in a throwaway repo shaped like this one.
+# Tests use-local-connectors.sh (the wrapper around use-local-library.sh) in a throwaway repo shaped like this
+# one. The two-library behaviour is tested by test-use-local-library.sh.
 set -euo pipefail
 cd "$(dirname "$0")/../../.."
 T="$(mktemp -d)"; trap 'rm -rf "$T"' EXIT
@@ -8,7 +9,7 @@ g() { git -c user.name=t -c user.email=t@t "$@"; }
 mkdir -p "$T/repo/scripts/dev" "$T/repo/scripts/ci" "$T/repo/Apps/macOS" "$T/calendar-connectors" "$T/other"
 mkdir -p "$T/second/calendar-connectors"
 touch "$T/calendar-connectors/Package.swift" "$T/other/Package.swift" "$T/second/calendar-connectors/Package.swift"
-cp scripts/dev/use-local-connectors.sh "$T/repo/scripts/dev/"
+cp scripts/dev/use-local-connectors.sh scripts/dev/use-local-library.sh "$T/repo/scripts/dev/"
 cp scripts/ci/check-shared-pins.py "$T/repo/scripts/ci/"
 cp Apps/macOS/project.yml "$T/repo/Apps/macOS/"
 for m in Packages/*/Package.swift; do mkdir -p "$T/repo/$(dirname "$m")"; cp "$m" "$T/repo/$m"; done
@@ -16,9 +17,9 @@ cd "$T/repo"
 git init -q -b master; g add -A; g commit -qm base
 python3 scripts/ci/check-shared-pins.py >/dev/null || fail "fixture should start clean"
 
-BACKUP=build/local-connectors-backup
+BACKUP=build/local-library-backup
 USE=scripts/dev/use-local-connectors.sh
-MANIFEST=Packages/TimeTugCore/Package.swift
+MANIFEST=Packages/EventKitSource/Package.swift
 PROJECT=Apps/macOS/project.yml
 # Everything the override may touch, plus its backup, as "checksum size path" lines.
 snapshot() { find Packages Apps build -type f 2>/dev/null | LC_ALL=C sort | while IFS= read -r f; do echo "$(cksum < "$f") $f"; done; }
