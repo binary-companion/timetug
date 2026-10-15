@@ -44,6 +44,8 @@ targetTemplates:
     dependencies:
       - package: TimeTugShared
         product: TimeTugCore
+      - package: TimeTugShared
+        product: TimeTugEngine
       - package: EventKitSource
         product: EventKitSource
       - package: AppleIntelligenceInference
@@ -207,6 +209,8 @@ targets:
       - target: TimeTug
       - package: TimeTugShared
         product: TimeTugCore
+      - package: TimeTugShared
+        product: TimeTugEngine
       - package: CalendarConnectors
         product: CalendarCore
       - package: CalendarConnectors
