@@ -36,9 +36,15 @@ if 'build/verify-venv/bin:$PATH' not in pr_runs:
     errors.append('PR website workflow does not use pinned test prerequisites')
 
 ci = workflows['ci.yml']
-linux = ci['jobs'].get('core-linux')
-if linux is None or linux.get('continue-on-error') not in (None, False):
-    errors.append('CI core-linux job must block merges when portability tests fail')
+# Core's Linux portability job moved to binary-companion/timetug-shared with the package; a required check named
+# core-linux would never report here again, so the job must not return without its package.
+if 'core-linux' in ci['jobs']:
+    errors.append('CI must not have a core-linux job: TimeTugCore is tested on Linux in timetug-shared')
+# A workflow must not name a package directory that does not exist (the moved packages are gone from Packages/).
+for name, document in workflows.items():
+    for package in sorted(set(re.findall(r'\bPackages/([A-Za-z0-9_]+)', (root / '.github/workflows' / name).read_text()))):
+        if not (root / 'Packages' / package).is_dir():
+            errors.append(f'{name}: names Packages/{package}, which does not exist')
 tooling = ci['jobs'].get('release-tooling')
 if tooling is None:
     errors.append('CI missing release-tooling job')

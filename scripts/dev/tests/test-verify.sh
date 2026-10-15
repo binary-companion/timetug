@@ -28,6 +28,11 @@ exit 0
 SCRIPT
 cp "$T/repo/scripts/ci/tests/test-dummy.sh" "$T/repo/scripts/release/tests/test-dummy.sh"
 cp "$T/repo/scripts/ci/tests/test-dummy.sh" "$T/repo/scripts/dev/tests/test-use-local-connectors.sh"
+# Records that verify.sh ran it (the stubbed python3 and swift record their own calls).
+cat > "$T/repo/scripts/dev/tests/test-use-local-library.sh" <<'SCRIPT'
+#!/usr/bin/env bash
+echo "ran test-use-local-library.sh" >> "$VERIFY_CALLS"
+SCRIPT
 cd "$T/repo"
 git init -q
 git config user.email test@example.com
@@ -40,12 +45,24 @@ export VERIFY_CALLS="$T/calls" PATH="$T/bin:$PATH"
 fail() { echo "FAIL: $*" >&2; exit 1; }
 run_mode() { : > "$VERIFY_CALLS"; scripts/dev/verify.sh "$@" >/dev/null; }
 run_mode core
-grep -q 'swift test --package-path Packages/TimeTugCore' "$VERIFY_CALLS" || fail 'core omitted'
-if grep -q 'Packages/CalendarConnectors' "$VERIFY_CALLS"; then fail 'the library is tested from this repository'; fi
+grep -q 'swift test --package-path Packages/AppleIntelligenceInference' "$VERIFY_CALLS" || fail 'inference omitted'
+# TimeTugCore and CalendarBridge are tested in timetug-shared, the connector library in calendar-connectors.
+for moved in Packages/TimeTugCore Packages/CalendarBridge Packages/CalendarConnectors; do
+  if grep -q "$moved" "$VERIFY_CALLS"; then fail "$moved is tested from this repository"; fi
+done
 export TIMETUG_LIVE_EVENTKIT=1 TIMETUG_LIVE_GOOGLE=1 TIMETUG_LIVE_MICROSOFT=1
 for mode in connectors all; do
   run_mode "$mode"
-  if grep -q 'Packages/CalendarConnectors' "$VERIFY_CALLS"; then fail "mode $mode tests the library from this repository"; fi
+  for moved in Packages/TimeTugCore Packages/CalendarBridge Packages/CalendarConnectors; do
+    if grep -q "$moved" "$VERIFY_CALLS"; then fail "mode $mode tests $moved from this repository"; fi
+  done
+done
+# Every mode that runs the script tests runs the shared-library wrapper tests and the resolved-version tests.
+for mode in release-tools all; do
+  run_mode "$mode"
+  grep -q 'ran test-use-local-library.sh' "$VERIFY_CALLS" || fail "mode $mode omitted test-use-local-library.sh"
+  grep -q 'python3 -m unittest scripts/ci/tests/test_resolved_version.py' "$VERIFY_CALLS" ||
+    fail "mode $mode omitted test_resolved_version.py"
 done
 run_mode core
 if grep -q LIVE_FLAGS_INHERITED "$VERIFY_CALLS"; then fail 'live-test flags reached package tests'; fi
@@ -63,8 +80,9 @@ grep -q 'python3 scripts/ci/check-shared-pins.py' "$VERIFY_CALLS" || fail 'share
 if grep -q '^swift\|^xcodebuild' "$VERIFY_CALLS"; then fail 'documentation ran build'; fi
 rm docs/change.md
 # Editing a manifest or the project file can change which version the app resolves, so the pin check runs.
-mkdir -p Packages/TimeTugCore Apps/macOS
-for changed in Packages/TimeTugCore/Package.swift 'Packages/TimeTugCore/Package@swift-5.9.swift' Apps/macOS/project.yml; do
+mkdir -p Packages/AppleIntelligenceInference Packages/CalendarApple Apps/macOS
+for changed in Packages/AppleIntelligenceInference/Package.swift 'Packages/AppleIntelligenceInference/Package@swift-5.9.swift' \
+  Packages/CalendarApple/Package.swift Apps/macOS/project.yml; do
   echo x > "$changed"
   run_mode affected
   grep -q 'python3 scripts/ci/check-shared-pins.py' "$VERIFY_CALLS" || fail "shared pin check omitted for $changed"
@@ -75,9 +93,19 @@ echo model > Packages/CalendarApple/Sources/CalendarApple/'model with spaces.swi
 run_mode affected
 grep -q 'swift test --package-path Packages/CalendarApple' "$VERIFY_CALLS" || fail 'adapter tests omitted'
 grep -q 'xcodebuild ' "$VERIFY_CALLS" || fail 'adapter app dependent omitted'
-# No local package depends on the adapters, so an adapter change must not select the core packages.
-if grep -q 'Packages/TimeTugCore' "$VERIFY_CALLS"; then fail 'adapter change ran core'; fi
+# No local package depends on the adapters, so an adapter change must not select the inference package.
+if grep -q 'Packages/AppleIntelligenceInference' "$VERIFY_CALLS"; then fail 'adapter change ran inference'; fi
 rm Packages/CalendarApple/Sources/CalendarApple/'model with spaces.swift'
+# The inference package (which depends on timetug-shared by URL) selects itself and the app, not the adapters.
+mkdir -p Packages/AppleIntelligenceInference/Sources/AppleIntelligenceInference
+echo x > Packages/AppleIntelligenceInference/Sources/AppleIntelligenceInference/Engine.swift
+run_mode affected
+grep -q 'swift test --package-path Packages/AppleIntelligenceInference' "$VERIFY_CALLS" || fail 'inference tests omitted'
+grep -q 'xcodebuild ' "$VERIFY_CALLS" || fail 'inference app dependent omitted'
+for other in CalendarApple EventKitSource TimeTugCore CalendarBridge; do
+  if grep -q "Packages/$other" "$VERIFY_CALLS"; then fail "inference change ran $other"; fi
+done
+rm Packages/AppleIntelligenceInference/Sources/AppleIntelligenceInference/Engine.swift
 mkdir -p .github/workflows
 echo workflow > .github/workflows/new.yml
 run_mode affected

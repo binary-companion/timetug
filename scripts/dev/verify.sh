@@ -54,7 +54,11 @@ run_app() {
 run_release() {
   need bash; need python3; need node
   python3 -c 'import yaml' >/dev/null 2>&1 || { echo 'missing prerequisite: PyYAML (scripts/ci/requirements-test.txt)' >&2; exit 2; }
-  for test in scripts/ci/tests/test-*.sh scripts/release/tests/test-*.sh scripts/dev/tests/test-use-local-connectors.sh; do run "$(basename "$test" .sh)" bash "$test"; done
+  for test in scripts/ci/tests/test-*.sh scripts/release/tests/test-*.sh \
+    scripts/dev/tests/test-use-local-connectors.sh scripts/dev/tests/test-use-local-library.sh; do
+    run "$(basename "$test" .sh)" bash "$test"
+  done
+  run resolved-version python3 -m unittest scripts/ci/tests/test_resolved_version.py
   run wrapper-tests bash scripts/dev/tests/test-verify.sh
   run python-appcast python3 -m unittest discover -s scripts/release/tests -p 'test_*.py'
   run website node --test site/tests/download.test.js
@@ -90,7 +94,8 @@ if [[ "$MODE" == affected ]]; then
       # No local package depends on the adapters, so only the adapters and the app are affected.
       Packages/CalendarApple/*|Packages/EventKitSource/*)
         WANT_CONNECTORS=1; WANT_APP=1;;
-      Packages/TimeTugCore/*|Packages/CalendarBridge/*|Packages/AppleIntelligenceInference/*)
+      # TimeTugCore and CalendarBridge live in timetug-shared, which this repository consumes by released version.
+      Packages/AppleIntelligenceInference/*)
         WANT_CORE=1; WANT_APP=1;;
       Apps/macOS/*) WANT_APP=1;;
       scripts/release/*|scripts/ci/*|scripts/dev/*|.github/workflows/*|.github/dependabot.yml|site/*)
@@ -109,7 +114,7 @@ else
     all) WANT_CORE=1; WANT_CONNECTORS=1; WANT_APP=1; WANT_RELEASE=1; WANT_CONTRACTS=1;;
   esac
 fi
-[[ "$WANT_CORE" == 1 ]] || { skip_check core; skip_check bridge; skip_check inference; }
+[[ "$WANT_CORE" == 1 ]] || skip_check inference
 [[ "$WANT_CONNECTORS" == 1 ]] || { skip_check calendar-apple; skip_check eventkit; }
 [[ "$WANT_APP" == 1 ]] || skip_check app
 [[ "$WANT_RELEASE" == 1 ]] || skip_check release-tools
@@ -119,8 +124,6 @@ if [[ "$WANT_CONNECTORS" == 1 ]]; then
   run_pkg eventkit Packages/EventKitSource
 fi
 if [[ "$WANT_CORE" == 1 ]]; then
-  run_pkg core Packages/TimeTugCore
-  run_pkg bridge Packages/CalendarBridge
   run_pkg inference Packages/AppleIntelligenceInference
 fi
 if [[ "$WANT_APP" == 1 ]]; then run_app; fi

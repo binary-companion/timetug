@@ -2,16 +2,14 @@
 #
 # Jobs:
 #   release-tooling  Runs release scripts, workflow contracts, and website tests on Ubuntu.
-#   core        Swift Testing suites for Packages/TimeTugCore, Packages/CalendarBridge, Packages/CalendarApple,
-#               Packages/EventKitSource and Packages/AppleIntelligenceInference (macOS). The connector
-#               library is tested in its own repository.
+#   core        Swift Testing suites for Packages/CalendarApple, Packages/EventKitSource and
+#               Packages/AppleIntelligenceInference (macOS). The connector library and the shared Core
+#               (TimeTugCore, CalendarBridge) are tested, on macOS and Linux, in their own repositories.
 #   app         Generates the Xcode project with XcodeGen, then builds and runs the app's XCTest suite (macOS).
 #   app-store-build  Builds the App Store target unsigned and checks it has no Sparkle (macOS).
 #   dmg         Builds the release app and the unsigned drag-to-install DMG, verifies it and uploads it
 #               as the `TimeTug-dmg` artifact (a fresh installer from every run).
 #   architecture  Checks the AGENTS.md layering rules (scripts/ci/check-architecture.sh) on Linux.
-#   core-linux  Runs the Core tests on Linux to prove Core stays portable (it resolves the released
-#               connector library). Required for merges.
 #
 # The macOS jobs need an Xcode with the macOS 26 SDK or newer (Liquid Glass APIs behind #available).
 # If the `macos-26` runner label is not available to your account, change `runs-on` in all the macOS jobs
@@ -48,14 +46,10 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
       - name: Select newest Xcode
         run: scripts/ci/select-xcode.sh
-      - name: Test TimeTugCore
-        run: swift test --package-path Packages/TimeTugCore
       - name: Test EventKitSource
         run: swift test --package-path Packages/EventKitSource
       - name: Test AppleIntelligenceInference
         run: swift test --package-path Packages/AppleIntelligenceInference
-      - name: Test CalendarBridge
-        run: swift test --package-path Packages/CalendarBridge
       - name: Test CalendarApple
         run: swift test --package-path Packages/CalendarApple
 
@@ -153,7 +147,7 @@ jobs:
           if-no-files-found: error
 
   # The layering rules from AGENTS.md that the compiler does not enforce (imports, Package.swift
-  # dependencies, no clock reads in Core), plus the tests of the check, of scripts/dev/affected-tests.sh and of the release preflight.
+  # dependencies), plus the tests of the check, of scripts/dev/affected-tests.sh and of the release preflight.
   architecture:
     runs-on: ubuntu-latest
     steps:
@@ -165,35 +159,3 @@ jobs:
           scripts/ci/tests/test-check-architecture.sh
           scripts/dev/tests/test-affected-tests.sh
           scripts/release/tests/test-preflight.sh
-
-  # Core is meant to be portable (no Apple-only imports). This job checks that on Linux; the connector library tests its own portability in its repository.
-  # Linux passed on master in runs 38138250241 and 38138726121; regressions now block merges.
-  core-linux:
-    runs-on: ubuntu-latest
-    env:
-      DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
-      DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
-      # Docker Hub limits anonymous pulls per IP address, and GitHub's runners share addresses. A read-only token for
-      # public images lifts that. Pull requests from forks get no secrets, so the step is skipped and they pull anonymously.
-      - name: Log in to Docker Hub
-        if: env.DOCKERHUB_USERNAME != '' && env.DOCKERHUB_TOKEN != ''
-        run: |
-          for attempt in 1 2 3; do
-            echo "$DOCKERHUB_TOKEN" | docker login --username "$DOCKERHUB_USERNAME" --password-stdin && exit 0
-            sleep $((attempt * 15))
-          done
-          # Logging in only raises the pull limit; carry on anonymously if Docker's auth server stays unreachable.
-          echo "::warning::Docker Hub login failed; pulling anonymously."
-      - name: Pull the Swift image
-        run: |
-          for attempt in 1 2 3; do
-            docker pull swift:6.0 && exit 0
-            sleep $((attempt * 15))
-          done
-          exit 1
-      - name: Test TimeTugCore
-        run: |
-          docker run --rm --user "$(id -u):$(id -g)" -e HOME=/tmp -v "$PWD:/work" -w /work swift:6.0 \
-            sh -c 'swift test --package-path Packages/TimeTugCore'
