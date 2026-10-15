@@ -1,6 +1,6 @@
 # Brand artwork: all rights reserved
 
-Copyright (c) 2026 Scott O'Bryan. All rights reserved.
+Copyright (c) 2026 Binary Companion LLC. All rights reserved.
 
 The TimeTug brand artwork is NOT covered by the source code license (MIT with the Commons Clause). It may not
 be copied, modified, redistributed or used in other projects or products without permission.
