@@ -79,10 +79,11 @@ scripts/benchmarks/run-dedup.sh
 EOF
 # trees as they are before the rewrite, for the equality check in step 3
 {
-  echo "Core.Sources $(git rev-parse HEAD:Packages/TimeTugCore/Sources)"
-  echo "Core.Tests $(git rev-parse HEAD:Packages/TimeTugCore/Tests)"
-  echo "Bridge.Sources $(git rev-parse HEAD:Packages/CalendarBridge/Sources)"
-  echo "Bridge.Tests $(git rev-parse HEAD:Packages/CalendarBridge/Tests)"
+  echo "Core.Sources $(git rev-parse HEAD:Packages/TimeTugCore/Sources/TimeTugCore)"
+  echo "Core.Tests $(git rev-parse HEAD:Packages/TimeTugCore/Tests/TimeTugCoreTests)"
+  echo "Bridge.Sources $(git rev-parse HEAD:Packages/CalendarBridge/Sources/CalendarBridge)"
+  echo "Bridge.Tests $(git rev-parse HEAD:Packages/CalendarBridge/Tests/CalendarBridgeTests)"
+  echo "Benchmark $(git rev-parse HEAD:Packages/TimeTugCore/Sources/DedupBenchmark)"
 } | tee "$WORK/source-tree-hashes.txt"
 git log --format=%H -- $(tr '\n' ' ' < "$WORK/paths.txt") | wc -l | tee "$WORK/expected-commits.txt"
 ```
@@ -115,20 +116,21 @@ ls Sources Tests scripts/benchmarks
 git ls-files | grep -vE '^(Sources|Tests)/|^scripts/benchmarks/' || echo "only expected paths"
 test "$(git rev-list --no-merges --count HEAD)" -ge "$(( $(cat "$WORK/expected-commits.txt") - 3 ))" && echo COUNT-PLAUSIBLE
 git rev-list --no-merges --count HEAD; git rev-list --merges --count HEAD
-git ls-files Sources/TimeTugCore | wc -l; git ls-files Sources/CalendarBridge Sources/DedupBenchmark | wc -l
+git ls-files Sources/TimeTugCore | wc -l; git ls-files Sources/CalendarBridge | wc -l; git ls-files Sources/DedupBenchmark | wc -l
 git log --follow --format='%ad %s' --date=short -- Sources/TimeTugCore/Store/CalendarStore.swift | tail -1
 git log --oneline | grep -c '(binary-companion/timetug#'; git log --format=%B | grep -c '(#[0-9]' || true
 ```
 
-Expected: `Sources` has `CalendarBridge DedupBenchmark TimeTugCore`, `Tests` has `CalendarBridgeTests TimeTugCoreTests`; only expected paths; the no-merge count within 3 of N (explain any difference in the report: commits that touched only the dropped manifests disappear); 20 files in Core, 3 in Bridge plus benchmark; the first-commit date 2026-09-18 for a Core file; zero bare `(#N)` left. Then write the post-rewrite hashes and head:
+Expected: `Sources` has `CalendarBridge DedupBenchmark TimeTugCore`, `Tests` has `CalendarBridgeTests TimeTugCoreTests`; only expected paths; the no-merge count within 3 of N (explain any difference in the report: commits that touched only the dropped manifests disappear); 19 files in Core, 2 in Bridge, 1 in the benchmark; the first-commit date 2026-09-18 for a Core file; zero bare `(#N)` left. Then write the post-rewrite hashes and head:
 
 ```bash
 { echo "Core.Sources $(git rev-parse HEAD:Sources/TimeTugCore)"; echo "Core.Tests $(git rev-parse HEAD:Tests/TimeTugCoreTests)";
-  echo "Bridge.Sources $(git rev-parse HEAD:Sources/CalendarBridge)"; echo "Bridge.Tests $(git rev-parse HEAD:Tests/CalendarBridgeTests)"; } | tee "$WORK/tree-hashes.txt"
+  echo "Bridge.Sources $(git rev-parse HEAD:Sources/CalendarBridge)"; echo "Bridge.Tests $(git rev-parse HEAD:Tests/CalendarBridgeTests)";
+  echo "Benchmark $(git rev-parse HEAD:Sources/DedupBenchmark)"; } | tee "$WORK/tree-hashes.txt"
 git rev-parse HEAD > "$WORK/t1-head.txt"
 ```
 
-Expected: the four hashes equal the four in `source-tree-hashes.txt`, line by line. If any differs, the in-repo copy moved after the clone: re-run from step 1.
+Expected: the five hashes equal the five in `source-tree-hashes.txt`, line by line (both files compare the inner directories, so they are comparable). `Sources/TimeTugCore` has 19 files; with `DedupBenchmark/main.swift` that is the 20 Core source files of the spec. If any differs, the in-repo copy moved after the clone: re-run from step 1.
 
 - [ ] **Step 4: Record**
 
