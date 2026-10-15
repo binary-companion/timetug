@@ -5,8 +5,9 @@ options:
   deploymentTarget:
     macOS: "14.0"
 packages:
-  TimeTugCore:
-    path: ../../Packages/TimeTugCore
+  TimeTugShared:
+    url: https://github.com/binary-companion/timetug-shared
+    exactVersion: 1.0.0
   EventKitSource:
     path: ../../Packages/EventKitSource
   AppleIntelligenceInference:
@@ -14,8 +15,6 @@ packages:
   CalendarConnectors:
     url: https://github.com/binary-companion/calendar-connectors
     exactVersion: 1.0.4
-  CalendarBridge:
-    path: ../../Packages/CalendarBridge
   CalendarApple:
     path: ../../Packages/CalendarApple
   KeyboardShortcuts:
@@ -43,7 +42,7 @@ targetTemplates:
       - Resources
       - Shared
     dependencies:
-      - package: TimeTugCore
+      - package: TimeTugShared
         product: TimeTugCore
       - package: EventKitSource
         product: EventKitSource
@@ -59,7 +58,7 @@ targetTemplates:
         product: CalDAVCalendar
       - package: CalendarConnectors
         product: ICalSubscription
-      - package: CalendarBridge
+      - package: TimeTugShared
         product: CalendarBridge
       - package: CalendarApple
         product: CalendarApple
@@ -96,7 +95,7 @@ targetTemplates:
         excludes: ["Info.plist", "*.entitlements"]
       - Shared
     dependencies:
-      - package: TimeTugCore
+      - package: TimeTugShared
         product: TimeTugCore
       - package: CalendarConnectors
         product: CalendarCore
@@ -206,7 +205,7 @@ targets:
     sources: [Tests]
     dependencies:
       - target: TimeTug
-      - package: TimeTugCore
+      - package: TimeTugShared
         product: TimeTugCore
       - package: CalendarConnectors
         product: CalendarCore
@@ -218,7 +217,7 @@ targets:
         product: CalDAVCalendar
       - package: CalendarConnectors
         product: ICalSubscription
-      - package: CalendarBridge
+      - package: TimeTugShared
         product: CalendarBridge
       - package: CalendarApple
         product: CalendarApple
