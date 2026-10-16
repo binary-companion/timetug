@@ -74,6 +74,10 @@ Every repository carries a `.gitattributes` with `* text=auto eol=lf`, so Git fo
 - Every merge to `main` in `calendar-connectors` or `timetug-shared` publishes a new version automatically. Library tags are plain `X.Y.Z`; the `v*` tag rules belong to the app repositories. The bump comes from a PR label (`semver:major`, `semver:minor`, `semver:patch`; default patch).
 - A `timetug-shared` release also builds the engine on Windows runners (x64 and native ARM64) and publishes `TimeTug.Engine` to nuget.org under a Binary Companion account. nuget.org is chosen over GitHub Packages because GitHub Packages needs a token even to read a public package, which would burden Dependabot and outside users.
 
+### Backward compatibility (owner requirement, 2026-10-16)
+
+A front end is not released because a shared library was. Within a major version, every `calendar-connectors` and `timetug-shared` release must be safe to take with no front-end change: additions are allowed; removing or retyping anything, changing a meaning, or changing a persisted-data fixture is breaking and needs the `semver:major` label. Pull-request CI enforces this against the latest released tag: Swift public API breakage (`swift package diagnose-api-breaking-changes`), the golden JSON fixtures and shared scenarios of the previous release run through the current engine (a field may be added, never removed or changed), the C header and exported symbols, .NET package validation against the latest published `TimeTug.Engine`, and add-only fixtures for data stored on users' disks. A bump pull request for a non-major release is therefore safe to merge without touching the app; app releases stay owner-initiated. A major release is the only time a front end must adapt.
+
 ### Bump pull requests
 
 - A library release notifies its dependents (`repository_dispatch`). Each dependent's `bump-dependencies.yml` updates the pin and opens "Bump <library> to X.Y.Z" with that release's notes. CI on that PR proves the app still builds and passes its tests.
