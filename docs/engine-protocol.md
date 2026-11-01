@@ -14,7 +14,24 @@ Message types, one golden fixture each in `Conformance/Fixtures/golden/`:
 
 - Host to engine: `start`, `refresh`, `account.add`, `account.reconnect`, `account.remove`, `account.cancel`, `settings.apply`, `countdown.visible`, `takeover.presented`, `takeover.closed`, `takeover.join`, `takeover.dismiss`, `takeover.snooze`, `takeover.test`, `dedup.merge`, `dedup.unmerge`, `dedup.separate`, `dedup.forget`, `system.event`, `test.advanceClock` (testing only).
 - Engine to host: `ready`, `state`, `event.takeoverDue`, `event.takeoverWithdrawn`, `event.widgetSnapshot`, `event.joinRequested`, `event.diagnostic`.
-- Host services the engine requests: `service.credentials.{get,set,remove,snapshot,updateRefreshToken}`, `service.http.send`, `service.auth.{beginRedirect,authorize,closeRedirect,promptCredentials}`, `service.signIn.{prepare,lastNonSecretValues}`, `service.text.{availability,generate}`.
+- Host services the engine requests: `service.credentials.{get,set,remove,snapshot,updateRefreshToken}`, `service.http.send`, `service.auth.{beginRedirect,authorize,closeRedirect,promptCredentials}`, `service.signIn.{prepare,lastNonSecretValues}`, `service.text.{availability,generate}`, `service.token.{get,signIn,cancelSignIn}` (1.8.0, see below).
+
+## Host-supplied access tokens (1.8.0)
+
+For a host whose operating system has its own account service (Windows' Web Account Manager). Opt in with `"externalTokens": true` in the `tt_engine_create` config (absent means false). The engine then also offers the account kind `microsoft-brokered`, which shares the Microsoft client id of the `microsoft` entry in `connectors` and stores no credential: it asks the host for short-lived access tokens, and the host's account service owns the password, MFA, policy and the refresh token. Without the flag nothing changes. `ready.capabilities.externalTokens` is `true` when the engine will ask, and is omitted otherwise. In the C# wrapper, an `IEngineHost` that also implements `IExternalTokenHost` sets the flag.
+
+| Request (engine to host) | Payload | Result |
+|---|---|---|
+| `service.token.get` | `connectionID`, `accountID`, `email?`, `scopes`, `forceRefresh` | `{status: "ok", accessToken, expiresAt}`, `{status: "interactionRequired", reason?}` or `{status: "unavailable", reason?}` |
+| `service.token.signIn` | `signInID`, `scopes`, `accountID?`, `email?` | `{status: "ok", accountID, accessToken, expiresAt}`, `{status: "blocked", reason?}` or `{status: "unavailable", reason?}` |
+| `service.token.cancelSignIn` | `signInID` | empty result |
+
+- `get` never shows UI and times out after 60 seconds on the engine clock. `signIn` shows the system's dialog and has no timeout; `account.cancel` ends it, and the engine then sends `cancelSignIn` with the same `signInID` (best effort) so the host can close the dialog; an answer that arrives after the cancel is dropped.
+- `expiresAt` is the UTC millisecond string. An `ok` without a non-empty `accessToken` and a parseable `expiresAt` (or without `accountID` for `signIn`), and an unknown `status`, count as an incomplete answer.
+- `reason` is one of `consent`, `signedOut`, `mfa`, `policy`, `accountMissing`, `adminConsentRequired`, `brokerUnavailable`, `other`, never free text from the system. The engine only logs it, and drops any other value.
+- Mapping to the person: `ok` is a token; `interactionRequired` is the account status "Sign in again"; `unavailable` and incomplete answers are a failure with a fixed message; `blocked` is "admin approval is required"; error kind `network` is a network failure (recovers on `networkReturned`); error kind `cancelled` is a cancelled sign-in (no message). The text of an error reply is never shown or logged.
+- No token, email, account id or host exception text reaches `event.diagnostic`. The wrapper does not pass an exception's text on for these requests.
+- The same mailbox through `microsoft` and `microsoft-brokered` is one account: the second addition is refused ("... is already added."); account names (the email) compare ignoring case.
 
 ## Tests that guard it
 
