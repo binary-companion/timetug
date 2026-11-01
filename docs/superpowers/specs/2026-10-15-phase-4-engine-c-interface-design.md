@@ -199,3 +199,7 @@ These are actions, not design questions. Nothing in the design waits on them, bu
 
 1. Create or confirm the Binary Companion account on nuget.org and reserve the `TimeTug.Engine` id.
 2. Add a trusted-publishing policy on nuget.org for `binary-companion/timetug-shared`, workflow `release.yml`, environment `publish`.
+
+## Amendment (2026-11-01): host-supplied access tokens
+
+Phase 6 ([WAM sign-in](2026-10-30-phase-6-wam-sign-in-design.md)) extends this contract, additively, in `timetug-shared` 1.8.0 and `TimeTug.Engine` 1.8.0: three host-service requests (`service.token.get`, `service.token.signIn`, `service.token.cancelSignIn`), the opt-in config member `externalTokens` and the capability `ready.capabilities.externalTokens`. The messages, their results and the rules are in `docs/engine-protocol.md` ("Host-supplied access tokens"). Nothing above changes: the golden fixtures, scenarios, C header and NuGet API of 1.7.x pass unchanged, and a host that does not set the flag sees no difference.
