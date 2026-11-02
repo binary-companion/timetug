@@ -339,7 +339,7 @@ ADR 0021 records: one accounts list on both platforms, Apple Calendar as its own
 
 ## Part F: `timetug-windows`, slice W4 (no pinned row, Windows account added on Continue, logos)
 
-Owner decisions of 2026-11-02 (spec Amendment A1, D16 to D19). Windows only; the Mac does not change. Work test-first: write the tests of each task, run them and see them fail, then implement. Implementers use Sonnet 5.5 (D15). Merge order: the `timetug` documents PR (this amendment) first, then W4 as two PRs in `timetug-windows`: W4a (Presentation and Platform: Tasks 19 to 21, not user-visible until W4b) and W4b (App, self-tests, logos, documents: Tasks 22 to 25). Squash-merge each on green CI (`windows-x64`, `windows-arm64`, `architecture`), after a `deepseek-review` pass whose verified findings are fixed test-first.
+Owner decisions of 2026-11-02 (spec Amendment A1, D16 to D19). Windows only; the Mac does not change. Work test-first: write the tests of each task, run them and see them fail, then implement. Implementers use Sonnet 5.5 (D15). Merge order: the `timetug` documents PR (this amendment) first, then W4 in `timetug-windows` (built as one PR, #44: Presentation alone does not build the app, so W4a and W4b were not split). Squash-merge each on green CI (`windows-x64`, `windows-arm64`, `architecture`), after a `deepseek-review` pass whose verified findings are fixed test-first.
 
 ### Task 19: The dismissal store (A1.3)
 

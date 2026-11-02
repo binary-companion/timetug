@@ -147,7 +147,7 @@ The remove question's second paragraph and the note under the box ("To stop Time
 
 ### A1.5 Service logos (D19)
 
-Every row and every `+` menu entry shows its service's mark in a small white tile (rounded square, the mark inset with clear space, a 1 px outline: the theme's control stroke in light and dark, the WindowText system colour in a high-contrast theme). The mark is always the unmodified full-colour vendor mark: both vendors forbid recolouring it, so a high-contrast theme changes the outline, not the mark. The mark repeats what the row's text already says ("Microsoft", "Google"), so it adds no information that colour alone carries.
+Every row and every `+` menu entry shows its service's mark in a small white tile (rounded square, the mark inset with clear space, a 1 px light-grey outline baked into the SVG; built: an SVG cannot follow the theme, so a high-contrast theme shows the same tile, which already gives the mark its contrast). The mark is always the unmodified full-colour vendor mark: both vendors forbid recolouring it, so a high-contrast theme changes the outline, not the mark. The mark repeats what the row's text already says ("Microsoft", "Google"), so it adds no information that colour alone carries.
 
 | Service | Mark | Source | Constraints we follow |
 |---|---|---|---|
