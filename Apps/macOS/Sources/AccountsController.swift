@@ -13,6 +13,17 @@ final class AccountsController: ObservableObject {
     @Published private(set) var buildFailures: [ConnectionID: String] = [:]
     @Published var errorMessage: String?
 
+    /// The selected row of the accounts list (L2); nothing at first. The pinned Apple Calendar row is never selected.
+    @Published var selection: ConnectionID? {
+        didSet {
+            // Choosing another row (or none) before the engine answers a removal cancels the "move on" that removal planned.
+            if selection != removalInFlight { removalInFlight = nil }
+        }
+    }
+
+    /// The account `removeSelection()` asked the engine to remove, until the engine's state drops it.
+    private var removalInFlight: ConnectionID?
+
     /// Kind ids TimeTug supports in code but couldn't register this build — e.g. Google without an OAuth
     /// client configured. Distinct from a kind that's simply not built yet: the Accounts pane shows these
     /// with their real icon, dimmed, plus a warning, instead of silently leaving them out.
@@ -56,12 +67,48 @@ final class AccountsController: ObservableObject {
 
     /// Mirrors the engine's account status.
     func apply(_ status: AccountManager.Status) {
+        let previousIDs = accounts.map(\.connectionID)
         if accounts != status.accounts { accounts = status.accounts }
+        reconcileSelection(previousIDs: previousIDs)
         if isWorking != status.isWorking { isWorking = status.isWorking }
         if buildFailures != status.buildFailures { buildFailures = status.buildFailures }
         if errorMessage != status.errorMessage { errorMessage = status.errorMessage }
         let text = status.waitingStyle == .inApp ? Self.inAppWaitingText : Self.browserWaitingText
         if waitingText != text { waitingText = text }
+    }
+
+    /// Keeps the selection pointing at a real row: after a requested removal the engine's state drops the row and the
+    /// selection moves to the row now in its place (else the previous one, else none); a row that vanished any other way
+    /// just clears it. Republishing the same accounts changes nothing, so selection survives the engine's frequent state.
+    private func reconcileSelection(previousIDs: [ConnectionID]) {
+        let ids = accounts.map(\.connectionID)
+        if let removed = removalInFlight, !ids.contains(removed) {
+            removalInFlight = nil
+            if selection == removed { selection = AccountsListModel.selection(afterRemoving: removed, from: previousIDs) }
+        }
+        if let selection, !ids.contains(selection) { self.selection = nil }
+    }
+
+    /// Whether `-` and Delete may remove the selection now (L3, L9).
+    var canRemoveSelection: Bool {
+        guard !isWorking, let selection else { return false }
+        return accounts.contains { $0.connectionID == selection }
+    }
+
+    /// `-` or Delete: asks the engine to remove the selected account. The row stays, selected, until the engine's state
+    /// says it is gone (L3).
+    func removeSelection() {
+        guard canRemoveSelection, let selection else { return }
+        removalInFlight = selection
+        send(.removeAccount(connectionID: selection))
+    }
+
+    /// The pure model of the list, from this controller's mirrored state plus the app's source statuses and notices.
+    func listModel(statuses: [String: SourceStatus], notices: [String: [SourceNotice]], eventKitEnabled: Bool) -> AccountsListModel {
+        AccountsListModel(
+            accounts: accounts, statuses: statuses, notices: notices, buildFailures: buildFailures,
+            availableKinds: availableKinds.map { (id: $0.id, displayName: $0.displayName) },
+            unconfiguredKindIDs: unconfiguredKindIDs, eventKitEnabled: eventKitEnabled, isWorking: isWorking)
     }
 
     /// Starts a sign-in for a new account (the pane's Cancel button calls `cancelAuthorization`).
