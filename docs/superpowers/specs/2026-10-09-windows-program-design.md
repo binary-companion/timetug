@@ -263,7 +263,7 @@ Legend: **=** same behaviour; **≈** same goal, different mechanism; **⚠** re
 |---|---|---|---|---|
 | System calendar store (EventKit: local calendars, macOS internet accounts, Birthdays) | Yes | No equivalent: Mail & Calendar is retired, new Outlook does not populate the system appointment store, and that API needs a restricted capability | ⚠ | Connect accounts directly. Microsoft accounts on the PC appear through WAM (section 4.5), the closest match to EventKit's "already there" accounts. Birthdays come from Google's birthday calendar. Outlook classic local PST calendars are not supported (only reachable through COM automation) |
 | Google, Microsoft, iCloud/CalDAV, iCal links | Yes | Same connectors through the engine | = | |
-| Sign-in window | In-app web-authentication sheet | Default browser and loopback redirect; WAM for Microsoft | ≈ | Google blocks embedded web views |
+| Sign-in window | In-app web-authentication sheet | Default browser and loopback redirect; WAM for Microsoft. When the browser redirects back, TimeTug shows a branded, localized landing page ("You’re connected", "Return to TimeTug.") and asks Windows to bring the window that started the sign-in forward (best effort; Windows may refuse and flash the taskbar button). The tab stays open | ≈ | Google blocks embedded web views, and a page cannot close a tab it did not open. See [one accounts list](2026-11-02-shared-accounts-list-design.md), "The landing page" (amended 2026-11-02) |
 | Credentials | Keychain | Credential Locker; WAM accounts store no refresh token at all | ≈ | |
 | Attendee email lookup | Contacts permission | Not needed (connectors return emails) | = | |
 
