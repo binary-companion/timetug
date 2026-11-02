@@ -20,13 +20,15 @@ struct AccountsPane: View {
             VStack(alignment: .leading, spacing: 10) {
                 Text("Choose where TimeTug reads your calendars from.")
                     .font(.callout).foregroundStyle(.secondary)
+                AppleCalendarRow(
+                    model: listModel,
+                    setEnabled: { enabled in Task { await accounts.setEventKitEnabled(enabled) } },
+                    openSystemSettings: Self.openCalendarPrivacySettings)
                 AccountsListBox(
                     model: listModel, selection: $accounts.selection,
                     signInAgain: { accounts.beginReauthorize(connectionID: $0) },
                     add: { accounts.beginAddAccount(kindID: $0) },
-                    remove: { askToRemove($0) },
-                    setEnabled: { enabled in Task { await accounts.setEventKitEnabled(enabled) } },
-                    openSystemSettings: Self.openCalendarPrivacySettings)
+                    remove: { askToRemove($0) })
                 if accounts.isWorking { waitingRow }
                 if let message = accounts.errorMessage {
                     Text(message).font(.footnote).foregroundStyle(.orange)

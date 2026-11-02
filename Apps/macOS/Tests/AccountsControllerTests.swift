@@ -278,7 +278,7 @@ final class AccountsControllerTests: XCTestCase {
         let model = controller.listModel(statuses: ["google-a1": .ok], notices: [:], eventKitEnabled: false)
         XCTAssertEqual(model.rows.map(\.id), ["a1"])
         XCTAssertFalse(model.isAddEnabled)
-        XCTAssertFalse(model.pinned.isOn)
+        XCTAssertFalse(model.appleCalendar.isOn)
         XCTAssertEqual(model.menuEntries.first?.id, "microsoft")
         XCTAssertEqual(model.menuEntries.first?.isEnabled, false)
     }
