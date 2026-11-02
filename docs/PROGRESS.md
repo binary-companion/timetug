@@ -105,3 +105,7 @@ Branch: claude/calendar-phase2-5-slim-bridge.
 ## Phase 3: the Mac app on `TimeTugEngine` (2026-10-15; spec docs/superpowers/specs/2026-10-15-phase-3-engine-design.md)
 - `TimeTugEngine` ships in `timetug-shared` 1.3.0. The switch (plan Task 13) makes `AppCoordinator` a thin host: adapters in `Apps/macOS/Sources/EngineAdapters`, `SettingsStore` and `AccountsController` as mirrors, `AppleIntelligenceInference` reduced to the `TextGenerator` adapter. The moved helpers (ledger and dedup stores, UI tick policy, launch acknowledgement, source reconciler and refresh coordinator, prompt builder) and their tests are gone from this repository.
 - PENDING the owner: the full [macOS checklist](manual-tests/macos-checklist.md) on a signed build and a beta cycle before release.
+
+## One accounts list on the Mac (2026-11-02; ADR 0021; plan docs/superpowers/plans/2026-11-02-shared-accounts-list.md, slice M1)
+- Settings > Accounts is one box on the Mac: the Apple Calendar row pinned first, the signed-in accounts, and a `+ -` bar (`AccountsListModel`, `AccountsListBox`, selection and removal in `AccountsController`). The cards, the provider tile grid and the per-row "..." menu are gone. No engine, library or protocol change.
+- PENDING the owner: the "One accounts list" section of the [macOS checklist](manual-tests/macos-checklist.md) (VoiceOver, Full Keyboard Access, a real Google sign-in) and the plan's Task 18.

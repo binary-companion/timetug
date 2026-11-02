@@ -154,6 +154,145 @@ final class AccountsControllerTests: XCTestCase {
         XCTAssertFalse(settings.storage.load().systemCalendarEnabled)
     }
 
+    // MARK: Selection and removal (the one accounts list)
+
+    private func status(_ accounts: [Connection], isWorking: Bool = false) -> AccountManager.Status {
+        var status = AccountManager.Status.empty
+        status.accounts = accounts
+        status.isWorking = isWorking
+        return status
+    }
+
+    private let a1 = Connection(kindID: "google", connectionID: "a1", displayName: "one@x.test", config: [:])
+    private let a2 = Connection(kindID: "google", connectionID: "a2", displayName: "two@x.test", config: [:])
+    private let a3 = Connection(kindID: "google", connectionID: "a3", displayName: "three@x.test", config: [:])
+
+    func testNothingIsSelectedInitially() {
+        let controller = makeController()
+        controller.apply(status([a1, a2]))
+        XCTAssertNil(controller.selection)
+        XCTAssertFalse(controller.canRemoveSelection)
+    }
+
+    func testRemoveSelectionSendsRemoveAccountForTheSelectedID() {
+        let controller = makeController()
+        controller.apply(status([a1, a2]))
+        controller.selection = "a2"
+        XCTAssertTrue(controller.canRemoveSelection)
+        controller.removeSelection()
+        XCTAssertEqual(sentDescriptions, [String(describing: EngineCommand.removeAccount(connectionID: "a2"))])
+        XCTAssertEqual(controller.selection, "a2", "the row stays selected until the engine drops it")
+    }
+
+    func testRemoveSelectionDoesNothingWithoutASelection() {
+        let controller = makeController()
+        controller.apply(status([a1]))
+        controller.removeSelection()
+        XCTAssertTrue(sent.isEmpty)
+    }
+
+    func testRemoveSelectionIsIgnoredWhileWorking() {
+        let controller = makeController()
+        controller.apply(status([a1], isWorking: true))
+        controller.selection = "a1"
+        XCTAssertFalse(controller.canRemoveSelection)
+        controller.removeSelection()
+        XCTAssertTrue(sent.isEmpty)
+    }
+
+    func testRemoveSelectionIgnoresASelectionThatIsNotAnAccount() {
+        let controller = makeController()
+        controller.apply(status([a1]))
+        controller.selection = "eventkit"
+        controller.removeSelection()
+        XCTAssertTrue(sent.isEmpty)
+    }
+
+    func testSelectionMovesToTheNextAccountOnlyAfterTheEngineDropsTheAccount() {
+        let controller = makeController()
+        controller.apply(status([a1, a2, a3]))
+        controller.selection = "a1"
+        controller.removeSelection()
+        controller.apply(status([a1, a2, a3]))            // the engine republishes before it has removed anything
+        controller.apply(status([a1, a2, a3], isWorking: false))
+        XCTAssertEqual(controller.selection, "a1")
+        controller.apply(status([a2, a3]))
+        XCTAssertEqual(controller.selection, "a2")
+    }
+
+    func testRemovingTheLastAccountSelectsThePreviousThenNothing() {
+        let controller = makeController()
+        controller.apply(status([a1, a2]))
+        controller.selection = "a2"
+        controller.removeSelection()
+        controller.apply(status([a1]))
+        XCTAssertEqual(controller.selection, "a1")
+        controller.removeSelection()
+        controller.apply(status([]))
+        XCTAssertNil(controller.selection)
+    }
+
+    func testARefusedRemovalKeepsTheSelectionAndTheRow() {
+        let controller = makeController()
+        controller.apply(status([a1, a2]))
+        controller.selection = "a1"
+        controller.removeSelection()
+        var refused = status([a1, a2])
+        refused.errorMessage = "Couldn't remove it."
+        controller.apply(refused)
+        XCTAssertEqual(controller.selection, "a1")
+        XCTAssertEqual(controller.accounts, [a1, a2])
+        XCTAssertEqual(controller.errorMessage, "Couldn't remove it.")
+    }
+
+    func testChoosingAnotherRowBeforeTheEngineAnswersLeavesThatChoiceAlone() {
+        let controller = makeController()
+        controller.apply(status([a1, a2, a3]))
+        controller.selection = "a1"
+        controller.removeSelection()
+        controller.selection = "a3"
+        controller.apply(status([a2, a3]))
+        XCTAssertEqual(controller.selection, "a3")
+    }
+
+    func testSelectionIsClearedWhenItsAccountVanishes() {
+        let controller = makeController()
+        controller.apply(status([a1, a2]))
+        controller.selection = "a2"
+        controller.apply(status([a1]))                    // vanished without a removeSelection
+        XCTAssertNil(controller.selection)
+    }
+
+    func testPublishingTheSameStatusKeepsTheSelection() {
+        let controller = makeController()
+        controller.apply(status([a1, a2]))
+        controller.selection = "a2"
+        for _ in 0..<10 { controller.apply(status([a1, a2])) }
+        XCTAssertEqual(controller.selection, "a2")
+        XCTAssertEqual(controller.accounts, [a1, a2])
+    }
+
+    func testTheListModelMirrorsTheControllersState() {
+        let controller = makeController(unconfigured: ["microsoft"])
+        controller.apply(status([a1], isWorking: true))
+        let model = controller.listModel(statuses: ["google-a1": .ok], notices: [:], eventKitEnabled: false)
+        XCTAssertEqual(model.rows.map(\.id), ["a1"])
+        XCTAssertFalse(model.isAddEnabled)
+        XCTAssertFalse(model.pinned.isOn)
+        XCTAssertEqual(model.menuEntries.first?.id, "microsoft")
+        XCTAssertEqual(model.menuEntries.first?.isEnabled, false)
+    }
+
+    func testExistingBeginAddAndReauthorizeStillSendTheirCommands() {
+        let controller = makeController()
+        controller.beginAddAccount(kindID: "caldav")
+        controller.beginReauthorize(connectionID: "a1")
+        XCTAssertEqual(sentDescriptions, [
+            String(describing: EngineCommand.addAccount(kindID: "caldav")),
+            String(describing: EngineCommand.reauthorizeAccount(connectionID: "a1")),
+        ])
+    }
+
     /// A real engine signs in through the Mac's credential sheet: a rejected password reopens the sheet with the
     /// kind's own error and what was typed (never the password); the right one adds the account.
     func testAPasswordSignInThroughTheEngineUsesTheCredentialSheet() async throws {
