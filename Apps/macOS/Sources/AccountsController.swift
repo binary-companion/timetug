@@ -25,8 +25,8 @@ final class AccountsController: ObservableObject {
     private var removalInFlight: ConnectionID?
 
     /// Kind ids TimeTug supports in code but couldn't register this build — e.g. Google without an OAuth
-    /// client configured. Distinct from a kind that's simply not built yet: the Accounts pane shows these
-    /// with their real icon, dimmed, plus a warning, instead of silently leaving them out.
+    /// client configured. Distinct from a kind that's simply not built yet: the `+` menu lists these as disabled
+    /// entries with the reason, plus a warning under the box, instead of silently leaving them out.
     let unconfiguredKindIDs: [String]
 
     /// What the pane shows while a sign-in runs: a password sign-in happens in the app, an OAuth one in the browser.
@@ -55,7 +55,7 @@ final class AccountsController: ObservableObject {
 
     /// Account kinds offered by `+` (system-permission kinds such as Apple Calendar are a switch, not an account).
     /// "Other CalDAV" goes last: it is the catch-all for providers without their own entry. Read from the registry
-    /// rather than the engine's state so the grid is complete before the engine's first publication.
+    /// rather than the engine's state so the `+` menu is complete before the engine's first publication.
     var availableKinds: [any ConnectorKind] {
         let kinds = registry.kinds(for: .current).filter { if case .system = $0.authorization { false } else { true } }
         return kinds.filter { $0.id != "caldav" } + kinds.filter { $0.id == "caldav" }

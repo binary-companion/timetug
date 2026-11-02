@@ -41,6 +41,12 @@ struct AccountsPane: View {
         .modifier(CredentialSheetPresenter(prompter: accounts.credentialPrompter))
         .onChange(of: accounts.accounts) { old, new in
             if let message = AccountsListModel.announcement(from: old, to: new) { AccessibilityAnnouncer.post(message) }
+            // A question about an account the engine has since dropped has nothing left to confirm.
+            if let id = pendingRemoval, !new.contains(where: { $0.connectionID == id }) { pendingRemoval = nil }
+        }
+        .onChange(of: accounts.isWorking) { _, working in
+            // The removal would be ignored while a sign-in runs (L9), so do not leave the question open.
+            if working { pendingRemoval = nil }
         }
         .onChange(of: accounts.errorMessage) { _, message in
             if let message { AccessibilityAnnouncer.post(message) }
