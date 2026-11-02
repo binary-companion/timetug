@@ -2,9 +2,10 @@ import AppKit
 import CalendarCore
 import SwiftUI
 
-/// The one accounts list (spec "The shared control"): a bordered box with the pinned Apple Calendar row, a selectable list
-/// of the signed-in accounts, and a bottom bar with `+` (a menu of what can be added) and `-` (remove the selected one).
-/// A view over `AccountsListModel`; everything it decides lives there. The pane owns the removal question.
+/// The one accounts list (spec "The shared control"): a bordered box with a selectable list of the signed-in accounts and
+/// a bottom bar with `+` (a menu of what can be added) and `-` (remove the selected one). Apple Calendar is not in it: it
+/// is its own control above the box (`AppleCalendarRow`). A view over `AccountsListModel`; everything it decides lives
+/// there. The pane owns the removal question.
 struct AccountsListBox: View {
     let model: AccountsListModel
     @Binding var selection: ConnectionID?
@@ -12,16 +13,12 @@ struct AccountsListBox: View {
     var add: (String) -> Void
     /// Asks to remove this account (the pane shows the question; confirming removes the selection).
     var remove: (ConnectionID) -> Void
-    var setEnabled: (Bool) -> Void
-    var openSystemSettings: () -> Void
 
     private static let rowHeight: CGFloat = 43
     private static let maxListHeight: CGFloat = 260
 
     var body: some View {
         VStack(spacing: 0) {
-            pinnedRow
-            Divider()
             listArea
             Divider()
             bar
@@ -31,30 +28,6 @@ struct AccountsListBox: View {
         .clipShape(RoundedRectangle(cornerRadius: 8))
         .accessibilityElement(children: .contain)
         .accessibilityLabel("Accounts")
-    }
-
-    // MARK: Pinned row
-
-    private var pinnedRow: some View {
-        HStack(spacing: 10) {
-            Image(systemName: "calendar").frame(width: 22)
-            VStack(alignment: .leading, spacing: 2) {
-                Text(model.pinned.title)
-                Text(model.pinned.statusText).font(.caption).foregroundStyle(.secondary)
-            }
-            Spacer()
-            if model.pinned.showsOpenSystemSettings {
-                Button("Open System Settings", action: openSystemSettings).buttonStyle(.link)
-            }
-            Toggle("Enabled", isOn: Binding(get: { model.pinned.isOn }, set: setEnabled))
-                .labelsHidden()
-                .toggleStyle(.switch)
-                .controlSize(.small)
-                .disabled(!model.isSwitchEnabled)
-                .accessibilityLabel(model.pinned.accessibilityLabel)
-        }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 10)
     }
 
     // MARK: List
@@ -158,6 +131,43 @@ struct AccountsListBox: View {
         }
         .padding(.horizontal, 6).padding(.vertical, 3)
         .background(.bar)
+    }
+}
+
+/// Apple Calendar (this Mac): its own bordered control above the accounts box, with the on/off switch and, when Calendar
+/// access is off, "Open System Settings". Turning it off hides the Apple calendars and keeps the choices made for them.
+struct AppleCalendarRow: View {
+    let model: AccountsListModel
+    var setEnabled: (Bool) -> Void
+    var openSystemSettings: () -> Void
+
+    var body: some View {
+        let control = model.appleCalendar
+        HStack(spacing: 10) {
+            Image(systemName: "calendar").frame(width: 22).accessibilityHidden(true)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(control.title)
+                Text(control.statusText).font(.caption).foregroundStyle(.secondary)
+            }
+            Spacer()
+            if control.showsOpenSystemSettings {
+                Button("Open System Settings", action: openSystemSettings)
+                    .buttonStyle(.link)
+                    .accessibilityHint(control.openSystemSettingsHint)
+            }
+            Toggle("Enabled", isOn: Binding(get: { control.isOn }, set: setEnabled))
+                .labelsHidden()
+                .toggleStyle(.switch)
+                .controlSize(.small)
+                .disabled(!model.isSwitchEnabled)
+                .accessibilityLabel(control.switchLabel)
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 10)
+        .background(Color(nsColor: .controlBackgroundColor), in: RoundedRectangle(cornerRadius: 8))
+        .overlay(RoundedRectangle(cornerRadius: 8).stroke(Color(nsColor: .separatorColor)))
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel(control.groupLabel)
     }
 }
 

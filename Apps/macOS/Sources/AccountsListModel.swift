@@ -21,13 +21,17 @@ struct AccountsListModel {
         let accessibilityLabel: String
     }
 
-    /// The pinned device row (D3, L6): Apple Calendar, with its switch. Not selectable, never removed with `-`.
-    struct PinnedRow: Equatable {
+    /// Apple Calendar (this Mac), its own control above the box (D3, L6): a switch, the status words and, when Calendar
+    /// access is off, "Open System Settings". Not a row of the box, so never selected or removed with `-`.
+    struct AppleCalendarControl: Equatable {
         let title: String
         let statusText: String
         let showsOpenSystemSettings: Bool
         let isOn: Bool
-        let accessibilityLabel: String
+        /// The control as one VoiceOver group.
+        let groupLabel: String
+        let switchLabel: String
+        let openSystemSettingsHint: String
     }
 
     /// One entry of the `+` menu.
@@ -48,7 +52,7 @@ struct AccountsListModel {
     static let placeholderNames = ["Fastmail", "Todoist", "Zoom", "Webex"]
 
     let rows: [Row]
-    let pinned: PinnedRow
+    let appleCalendar: AppleCalendarControl
     let menuEntries: [MenuEntry]
     private let isWorking: Bool
 
@@ -75,12 +79,14 @@ struct AccountsListModel {
         }
 
         let eventKitStatus = statuses["eventkit"]
-        pinned = PinnedRow(
+        appleCalendar = AppleCalendarControl(
             title: "\(SettingsText.appleCalendar) (this Mac)",
             statusText: eventKitEnabled ? AccountStatusText.make(eventKitStatus) : "Off",
             showsOpenSystemSettings: eventKitEnabled && eventKitStatus == .needsPermission,
             isOn: eventKitEnabled,
-            accessibilityLabel: "Use \(SettingsText.appleCalendar)")
+            groupLabel: SettingsText.appleCalendar,
+            switchLabel: "Use \(SettingsText.appleCalendar)",
+            openSystemSettingsHint: "Opens the Calendars privacy settings in System Settings")
 
         // Microsoft and Google first, the rest in the registry's order (kinds this build cannot sign in to after the
         // ones it can), Other (CalDAV) last as the catch-all. Unconfigured kinds stay in the menu, disabled.
