@@ -1,0 +1,338 @@
+# One accounts list for Mac and Windows
+
+Status: draft for the owner's review (2026-11-02). Design only; the plan follows approval. Parents: [phase 6: WAM sign-in](2026-10-30-phase-6-wam-sign-in-design.md) (its "What the owner will see" items 1, 2 and 4 and decision D1 are amended here), [phase 5: the Windows app core](2026-10-16-phase-5-windows-app-core-design.md) (the welcome window), the [program design](2026-10-09-windows-program-design.md) sections 4 and 4.5. The owner approved the shape of this design in conversation on 2026-11-02; the "Decisions" table marks what is the owner's and what is my call.
+
+## Purpose
+
+Make adding, seeing and removing accounts one familiar thing on both platforms: a box that lists the signed-in accounts, with `+` to add and `-` to remove the selected one. The same control sits in the Windows welcome window and in Settings > Accounts on both platforms. On Windows the first run stops pre-selecting a Microsoft card and instead starts from a plain switch, "This PC's Windows account". Microsoft sign-in becomes one entry in the `+` menu instead of three cards, and Google sign-in on Windows stops leaving a stranded browser tab by bringing TimeTug forward and saying so on the landing page.
+
+**Principle (owner, kept from phase 6):** one consent per Microsoft account, asked once, with a visible user action first. Nothing is requested from Windows until the person presses Continue.
+
+**Anti-goals:**
+
+- A second way to do something the list already does. Every account action has one place: `+`, `-`, a row's "Sign in again", the switch.
+- A silent break. A failing account is a visible row with its reason and a fix, never a missing row.
+- Any trick to steal focus or close a browser tab (see D12 and the program design's no-focus-stealing rule).
+
+## Findings that shaped this spec
+
+Read before the decisions, because two of them correct the request's premise.
+
+1. **The Mac has no welcome window.** `docs/PROGRESS.md` records that the Mac's first run opens Settings on the Calendars tab, and `Apps/macOS/Sources` contains no welcome or onboarding view. The welcome window is Windows-only (phase 5). This spec therefore reads "look like the Mac's welcome flow" as "look like the Mac's first-run Accounts experience": the Mac's Settings > Accounts opens with the row "Apple Calendar (this Mac)" and an Enabled switch, then the list of internet accounts. The Windows row "This PC's Windows account" with its switch is the same idea, and the shared control makes it structural (a pinned "this device" row, section "The shared control"). Whether the Mac also gets a welcome window is open question Q2; this spec does not add one.
+2. **The Mac's current Accounts pane is a card, not a list.** It has the Apple Calendar card, a "Connected Accounts" card with a per-row "..." menu, and an "Add an Account" tile grid (`Apps/macOS/Sources/AccountsPane.swift`). `docs/manual-tests/macos-checklist.md` lines 93 to 97 still describe a "`+ -` bar" from an older layout, so the shared control brings the Mac back to the layout its checklist already describes.
+3. **Windows has already built phase 6 slice B** (timetug-windows PR 40): the welcome window pre-selects "Microsoft account on this PC", and Settings > Accounts has three Microsoft cards ("Microsoft account on this PC", "Another Microsoft account", "Microsoft (browser)"). Spike S2 (`docs/spikes/2026-11-wam-broker.md` in timetug-windows) found that the broker lists the Windows sign-in account and, on the hosted runners, nothing for a local-only Windows account. Other accounts on the PC (work or school, or added under Email & accounts) were not observed, so "the broker lists only the Windows account" is an inference that Q6 asks the owner's real-account run to settle. The local-only case, which is what "hidden" needs, is observed.
+4. **The Windows landing page is a hard-coded English string** in `LoopbackAuthorization` ("You can close this tab"). It is not in `Resources.resw`, so it is not localized the way every other string is.
+5. **No engine, library or protocol change is needed.** The brokered kind, the picker intent, `account.remove`, the identity-family rule and `account.reconnect` already exist. Everything below is presentation, host-local behaviour and documents.
+
+## What the owner will see
+
+### First run on Windows (no accounts)
+
+1. **Step 1, "Welcome to TimeTug":** the current title and subtitle and one button, "Get started" (my call, Q1). While this screen is up TimeTug asks the broker for the account list (no token, no dialog), so step 2 is ready when it opens.
+2. **Step 2, "Connect your calendars":** the shared accounts control. Its first row, inside the box, is "This PC's Windows account" with a switch.
+   - The row is shown only when the broker is available and Windows reports a signed-in Microsoft account. For a local-only Windows account, or when the broker is missing or blocked, the row is absent and the box starts with its empty text.
+   - The switch is on by default. Under the row: the email when exactly one account is listed ("name@example.com"), and the line "Windows will ask you to let TimeTug read your calendars when you press Continue. TimeTug stores no password and no sign-in token."
+   - Below it the (empty) list, and the `+ -` bar. `+` opens the menu: Microsoft, Google, iCloud, Other (CalDAV), iCal link (what the build can sign in to; see "The `+` menu").
+   - **Continue** (accent button; the old "Skip for now" link stays). Continue with the switch on opens Windows' own consent dialog for the Windows account. Allow: step 3. If the Windows account is already connected (the person added it with `+` > Microsoft and the picker), the pinned row shows it as connected, Continue asks Windows for nothing and goes to step 3. Decline or close: nothing is added, no error, the person stays on step 2 with the switch still on.
+   - Accounts added with `+` appear in the list at once and the person stays on step 2. Continue is enabled when the switch is on or the list has an account. With the switch off and an empty list it is disabled (nothing to continue to) and Skip for now is the way out.
+3. **Step 3, "You're connected":** unchanged from phase 5 (what was found, Add another, Test tug, launch at login, the tray note, Done).
+
+### Settings > Accounts, both platforms
+
+One box. Pinned first row (when the platform has one): Mac "Apple Calendar (this Mac)", Windows "This PC's Windows account", each with its switch. Then the signed-in accounts. Then the `+ -` bar. Under the box: the waiting row with Cancel while a sign-in runs, an error line if one failed, and (Windows, after a Windows sign-in failed or was cancelled) the "Use your browser instead" link.
+
+- A row shows the provider glyph, the account name or email, the status in words ("Connected", "Sign in again", "Can't start this account", and so on, exactly today's text), the "On this PC" tag where it applies, and "Sign in again" as a button in the row when the account needs it.
+- `+` adds. `-` (or the Delete key) removes the selected row after the question "Remove name?" with today's text, plus, for an "On this PC" account, how to withdraw the consent.
+- The Windows switch in Settings means "this PC's Windows account is connected": on connects it (Windows asks), off removes it after the same question. The Mac switch keeps today's meaning (hide the Apple calendars, keep the choices).
+
+### When Windows needs the person again, or cannot be used
+
+- Reconnect: the account's row says "Sign in again" with a button; the button opens the Windows dialog for that account (unchanged behaviour). The flyout keeps saying "Open Accounts" for these accounts (phase 6, D3).
+- Windows sign-in unavailable (no broker, or the host answers unavailable): the `+` menu's Microsoft entry reads "Microsoft" with the second line "Use your browser instead" and runs the browser sign-in directly. If the attempt fails after the menu offered Windows sign-in, the area under the box says "Windows sign-in isn't available here" and shows the link "Use your browser instead".
+- Declining or closing the Windows dialog shows no error, but the same "Use your browser instead" link appears under the box until the next action (Q5).
+
+### Google on Windows
+
+The browser opens as today. When Google redirects back to TimeTug's loopback address, TimeTug asks Windows to bring the window that started the sign-in to the front, and the browser tab shows a branded page: "You're connected" and "Return to TimeTug". The tab is left open: a page cannot close a tab it did not open, and Google blocks embedded web views, so neither a script nor an in-app browser is possible. If the redirect carried an error, the page says "Sign-in didn't finish" and "Return to TimeTug and try again."
+
+## Goals, non-goals, constraints
+
+**Goals**
+
+- G1 One list, one `+`, one `-`, on both platforms, in the welcome window and in Settings > Accounts.
+- G2 The Windows first run asks for nothing until Continue, and shows the Windows-account choice only when it can work.
+- G3 A single "Microsoft" entry; the browser route is a fallback, not a peer.
+- G4 The Google landing page tells the person what to do next, in the app's language, accessibly.
+- G5 The list is fully usable by keyboard and by Narrator and VoiceOver.
+
+**Non-goals**
+
+- No change to `calendar-connectors`, `timetug-shared`, the C interface, the wire protocol, golden fixtures or persisted data. No new engine command.
+- No migration of existing accounts between kinds (D6).
+- No Mac welcome window (Q2), no new providers, no change to scopes (ADR 0017 stands).
+- No lossless "pause" of an account (Q3). No attempt to close the browser tab. No change to the Mac's `ASWebAuthenticationSession` sign-in.
+- Not a shared UI codebase: SwiftUI and WinUI each build the control; what is shared is this contract, the strings' meaning and the test cases.
+
+**Constraints**
+
+- The app never steals focus: no simulated keys, no thread-input attachment (timetug-windows `AGENTS.md`). The foreground request is the ordinary activate call and may be refused by Windows (D12).
+- View models stay free of OS and MSAL references (architecture tests); only `TimeTug.Platform` talks to the broker.
+- Display strings live in `Resources.resw` on Windows and in the SwiftUI sources on the Mac, as today.
+
+## Decisions
+
+Owner decisions are marked (O); my calls (C) are open to change.
+
+| # | Topic | Decision |
+|---|---|---|
+| D1 | First-run first row (O) | "This PC's Windows account" with a switch replaces the pre-selected "Microsoft account on this PC" card. On by default when Windows reports a signed-in Microsoft account. Hidden for local-only Windows accounts and when the broker is unavailable. The switch decides whether Windows sign-in is used; nothing is requested until Continue. This keeps phase 6's approved one-click consent: the click is Continue. |
+| D2 | Shared control (O) | A bordered box with a selectable list, a `+` button that opens a menu and a `-` button that removes the selected account (existing confirmation, with the consent-withdrawal text for Windows-account rows). Used in the welcome window (Windows) and in Settings > Accounts (both). The Windows-account row keeps its switch. |
+| D3 | Pinned device row (C) | The control has an optional first row for the account that belongs to the device: Mac "Apple Calendar (this Mac)", Windows "This PC's Windows account". It is inside the box, above the list, not selectable, never removed with `-`, and has the switch. On the Mac this moves the existing Apple Calendar card into the box (a visible change, Q2 asks whether to keep it separate). |
+| D4 | One Microsoft entry (O) | "Another Microsoft account" and "Microsoft (browser)" collapse into one "Microsoft" entry in the `+` menu. On Windows it uses the broker's account picker (the existing `microsoft-brokered` kind with the picker intent). The Mac already has one Microsoft entry (browser session) and is unchanged. |
+| D5 | Browser as fallback (O) | The browser route is shown as "Use your browser instead" when the broker is unavailable (as the Microsoft entry's second line) and as a link on a broker error or cancel (under the box). Never a peer entry while the broker works. |
+| D6 | No migration (O) | Existing browser-connected Microsoft accounts keep working and appear in the list unchanged. Moving an account between browser and Windows sign-in is remove and add. |
+| D7 | Windows account identity (C) | The "This PC's Windows account" row stands for the connected `microsoft-brokered` account whose email equals the email the broker lists for Windows (case-insensitive). While the pinned row is shown and that account is connected it is shown only in the pinned row, never again in the list. In every other case a connected brokered account is a normal list row with the "On this PC" tag: a different account chosen in the picker, an older account, or any account when the pinned row is hidden (listing failed, timed out or named more than one account), so a connected account never disappears. The email match applies only when the listing names exactly one account. |
+| D8 | Same mailbox in the other mode (C) | The engine's identity-family rule already refuses a second connection for the same mailbox in either mode. If a browser-connected Microsoft account with the Windows account's email exists, the pinned row is shown with the switch off and disabled and the line "name@example.com is already connected through your browser. Remove it to use Windows sign-in." |
+| D9 | Switch semantics in Settings (C) | On connects the Windows account at once (the person pressed something; Windows asks). Off removes it after the confirmation (with the consent-withdrawal text, as `-` does for an "On this PC" row), because the engine has no disabled state for an account and adding one is out of scope (Q3). In the welcome window the switch is only a pending choice until Continue. |
+| D10 | Continue and `+` in the welcome window (C) | `+` adds immediately and stays on step 2; Continue is the only way to step 3 (Q4). |
+| D11 | Row actions (C) | The per-row "..." menu goes away on both platforms; `-` and Delete replace it. "Sign in again" stays a button in its row. |
+| D12 | Google landing and foreground (O) | On the loopback redirect Windows TimeTug requests foreground for the window that started the sign-in; the landing page says "You're connected" and "Return to TimeTug". No close attempt, no embedded browser. If Windows refuses the foreground (its foreground lock), it flashes the taskbar button, which is the standard Windows behaviour for a refused request, and the page text still says what to do. |
+| D13 | Landing page (C) | Branded, accessible, localized, with two outcomes (connected, did not finish); other requests get 404 and do not end the sign-in; built from `Resources.resw` strings, no external resources (section "The landing page"). |
+| D14 | No engine change (C) | Confirmed by the findings above; the plan must treat any need for one as a reason to come back to the owner. |
+| D15 | Models (O) | Implementation work uses Sonnet 5.5; reviews use the `deepseek-review` skill. |
+
+## The shared control
+
+### Parts
+
+```
++--------------------------------------------------+
+| (o) This PC's Windows account            [ on  ] |   pinned device row (optional)
+|     name@example.com                              |
+|     Windows will ask you ... press Continue.      |
+|--------------------------------------------------|
+| [G] you@gmail.com                                 |   list rows (selectable)
+|     Connected                                     |
+| [M] work@contoso.com  On this PC  [Sign in again] |
+|     Sign in again                                 |
++--------------------------------------------------+
+| [ + v ] [ - ]                                     |   bar
+```
+
+Under the box, in this order, each shown only when it applies: the waiting row (progress, text, Cancel), the error line, the browser fallback link, the configuration warning ("This build is missing configuration for some account types..."), the consent-withdrawal footnote (Windows, when an "On this PC" account is connected; today's text).
+
+### Behaviour contract (both platforms)
+
+Numbered so the parity document, the plans and the tests can cite them.
+
+- **L1 Order.** Rows are in the engine's order. The pinned row is first when the platform has one.
+- **L2 Selection.** At most one list row is selected. Nothing is selected when the control first appears. The pinned row is not part of the selection. After the selected row is removed, selection moves to the row now in its place, or the previous one, or none; focus follows (Accessibility).
+- **L3 `-`.** Disabled when nothing is selected or while a sign-in runs. Its accessible name is "Remove" plus the selected account's name. Pressing it (or Delete while the list has focus) asks "Remove name?" with the body "Its calendars will no longer appear and their Tug and visibility choices are forgotten." For an "On this PC" account the body adds the withdrawal text ("To stop TimeTug reading a Microsoft account's calendars, remove its access at account.live.com/consent/Manage (personal accounts) or on your organization's My Apps page (work accounts)."). Confirm sends the engine's remove; the row leaves when the engine's state says so, not before.
+- **L4 `+`.** Disabled while a sign-in runs. Opens the menu (below). Choosing an entry starts that sign-in; the waiting row appears; Cancel works as today.
+- **L5 Row content.** Provider glyph, name (the account's display name or email), status text (today's words), the "On this PC" tag for a brokered account, the unreadable-recurrence notice marker where it applies. A row that needs the person (expired sign-in, or "Can't start this account") shows "Sign in again" as a button in the row and the status in the warning colour; the warning is never colour alone.
+- **L6 Pinned row.** Title, optional second line (email on Windows; the status words on the Mac, as today), optional explanatory line, the switch. It also shows its own problem state with "Sign in again" (Windows) or "Open System Settings" (Mac, calendar access off), exactly the controls those platforms have today.
+- **L7 Empty.** No list rows: the box shows one line in the list area, "No accounts yet. Choose + to add one." The pinned row, when present, stays above it. The line is not a button.
+- **L8 Failure placement.** A sign-in failure appears under the box, not as a row, because no account exists yet. A failed account that exists is a row with "Sign in again". An engine message that no provider explains is shown once under the box.
+- **L9 Busy.** While any sign-in runs: `+`, `-`, the switch and Sign in again are disabled; the waiting row shows progress and Cancel.
+- **L10 Stable updates.** The engine publishes often; the control updates in place and rebuilds rows only when a row's content changed, so keyboard focus and selection survive (the Windows page already works this way).
+
+### The `+` menu
+
+Entries, in this order, for the kinds the build offers:
+
+1. **Microsoft.** Windows with a working broker: runs the account picker (D4); no second line. Windows with no usable broker and a Microsoft client id: second line "Use your browser instead", runs the browser sign-in. Mac: the existing browser session. Disabled with "isn't set up in this build" when neither route is configured.
+2. **Google.**
+3. The remaining kinds in today's order: iCloud, iCal link, Other (CalDAV) last.
+4. Mac only: a separator and a "Coming soon" group with Fastmail, Todoist, Zoom and Webex disabled, as the tiles are today. Windows omits them (parity ledger, unchanged).
+
+A kind the build cannot sign in to is a disabled entry with the reason, plus the existing configuration warning under the box. Entries are never removed from the menu while busy; `+` itself is disabled instead.
+
+### Microsoft on Windows: the states
+
+| Situation | Menu entry | Under the box |
+|---|---|---|
+| Broker works | "Microsoft" (picker) | nothing |
+| Broker not offered (no client id, broker did not load, policy) but browser configured | "Microsoft" + "Use your browser instead" (browser sign-in) | nothing |
+| Neither configured | "Microsoft" disabled, "isn't set up in this build" | configuration warning |
+| Picker or Windows-account dialog closed, no account added | unchanged | the link "Use your browser instead", no error words |
+| Host answered unavailable during sign-in | unchanged | "Windows sign-in isn't available here" and the link |
+| Sign-in failed (admin approval needed, other) | unchanged | the usual failure text with the engine's detail, and the link |
+
+The link starts the browser sign-in (kind `microsoft`). It disappears when any sign-in starts or succeeds, or when the pane is closed.
+
+### The pinned row on Windows
+
+Visibility and default state come from one question asked of the broker (`ListAccountsAsync`, no token, no dialog): which accounts does Windows list?
+
+| Broker listing | Row | Switch in the welcome window |
+|---|---|---|
+| Broker not offered, or the listing fails or times out | hidden | n/a |
+| Zero accounts (local-only Windows account) | hidden | n/a |
+| Exactly one account with an `@` in its user name | shown, names the email | on |
+| One or more accounts otherwise (not seen in the spike; Q6) | shown without an email | on |
+
+The listing started on step 1 normally finishes before step 2 opens (first call about 1.6 s, later about 0.1 s in the spike). If it has not, step 2 opens with the row absent and Continue disabled, and the row appears in place when the answer arrives without taking focus; Narrator hears it through a polite live region. A listing that never answers within 5 s counts as a failure (the row stays hidden, a diagnostics line records the step and no account data).
+
+In Settings the switch shows the truth from the engine's state (D7): on when that account is connected, off otherwise. Turning it on from Settings runs the same sign-in Continue runs; its failure goes under the box.
+
+## Windows and Mac differences
+
+| Aspect | Mac | Windows |
+|---|---|---|
+| Where | Settings > Accounts only (no welcome window, Q2) | Welcome window step 2 and Settings > Accounts |
+| Pinned row | Apple Calendar (this Mac), switch hides calendars and keeps the choices; "Open System Settings" when access is off | This PC's Windows account, switch connects or removes (D9); hidden when Windows has no Microsoft account or no broker |
+| Control | SwiftUI `List` in a bordered box with a bottom bar of `+` (a `Menu`) and `-` | WinUI `ListView` in a bordered box with a bar of `+` (a button with a `MenuFlyout`) and `-` |
+| Remove question | `confirmationDialog` (as today) | `ContentDialog` (as today) |
+| Remove key | Delete (`onDeleteCommand`) | Delete |
+| Microsoft entry | Browser session (`ASWebAuthenticationSession`) | Broker picker; browser as fallback |
+| Google | `ASWebAuthenticationSession`, closes its own sheet | Default browser and loopback; TimeTug comes forward, landing page says to return |
+| "On this PC" tag | none | on brokered accounts |
+| Coming-soon entries | disabled group in the menu | omitted |
+| Strings | SwiftUI sources, as today | `Resources.resw`, as today |
+
+## Accessibility
+
+Requirements apply to both platforms; the mechanisms differ.
+
+**Keyboard (Windows).** Tab reaches, in order: the pinned row's switch, the list (one tab stop; arrow keys move the selection), the `+` button, the `-` button, then the controls under the box. Enter, Space or Alt+Down on `+` opens the menu; arrows move, Enter chooses, Esc closes and focus returns to `+`. Delete on the list, or Enter on `-`, opens the remove question; the dialog's default button is Cancel, not Remove. A row's "Sign in again" is reachable with Tab when its row is selected and is a button with its own name. After a removal focus lands on the next row, else the previous, else `+`. Nothing the engine publishes moves focus. Esc does not close the Settings window (existing rule) and does not remove anything.
+
+**Keyboard (Mac).** With Full Keyboard Access: Tab to the list, arrows to select, Delete asks to remove, Tab to `+` (Space opens the menu) and `-`. The remove dialog's default is Cancel.
+
+**Narrator (Windows).** The list is named "Connected accounts" (existing string). A row's name is today's "Provider, name, status" plus ", On this PC" for a brokered account (existing string). The pinned row's switch is named "Use this PC's Windows account" with its state, and its explanatory line is its description. `+` is "Add account" (with "has a menu"); `-` is "Remove name" when a row is selected and "Remove account" (dimmed) otherwise. Changes announce through live regions: "Waiting for Windows..." or "Waiting for your browser..." when a sign-in starts (polite); the error line when it fails (assertive, as the cards' errors are now); "name removed" after removal; the pinned row appearing late.
+
+**VoiceOver (Mac).** Rows are one accessibility element each, reading provider, name, status, with custom actions "Sign in again" and "Remove". `+` is "Add account", `-` is "Remove account", with the selected account's name in its hint. The `List` exposes selection state. Removal and sign-in outcomes are announced with accessibility announcements.
+
+**Visual.** Selection, focus rings, error and warning states use system colours and glyphs plus text, so Windows contrast themes and the Mac's Increase Contrast work; the warning is never colour alone (L5). No animation beyond the system's; reduced motion is respected. Targets are the platform's standard control sizes. Text wraps and the control reflows at 200 percent text size.
+
+**Automated checks.** Windows: axe-windows on the welcome window and the Accounts pane (existing rounds) plus assertions in the self-tests that each new control has an automation name and the list and item patterns. Mac: unit tests on the model that produces the labels; VoiceOver itself is a manual check.
+
+## The landing page (Windows)
+
+Served by `LoopbackAuthorization` for the redirect request. Replaces `ClosePage`.
+
+- **Outcomes** (decided from the redirect request's query string; nothing from it is echoed):
+  - A `code` and no `error`: title "You're connected", body "Return to TimeTug." The page cannot know whether the later token exchange succeeds; if it fails, TimeTug shows its usual failure and the person has met one sentence that was too optimistic, not lost data (Q8).
+  - An `error` parameter: title "Sign-in didn't finish", body "Return to TimeTug and try again."
+  - Any other request (no `code` and no `error`, including a bare `GET /` and the favicon): 404, empty, and the listener keeps waiting. Today the first non-favicon request ends the sign-in, so a stray local request could burn it; this change makes the capture require `code` or `error` (the engine still validates the `state` value as before).
+- **Content:** the TimeTug name and mark (an inline SVG element, so the page makes no request at all), an `h1` with the title, one paragraph, nothing else. No script, and no button that claims to close the tab (an honest page does not offer one).
+- **Accessibility:** `lang` set from the app's UI language, `dir` for right-to-left languages, a `main` landmark, a meaningful `title` ("TimeTug"), light and dark colours through `prefers-color-scheme`, `prefers-contrast` and forced-colours support, contrast of at least 4.5:1 for text, responsive with a `viewport` meta, no auto-refresh, no motion.
+- **Security:** every string HTML-encoded; response headers `Cache-Control: no-store`, `Content-Security-Policy: default-src 'none'; style-src 'unsafe-inline'; base-uri 'none'; form-action 'none'`, `X-Content-Type-Options: nosniff`, `Referrer-Policy: no-referrer`. The page is served only by the loopback listener that already exists.
+- **Localization:** strings are `Resources.resw` keys, resolved at request time through the `ILocalizer` the app already injects (keys `Landing_PageTitle`, `Landing_ConnectedTitle`, `Landing_ConnectedBody`, `Landing_FailedTitle`, `Landing_FailedBody`, each with a translator comment). A test fails when a `Landing_*` key is missing from the resource file, as the existing resource-completeness tests do for other keys.
+- **Mac:** nothing. `ASWebAuthenticationSession` closes its own sheet. The Mac's optional browser route (`oauth.useBrowser.v1`) keeps the connector library's "You're signed in" page; not changed here.
+
+### Bringing TimeTug forward
+
+When the loopback listener has captured the redirect, `TimeTug.Platform` raises one call on a small interface owned by the presentation layer ("a sign-in came back"), and the app implements it by restoring (if minimized) and activating the window that started the sign-in: the welcome window, or the Settings window. Rules:
+
+- Best effort. It uses the ordinary activation call and nothing else (no simulated keys, no thread-input attachment). If Windows refuses, the taskbar button flashes; the landing page and the waiting row ("Waiting for your browser...") already say what to do.
+- Only a window that exists and started this sign-in. With no TimeTug window visible (for example a sign-in begun from a flyout problem row), nothing is shown or raised.
+- Not for a cancelled or failed sign-in, and never for the broker path (the Windows dialog is already modal over the app).
+- Spike S-FG (small, owner-attended on the VM and one other PC): does the request succeed or flash, with Edge, Chrome and Firefox as the default browser, and with TimeTug minimized or behind other windows? The outcome is recorded in `docs/spikes/` of timetug-windows and decides only Q7; the design stands either way.
+
+## What changes where
+
+### `timetug` (the Mac app and the documents)
+
+- `Apps/macOS/Sources/AccountsPane.swift`: replace the connected-accounts card, the provider tile grid and the per-row menu with the shared control (extract it as `AccountsListBox`, a view over a small model so a welcome case can reuse it later); move the Apple Calendar card into the box as the pinned row; keep the waiting row, error text, configuration warning, diagnostics section and the credential sheet presenter; the placeholder providers move into the menu's disabled group.
+- `Apps/macOS/Sources/AccountsController.swift`: add the selection (`ConnectionID?`), the ordered menu entries (Microsoft, Google, the rest, CalDAV last), `canRemoveSelection`, and removal by selection. A pure model (`AccountsListModel`: rows, labels, menu entries, remove-question text) holds everything that can be unit-tested without a view.
+- Tests (Swift Testing): menu order and disabled reasons, selection after removal, `-` disabled states, the remove question text, row labels and accessibility labels, the pinned row's states; `AccountsControllerTests` updated.
+- `docs/manual-tests/macos-checklist.md`: lines 93 to 97 reviewed against the new layout, new items from "Test strategy".
+- `docs/decisions/0021-one-accounts-list.md` (the decision and its rationale, written at plan time) and its row in the ADR index.
+- Amendments, as short dated notes: the phase 6 spec (its items 1, 2 and 4 and D1 point here), the program design sections 4 ("Calendars and sign-in") and 4.5 (first run, Accounts pane, browser fallback), the phase 5 spec's first-run paragraph; `docs/PROGRESS.md` and the tracker rows.
+- Not touched: `Packages/*`, `AppConnectors.swift`, the `project.yml` pins, anything in Core or the engine.
+
+### `timetug-windows`
+
+- `TimeTug.Platform`: `LoopbackAuthorization` builds its response from a new `SignInLandingPage` (the two outcomes, the stray-request rule, encoding, headers, `lang`); one call raised on capture for the foreground request; `BrokerWindowsAccountSource` returns the listing's shape (none, one named, one or more unnamed) instead of only an email. No MSAL type leaves the Platform project.
+- `TimeTug.Presentation`: `AccountsViewModel` gains the pinned row model (visibility, name, email, switch state, status, the "already connected through your browser" case), the `+` menu entries with their states, the selected account and the `-` and Delete commands, the browser fallback link state, and the Continue rule; `WelcomeViewModel` gains the intro step, `ContinueCommand`, the pending switch, and no longer advances on `Connected`; `PreselectBrokered` and the three Microsoft cards go away (`ProviderItem` remains as the menu entry model); the picker and Windows-account intents stay.
+- `TimeTug.App`: one `AccountsListBox` user control (a `ListView`, the bar with a `MenuFlyout`, the pinned row) used by `WelcomeWindow.xaml` and `AccountsPage.xaml`; the welcome window gets the intro step and Continue; the `AccountCard` and `ProviderCard` code in `AccountsPage.xaml.cs` is deleted; the activation implementation for the returning sign-in.
+- `Strings/en-US/Resources.resw`: add `Accounts_DeviceRow*`, `Accounts_AddAutomation`, `Accounts_ListEmpty`, `Welcome_Continue`, `Welcome_GetStarted`, `Landing_*`; reword `Accounts_Empty`; remove `Provider_microsoft-brokered-pick`, `-named` and `Provider_microsoft-browser` when nothing references them.
+- Tests: see "Test strategy".
+- Documents: `docs/parity.md` (below), `docs/manual-tests/windows-checklist.md` (sections 1.1, 2.1, 2.6, 2.7, 2.9 and the accessibility entry), a spike note for S-FG.
+
+### Not changed
+
+`calendar-connectors`, `timetug-shared` (and so the `TimeTug.Engine` package), the C interface, the wire protocol, golden fixtures, persisted account files, Entra and Google registrations, the Store capability declarations (`docs/store/capabilities.md`), and the Mac's sign-in code.
+
+## Cross-platform documents
+
+There is no separate behaviour-contract file today; the contract is the program design's section 4 table, the parity ledger and the phase specs. This change keeps it that way and adds one reference.
+
+- **This spec** holds the list's behaviour contract (L1 to L10); the plans and tests cite those numbers.
+- **`docs/parity.md` (timetug-windows):** row 37 (Accounts list, add, remove, sign in again) says the cards are replaced by the box with `+ -` and Delete; row 41 (Apple Calendar switch) stays "not applicable" but names the Windows-account row as its counterpart; row 42 (WAM) is rewritten for "This PC's Windows account", the single Microsoft entry and the fallback; row 43 (consent at first run) now says "one click on Continue"; row 44 (Soon tiles) now says omitted from the menu; row 39 (Google and Microsoft browser sign-in with loopback) gains the foreground request and the landing page; row 61 (first-run experience) describes the three steps and notes that the Mac has no welcome window. One new row: "Accounts list: `+`, `-`, Delete, selection, pinned device row", done on both.
+- **Program design, section 4 "Calendars and sign-in":** the "Sign-in window" row notes the foreground request and landing page. **Section 4.5:** "First run" describes the switch and Continue instead of an automatic dialog; "Accounts pane" describes the single Microsoft entry; "Browser fallback" says "Use your browser instead" appears when the broker is unavailable or after a broker error or cancel (the program design's "Sign in with a browser instead" menu item is replaced).
+- **Phase 6 spec:** a dated amendment at the top says items 1, 2 and 4 of "What the owner will see" and D1 are superseded by this spec; the library, engine and broker designs are unchanged.
+- **`docs/engine-protocol.md`:** no change (stated here so nobody looks).
+- **ADR 0021** records: one accounts list on both platforms, the pinned device row, switch semantics, the browser as fallback, and the landing-page decision with the reasons a tab cannot be closed.
+
+## Test strategy
+
+**Windows, automated (CI and the VM, no person)**
+
+- View-model tests (`TimeTug.Presentation.Tests`, scripted `IEngineClient`): pinned row visibility for each listing outcome; default switch state; Continue enabled and disabled rules; Continue with the switch on arms the Windows-account intent and adds the brokered kind; decline stays on step 2 with the switch on; `+` in the welcome window adds without leaving step 2; the switch off with accounts continues without any broker call; D7 matching (case-insensitive, an unrelated brokered account stays a list row) and D8 (the browser-connected same mailbox); menu entries for each row of "Microsoft on Windows: the states"; the fallback link appears after cancel, failure and unavailable and disappears on the next action; selection after removal; `-` and Delete only when allowed and only when idle; the Settings switch connects and removes; no broker call happens before Continue (a fake broker records every call; the listing is the only allowed one).
+- Platform tests: `SignInLandingPage` for each outcome, a stray request (no `code`, no `error`) answered 404 without ending the sign-in, HTML encoding of hostile query strings (nothing echoed), headers, `lang` and `dir`, no external URL in the output; resource-completeness for `Landing_*`; `LoopbackAuthorization` raises the foreground call exactly once per captured redirect and not for favicon or cancel; `BrokerWindowsAccountSource` for none, one named, one unnamed, many, throw and timeout.
+- Architecture tests: unchanged rules (no MSAL outside Platform; view models free of OS types) stay green.
+- Self-tests (real engine, scripted broker, recorded Graph answers, both architectures, screenshots): `welcome` and `welcome-brokered` rewritten for the three steps; `accounts-brokered`, `brokered-reconnect`, `brokered-unavailable` rewritten for the list; new `accounts-list` (selection, `+` menu entries, `-`, Delete, focus after removal, empty state, busy state, error and fallback placement) and `welcome-local-only` (listing empty: no pinned row, empty text). Each asserts automation names and runs axe.
+- The existing privacy test (sentinel values never reach the log, ETW or Copy diagnostics) runs over the new flows; the listing and the landing page add no account data to any of them.
+
+**Mac, automated**
+
+- Swift Testing for `AccountsListModel` and `AccountsController` (cases above). `scripts/dev/verify.sh affected` and `verify.sh app` pass. There is no UI-test target today; this change does not add one.
+
+**Owner-attended (cannot be automated; the agent prepares builds, steps and expected text, the owner presses and approves, and nobody types a credential on the owner's behalf)**
+
+Windows, on the ARM64 VM, and x64 where a second PC exists:
+
+1. First run on a PC signed in with a Microsoft account: step 2 shows the pinned row with the right email, switch on; Continue opens the real consent dialog; Allow reaches step 3.
+2. Same, but decline and close the dialog: stays on step 2, no error, the link "Use your browser instead" is there and works.
+3. A local-only Windows account (a second Windows user): no pinned row, empty text, `+` > Microsoft opens the account picker.
+4. Switch off, add Google with `+`, Continue: step 3, no Windows dialog appeared.
+5. Google in a real browser (Edge, Chrome, Firefox): TimeTug comes forward or its taskbar button flashes; the tab shows the branded page in light, dark and a contrast theme; the page reads correctly at 200 percent zoom and with Narrator in browse mode. Spike S-FG notes.
+6. Settings > Accounts: switch off removes with the question and the withdrawal text; switch on reconnects; `-` and Delete on a Google account; Sign in again after revoking consent at the provider; a browser-connected Microsoft account with the Windows account's email shows the D8 line.
+7. Keyboard only, then Narrator: the whole welcome flow and the Accounts pane, including `+` menu, `-`, Delete, focus after removal and the live-region announcements.
+8. The broker disabled or missing (a build without the client id): the Microsoft entry reads "Use your browser instead" and signs in by browser.
+
+Mac, on a Mac with the Google client: the new box in light and dark; `+` menu order; Google sign-in still uses the system sheet; `-` and Delete with the question; Apple Calendar switch off and on keeps the calendar choices; access denied shows "Open System Settings"; VoiceOver reads rows, `+`, `-`, and the removal announcement; Full Keyboard Access reaches everything.
+
+## Release order and slices
+
+No library or engine release is involved, so the bump chain does not move. The Mac and Windows work are independent and can ship in either order; each app is released only by the owner.
+
+1. **This spec** (documents only), reviewed and merged by the owner. Then one plan per repository, written in `timetug` under `docs/superpowers/plans/` (the Windows plans live here too, as for phases 5 and 6).
+2. **Windows W1: landing page and foreground request** (`timetug-windows`). Self-contained, no list UI change, shippable alone; also fixes the stranded-tab problem for Google today. Includes the S-FG spike notes.
+3. **Windows W2: Presentation.** Pinned row, menu, selection, welcome steps and Continue, fallback link, with view-model tests. W2 only adds members and rules; it changes no behaviour the shipped window relies on, so the existing advance on `Connected`, `PreselectBrokered` and the card properties stay until W3 replaces the window's XAML and removes them in the same pull request. W2 is therefore not user-visible.
+4. **Windows W3: App.** `AccountsListBox`, the welcome window and the Accounts pane switched over, strings, self-tests, axe, parity rows, checklist.
+5. **Mac M1** (`timetug`): the box in Settings > Accounts, model and tests, checklist, ADR. Independent of W1 to W3.
+6. **Documents** (amendments to the program design and phase specs, tracker, `docs/PROGRESS.md`) land with the slice that makes each statement true; the parity rows with W3.
+
+Each slice merges on green CI. A slice that passes CI but cannot be seen working (W2) says so in its pull request.
+
+## Risks
+
+- **Foreground is refused by Windows.** Expected in some cases; the design never depends on it. The page text and the waiting row carry the instruction; S-FG measures how often.
+- **The listing differs from the spike** (multiple accounts, work accounts, slow first call). Mitigated by the table in "The pinned row on Windows" and the 5 s limit; Q6 asks the owner's run to settle it.
+- **A removal-based switch loses an account's Tug and visibility choices** when the person toggles the Windows switch off and on. The confirmation says so (today's text). Q3 offers an engine "pause" as a future change.
+- **List-item focus is fiddly in WinUI** (a button inside a selectable row, live updates). Mitigation: update in place (L10), self-test focus assertions, a Narrator check; fallback is to show "Sign in again" for the selected row in a strip under the box if a nested button proves unreachable.
+- **Mac layout churn.** Moving the Apple Calendar card into the box changes a screen people know. Mitigation: Q2; it can stay a separate card above the same list without changing anything else here.
+- **The landing page claims success early** (Q8). Accepted, with the "did not finish" outcome for explicit errors.
+- **Two apps, one description.** Divergence is caught by the shared numbered contract in the parity ledger and a test per rule on each side.
+
+## Open questions for the owner
+
+Each has my default, used if you do not answer.
+
+- **Q1 Step count.** The request says step 2 starts with the Windows-account row, and today's Windows flow has two screens (connect, connected). Default: add a short step 1 ("Welcome to TimeTug", Get started), so the connect screen is step 2 and the broker listing runs while step 1 is up. Alternative: keep two screens and put the welcome text above the box.
+- **Q2 Mac scope.** The Mac has no welcome window. Default: no Mac welcome window, and the Apple Calendar row moves inside the box as the pinned row. Alternatives: keep Apple Calendar as the separate card above the box; or add a Mac first-run window (a separate project).
+- **Q3 Windows switch off.** Default: removes the account after the question (the engine has no disabled state). Alternative: a lossless "pause" like the Mac's Apple Calendar switch, which needs an additive engine change and a new release of `timetug-shared`.
+- **Q4 `+` in the welcome window.** Default: adds the account and stays on step 2 until Continue. Alternative: advance to step 3 as soon as the first account connects (today's behaviour), skipping Continue for that case.
+- **Q5 Decline note.** Default: after the Windows dialog is closed with no account, show the "Use your browser instead" link with no error words. Alternative: show nothing at all (phase 6's silent decline) and keep the link only after failures.
+- **Q6 More than one listed account.** Default: show the pinned row without an email, switch on. Alternative: hide the row and let the picker handle it. Settled by the owner's real-account run (work account, second account).
+- **Q7 A reliable "bring me back" link.** If S-FG shows Windows often refuses the foreground, default: accept it. Alternative: an "Open TimeTug" link on the landing page that activates the packaged app through a registered `timetug:` protocol (a person's click is allowed to bring an app forward). It needs a manifest protocol declaration and a Store capability review, so it is not in this design.
+- **Q8 "You're connected" wording.** Default: shown whenever the redirect carries a code. Alternative: hold the response until the engine's token exchange finishes, which adds a wait inside the loopback listener and a longer-lived connection.
+- **Q9 Telling kinds apart.** Browser-connected and Windows-connected Microsoft accounts both read "Microsoft" in the list, and only the latter has the "On this PC" tag (D6 says browser rows are unchanged). Default: no extra tag. Alternative: a small "Browser" tag, so the person knows what remove-and-add would change.
+
+## Actions for the owner
+
+1. Approve this spec, or answer the open questions that matter.
+2. After approval, the plans and slices above follow; merging each pull request and releasing either app stays yours.
+3. Be available for the owner-attended checks in "Test strategy", in particular the real-account listing (Q6), the S-FG browser runs and the Narrator and VoiceOver passes.
