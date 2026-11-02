@@ -90,7 +90,7 @@ Run before a release, and after touching overlay, status item or scheduling code
 - [ ] Each of the three controls (Skip All Day Events, Use Intelligence, Enable Tug) flips the matching Settings toggle and behaves as expected (Enable Tug: no takeover fires while off; it starts on).
 - [ ] Toggling each setting in Settings updates the matching control in Control Center.
 - [ ] An ad-hoc build runs normally, with no widgets loading and no crash.
-- [ ] Settings > Accounts lists "Apple Calendar (this Mac)" with an enable checkbox and a `+ −` bar. Turning the checkbox off removes the Apple calendars from Calendars and the popup; turning it back on restores them with their Tug/Show choices intact.
+- [ ] Settings > Accounts is one box: "Apple Calendar (this Mac)" with its switch pinned first, then the signed-in accounts, then a `+ −` bar (see "One accounts list" below). Turning the switch off removes the Apple calendars from Calendars and the popup; turning it back on restores them with their Tug/Show choices intact.
 - [ ] With Calendar access denied in System Settings, the Apple Calendar row says "Calendar access is off" and "Open System Settings" opens the Calendars privacy pane.
 - [ ] (Needs the Google client) `+` > Google opens the browser; after signing in the account appears with its email as status "Connected" and its calendars appear in Calendars under that email. Cancel during "Waiting for your browser…" leaves nothing behind.
 - [ ] Adding a second Google account works; adding the same account again says it is already added and leaves no extra Keychain item.
@@ -105,9 +105,22 @@ Run before a release, and after touching overlay, status item or scheduling code
 - [ ] Calendar write smoke (before releasing a change to the write API): `TIMETUG_LIVE_EVENTKIT=1 swift test --package-path Packages/EventKitSource --filter eventKit` passes (the filter is `eventKit`, not `Live`), and the Google smoke test (see [operations](../development/runbooks/operations.md)) passes and leaves no "TimeTug write smoke" events behind.
 - [ ] Google sign-in opens the system sign-in sheet by default. After `defaults write com.timetug.app oauth.useBrowser.v1 -bool true`, the next sign-in opens the default browser with the client ID in the address bar and ends on the "You're signed in" page; `defaults delete com.timetug.app oauth.useBrowser.v1` restores the sheet.
 
+## One accounts list
+Spec: [one accounts list](../superpowers/specs/2026-11-02-shared-accounts-list-design.md) (L1 to L10). ADR [0021](../decisions/0021-one-accounts-list.md).
+- [ ] Settings > Accounts shows one bordered box in light and in dark: "Apple Calendar (this Mac)" and its switch first, a divider, the accounts (provider mark, name, status words), a divider, and a bar with `+` and `−`. With no accounts the list area says "No accounts yet. Choose + to add one." and the Apple Calendar row stays. There are no cards, tiles or per-row "..." menus.
+- [ ] `+` opens a menu in this order: Microsoft, Google, iCloud, iCal link, Other CalDAV; then a separator and a "Coming soon" group of Fastmail, Todoist, Zoom and Webex, all dimmed. A kind this build has no client id for (Google or Microsoft without the xcconfig) is dimmed with "isn't set up in this build" and the warning line "This build is missing configuration..." shows under the box.
+- [ ] Google sign-in from `+` still uses the system sign-in sheet, which closes itself; Cancel under the box during "Waiting for your browser..." leaves nothing behind. While it runs `+`, `−`, the Apple Calendar switch and every "Sign in again" button are dimmed.
+- [ ] Nothing is selected when the pane first opens and `−` is dimmed. Click an account: `−` enables. Click `−`: "Remove name?" asks with "Its calendars will no longer appear and their Tug and visibility choices are forgotten."; Cancel is the default button and removes nothing; Remove removes it, the row leaves, and the selection moves to the row now in its place (else the one before it, else none).
+- [ ] With an account selected and the list focused, the Delete key asks the same question. With nothing selected Delete does nothing.
+- [ ] An account that needs signing in shows the status "Sign in again" in orange with a warning triangle (not colour alone) and a "Sign in again" button in its row; the button signs in again as before.
+- [ ] The Apple Calendar switch off and on keeps the calendar choices (Calendars pane). With Calendar access denied the row says "Calendar access is off" and "Open System Settings" opens the Calendars privacy pane; the link is hidden while the switch is off.
+- [ ] VoiceOver: each account row is one element that reads "Provider, name, status" (and the unreadable-recurrence warning when there is one) and offers the actions "Sign in again" (when it applies) and "Remove"; the list exposes which row is selected; `+` reads "Add account"; `−` reads "Remove account" with the selected name in its hint and is dimmed with nothing selected; the Apple Calendar switch reads "Use Apple Calendar". After a removal VoiceOver says "name removed"; after a sign-in adds an account it says "name added"; a failed sign-in's message is announced.
+- [ ] Full Keyboard Access: Tab reaches the Apple Calendar switch, the list (arrow keys move the selection; Delete asks to remove), then `+` (Space opens the menu; arrows and Return choose) and `−`; the remove dialog's default is Cancel.
+- [ ] Increase Contrast and Reduce Motion: the box, the selection and the warning state stay readable; nothing animates beyond the system's.
+
 ## iCal link accounts
-- [ ] Settings > Accounts > Add an Account shows an "iCal link" tile with a link icon, and no "Meetup / Soon" tile.
-- [ ] Clicking it opens the credential sheet with one masked "iCal link" field and the Meetup help text and link.
+- [ ] Settings > Accounts > `+` lists "iCal link" (after iCloud, before Other CalDAV), and no "Meetup / Soon" entry.
+- [ ] Choosing it opens the credential sheet with one masked "iCal link" field and the Meetup help text and link.
 - [ ] A link copied from Meetup (Your events > Add to calendar) signs in; the account is named "My Meetups (www.meetup.com)" and its RSVP'd events appear in the popup, with recurring ones expanded.
 - [ ] A bad address (`file:///...`, plain `http://`, a pasted file path) shows a plain message in the sheet and adds no account.
 - [ ] A Meetup link you have regenerated or revoked: the account shows it needs signing in; "Sign in again" with the new link restores it; the sheet says "iCal link was not accepted." for a dead link.

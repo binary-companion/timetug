@@ -15,7 +15,7 @@ struct AccountsListBox: View {
     var setEnabled: (Bool) -> Void
     var openSystemSettings: () -> Void
 
-    private static let rowHeight: CGFloat = 46
+    private static let rowHeight: CGFloat = 43
     private static let maxListHeight: CGFloat = 260
 
     var body: some View {
