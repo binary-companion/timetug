@@ -2,7 +2,7 @@
 
 Status: draft for the owner's review (2026-10-30). Parent: [program design](2026-10-09-windows-program-design.md), roadmap row 6 and section 4.5 (the approved design). The program design wins where the two disagree, except for the amendments in "Decisions". Predecessors: [phase 5](2026-10-16-phase-5-windows-app-core-design.md) (the app and its accounts flows), [phase 4](2026-10-15-phase-4-engine-c-interface-design.md) (the contract this phase extends). Facts about MSAL and WAM were checked against Microsoft's documentation (Sources); everything the documentation does not settle is a spike task (slice 0), not an assumption.
 
-> **Amended 2026-11-02:** items 1, 2 and 4 of "What the owner will see" and decision D1 are superseded by the [shared accounts list](2026-11-02-shared-accounts-list-design.md) (the first-run switch "This PC's Windows account" and Continue, the one `+` menu with a single Microsoft entry, and the "Use your browser instead" link). The library, engine and broker designs are unchanged.
+> **Amended 2026-11-02:** items 1, 2 and 4 of "What the owner will see" and decision D1 are superseded by the [shared accounts list](2026-11-02-shared-accounts-list-design.md) (Continue at first run, the one `+` menu with a single Microsoft entry, and the "Use your browser instead" link). A second amendment the same day (A1 in that spec) dropped the pinned "This PC's Windows account" row, its switch and the "On this PC" tag: the Windows account is added as an ordinary row when the person presses Continue. The library, engine and broker designs are unchanged.
 
 ## Purpose
 
