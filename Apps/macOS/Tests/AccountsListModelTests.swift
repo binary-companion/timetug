@@ -74,13 +74,21 @@ final class AccountsListModelTests: XCTestCase {
 
     // MARK: Rows
 
-    func testEmptyTextWhenNoAccountsAndPinnedRowStays() {
+    func testEmptyTextWhenNoAccountsAndTheBoxHoldsNothingElse() {
         let model = make(accounts: [])
-        XCTAssertTrue(model.rows.isEmpty)
+        XCTAssertTrue(model.rows.isEmpty, "Apple Calendar is not a row of the box")
         XCTAssertTrue(model.showsEmptyText)
         XCTAssertEqual(model.emptyText, "No accounts yet. Choose + to add one.")
-        XCTAssertEqual(model.pinned.title, "Apple Calendar (this Mac)")
         XCTAssertFalse(make(accounts: [google]).showsEmptyText)
+    }
+
+    func testAppleCalendarOnAndOffDoNotChangeTheBox() {
+        let on = make(accounts: [google], statuses: ["eventkit": .ok], eventKitEnabled: true)
+        let off = make(accounts: [google], statuses: ["eventkit": .ok], eventKitEnabled: false)
+        XCTAssertEqual(on.rows, off.rows)
+        XCTAssertEqual(on.menuEntries, off.menuEntries)
+        XCTAssertEqual(make(eventKitEnabled: false).emptyText, "No accounts yet. Choose + to add one.")
+        XCTAssertTrue(make(eventKitEnabled: false).showsEmptyText)
     }
 
     func testRowsKeepTheEnginesOrder() {
@@ -187,30 +195,42 @@ final class AccountsListModelTests: XCTestCase {
         XCTAssertNil(three.selectionAfterRemoving("gone"))
     }
 
-    // MARK: The pinned row
+    // MARK: The Apple Calendar control (above the box)
 
-    func testPinnedRowStatesOffOnAndAccessOff() {
-        let on = make(statuses: ["eventkit": .ok], eventKitEnabled: true).pinned
+    func testAppleCalendarControlStatesOffOnAndAccessOff() {
+        let on = make(statuses: ["eventkit": .ok], eventKitEnabled: true).appleCalendar
+        XCTAssertEqual(on.title, "Apple Calendar (this Mac)")
         XCTAssertTrue(on.isOn)
         XCTAssertEqual(on.statusText, "Connected")
         XCTAssertFalse(on.showsOpenSystemSettings)
-        XCTAssertEqual(on.accessibilityLabel, "Use Apple Calendar")
 
-        let off = make(statuses: ["eventkit": .needsPermission], eventKitEnabled: false).pinned
+        let off = make(statuses: ["eventkit": .needsPermission], eventKitEnabled: false).appleCalendar
         XCTAssertFalse(off.isOn)
         XCTAssertEqual(off.statusText, "Off")
         XCTAssertFalse(off.showsOpenSystemSettings, "Open System Settings only while the switch is on")
 
-        let denied = make(statuses: ["eventkit": .needsPermission], eventKitEnabled: true).pinned
+        let denied = make(statuses: ["eventkit": .needsPermission], eventKitEnabled: true).appleCalendar
         XCTAssertEqual(denied.statusText, "Calendar access is off")
         XCTAssertTrue(denied.showsOpenSystemSettings)
     }
 
-    func testPinnedRowIsNeverASelectableRow() {
+    func testAppleCalendarControlVoiceOverText() {
+        let control = make().appleCalendar
+        XCTAssertEqual(control.groupLabel, "Apple Calendar")
+        XCTAssertEqual(control.switchLabel, "Use Apple Calendar")
+        XCTAssertEqual(control.openSystemSettingsHint, "Opens the Calendars privacy settings in System Settings")
+    }
+
+    func testAppleCalendarIsNeverARowOfTheBox() {
         let model = make(accounts: [google], statuses: ["eventkit": .ok])
         XCTAssertFalse(model.rows.contains { $0.id == "eventkit" || $0.kindID == "eventkit" })
         XCTAssertFalse(model.isRemoveEnabled(selection: "eventkit"))
         XCTAssertNil(model.selectionAfterRemoving("eventkit"))
+    }
+
+    func testTheSwitchIsDisabledOnlyWhileASignInRuns() {
+        XCTAssertTrue(make().isSwitchEnabled)
+        XCTAssertFalse(make(isWorking: true).isSwitchEnabled)
     }
 
     // MARK: Announcements (VoiceOver)

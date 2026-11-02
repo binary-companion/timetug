@@ -13,7 +13,7 @@ final class AccountsController: ObservableObject {
     @Published private(set) var buildFailures: [ConnectionID: String] = [:]
     @Published var errorMessage: String?
 
-    /// The selected row of the accounts list (L2); nothing at first. The pinned Apple Calendar row is never selected.
+    /// The selected row of the accounts list (L2); nothing at first. Apple Calendar is its own control above the box and never selected.
     @Published var selection: ConnectionID? {
         didSet {
             // Choosing another row (or none) before the engine answers a removal cancels the "move on" that removal planned.
