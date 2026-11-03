@@ -388,3 +388,36 @@ Rewrite, test-first (run red against the old behaviour first): `welcome` and `we
 ### Task 25: Documents, review, W4b PR, `timetug` docs
 
 `timetug-windows`: `docs/parity.md` (rows 37, 41, 42, 43, 61 and the accounts-list row), `docs/manual-tests/windows-checklist.md` (sections 2.17 to 2.20 rewritten for A1.6; logo checks in light, dark and high contrast), `docs/development.md` (new scenario), `docs/third-party.md`. `timetug`: ADR 0021, program design 4.5, the phase 5 and 6 notes and the tracker row were amended with the spec (the docs PR); add the final session-log line when W4 merges. Run `deepseek-review` on the W4a and W4b diffs; verify; fix test-first; merge both on green CI.
+
+---
+
+## Part G: `timetug-windows`, slice W5 (the Windows account is a row in the first-run box)
+
+Owner decision of 2026-11-03 (spec Amendment A2, D20 to D22), from the first real run of the W4 build. Windows only, first-run window only; Settings and the Mac do not change. Work test-first (red before green), implement with Sonnet 5.5 (D15), `deepseek-review` on the diff, verified findings fixed test-first, squash-merge on green CI (`windows-x64`, `windows-arm64`, `architecture`). Merge order: this documents PR (`timetug`) first, then the `timetug-windows` PR. One implementation PR: the model change and the window change do not build apart.
+
+### Task 26: The offered row (A2.1, A2.2)
+
+**Files:** Modify `src/TimeTug.Presentation/Welcome/AccountsViewModel.cs`, `ConnectedAccount.cs`, `WelcomeViewModel.cs`; tests `tests/TimeTug.Presentation.Tests/Welcome/WelcomeWindowsRowTests.cs` (new), `WelcomeListFlowTests.cs` and `Accounts/AccountsSelectionTests.cs` (adjusted).
+
+**Interfaces (Produces):** `AccountsViewModel.WindowsOfferRowId`; `ConnectedAccount.IsPending`, `HintText`, `HasHint`; `AccountsViewModel.WindowsOfferDeclined`; `ListAccounts` is the offered row (while `WindowsAccountOffered`) followed by `ConnectedAccounts`. `WelcomeViewModel` loses `ConnectNote` and `ShowConnectNote`; `AccountsViewModel` loses `WindowsOfferText`. `Welcome_WindowsOffer*` and `Welcome_WindowsDeclined` strings go; `Welcome_WindowsRow*` come.
+
+- [ ] Step 1: failing tests (they do not compile until the members exist, which is the red): row before Continue (name, logo, status, hint, automation name) for `OneNamed` and `Unnamed`; none for `None`, `Unavailable`, dismissal; late listing adds it in place; selectable; Continue gives "Connecting…" then the connected row; decline, failure and cancel give the "Not connected" status; with another account connected the status changes and Continue goes on without asking; `+` rows below; picker replaces or adds below; browser account with the same email leaves no row; only the listing before Continue. Step 2: run, expect FAIL. Step 3: implement. Step 4: PASS (`Presentation`, `Platform`, `Architecture`). Step 5: commit.
+
+### Task 27: Removing the row (A2.3)
+
+**Files:** same, plus `src/TimeTug.App/Controls/AccountsListBox.xaml.cs` (the removal announcement).
+
+**Rules:** `BeginRemove(WindowsOfferRowId)` drops the row at once, records the dismissal once, moves selection and focus (L2), is refused while busy, and works without a store (`_offerRemoved`).
+
+- [ ] Steps: failing tests for no question, one dismissal, focus to `+` or the next row, disabled while busy, no store; implement; PASS; commit.
+
+### Task 28: The window, strings, self-tests (A2.1, A2.5)
+
+**Files:** Modify `src/TimeTug.App/Controls/AccountsListBox.xaml` (the hint line in the row template), `Views/WelcomeWindow.xaml` (the explanation line goes), `Strings/en-US/Resources.resw`, self-tests `welcome-brokered`, `welcome-dismissed` (a first part removes the row with `-` in the first-run window; `MemoryDismissalStore.Clear` starts the second part from a first run), `welcome-local-only` unchanged; `a11y-hold` already shows the offered row in its welcome round.
+
+- [ ] Steps: build (`dotnet build TimeTug.sln -c Debug -p:Platform=ARM64`); run the three scenarios; axe (`run-a11y.ps1`) in CI; commit.
+
+### Task 29: Documents, review, PRs
+
+`timetug-windows`: `docs/manual-tests/windows-checklist.md` (2.17, 2.20 and the decline item reworded for the row; new items for `-` on the row and for several listed accounts), `docs/parity.md` (rows 43, 61 and the accounts-list row), `docs/development.md` if a scenario's description changed. `timetug`: this spec amendment (A2), ADR 0021 amendment, the tracker row and session-log line. `deepseek-review` on the diff; verify; fix test-first; merge both on green CI.
+

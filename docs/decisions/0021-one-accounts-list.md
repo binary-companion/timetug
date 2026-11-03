@@ -1,6 +1,6 @@
 # 0021: One accounts list on both platforms
 
-Status: accepted, 2026-11-02; amended 2026-11-02 (Mac: Apple Calendar is its own control above the box, spec Q2 and D3) and again 2026-11-02 (Windows: no pinned row, the Windows account is added on Continue, service logos; see "Amendment"). Spec: [one accounts list for Mac and Windows](../superpowers/specs/2026-11-02-shared-accounts-list-design.md) (D1 to D19, A1 and L1 to L10). Plan: [shared accounts list](../superpowers/plans/2026-11-02-shared-accounts-list.md).
+Status: accepted, 2026-11-02; amended 2026-11-02 (Mac: Apple Calendar is its own control above the box, spec Q2 and D3), again 2026-11-02 (Windows: no pinned row, the Windows account is added on Continue, service logos) and 2026-11-03 (Windows: the Windows account is a row in the first-run box; see the amendments). Spec: [one accounts list for Mac and Windows](../superpowers/specs/2026-11-02-shared-accounts-list-design.md) (D1 to D22, A1, A2 and L1 to L10). Plan: [shared accounts list](../superpowers/plans/2026-11-02-shared-accounts-list.md).
 
 ## Context
 The Mac's Settings > Accounts was a stack of cards (Apple Calendar, a "Connected Accounts" card with a per-row "..." menu, an "Add an Account" tile grid). Windows had its own three Microsoft cards and a welcome window that pre-selected one. Adding, seeing and removing accounts looked different on each platform, and the Mac checklist still described a `+ -` bar from an older layout.
@@ -23,6 +23,10 @@ Spec Amendment A1 and decisions D16 to D19 change Windows only:
 - **Added on Continue.** In the welcome window, Continue adds the Windows account when Windows lists one (Windows' own consent dialog is the one-click consent; nothing is requested before Continue). Removing it with `-` records a dismissal in the app's local settings (a boolean, no account data), so it is never added automatically again; `+` > Microsoft (whose picker lists it) adds it back. A local-only Windows account adds nothing. This is host-local behaviour; the engine, library and protocol are unchanged (D14).
 - **Service logos.** Rows and `+` entries show the vendor mark (Microsoft four squares, Google "G") unmodified on a white tile, with accessible names; sources and constraints are in the spec (A1.5) and in `timetug-windows` `src/TimeTug.App/Assets/Providers/README.md`. The Mac keeps its drawn marks (`ProviderIcon`), which differs on purpose and is not changed here.
 - The consent-withdrawal sentence now applies to every Microsoft account in the remove question and under the box.
+
+## Amendment (2026-11-03, third pass; owner decision, final)
+
+Spec Amendment A2 and decisions D20 to D22 change the Windows first-run window only: the Windows Microsoft account is a row *in the box* before Continue is pressed (logo, email, "Ready to connect", "Windows will ask you to allow TimeTug when you continue."), replacing the explanation line under the box. Continue still triggers Windows' single consent dialog; the row becomes "Connecting…" and then the connected account, or stays with "Not connected. Choose Continue to try again." after a decline, close or failure. `-` on the row drops it with no question and records the same dismissal as removing a connected Windows account. The empty text shows only when the box has no rows. Settings > Accounts and the Mac are unchanged.
 
 ## Consequences
 - The Mac and Windows differ on purpose in three ways: the Mac has the separate Apple Calendar control with its switch and Windows has no such control or pinned row; the Windows account is added automatically at first run (the Mac asks EventKit for access at launch); the icons are drawn on the Mac and vendor assets on Windows.

@@ -4,6 +4,8 @@ Status: draft for the owner's review (2026-11-02). Design only; the plan follows
 
 > **Amended 2026-11-02 (second pass; owner decisions, final): no pinned row on Windows.** On Windows the pinned "This PC's Windows account" row, its switch and the "On this PC" tag are dropped; the Windows Microsoft account is added automatically, as an ordinary row, when the person presses Continue in the welcome window; every row shows its service's logo. The Mac is unchanged (its separate "Apple Calendar (this Mac)" control and switch stay). The new rules are in [Amendment A1](#amendment-a1-no-pinned-row-on-windows) below, decisions D16 to D19 in the table; the passages they replace are marked "Superseded by A1" and kept for the record. Where this spec says "pinned row" for Windows, read A1.
 
+> **Amended 2026-11-03 (third pass; owner decision, final): the Windows account is a row in the first-run box.** On the welcome window the Windows Microsoft account no longer waits behind the Continue button as an explanation line; it is the first row of the box before Continue is pressed ("Ready to connect"), and `-` removes it. Continue still triggers the one Windows consent. The rules are in [Amendment A2](#amendment-a2-the-windows-account-is-a-row-in-the-first-run-box) below (decisions D20 to D22). A1.1's "the empty text" for step 2 and the second paragraph of A1.2 ("Offered" ... "Continue") are read with A2.
+
 ## Purpose
 
 Make adding, seeing and removing accounts one familiar thing on both platforms: a box that lists the signed-in accounts, with `+` to add and `-` to remove the selected one. The same control sits in the Windows welcome window and in Settings > Accounts on both platforms. On Windows the first run stops pre-selecting a Microsoft card. *(Superseded by A1: the first draft started from a plain switch, "This PC's Windows account"; the final design has no switch and adds the Windows account when the person presses Continue.)* Microsoft sign-in becomes one entry in the `+` menu instead of three cards, and Google sign-in on Windows stops leaving a stranded browser tab by bringing TimeTug forward and saying so on the landing page.
@@ -106,6 +108,9 @@ Owner decisions are marked (O); my calls (C) are open to change.
 | D17 | Windows account added on Continue (O) | When the person presses Continue in the welcome window and Windows lists a Microsoft account, TimeTug adds it as an ordinary Microsoft account; Windows' own consent dialog appears then (the approved one-click consent; nothing is requested before Continue). Removing it with `-` records a dismissal in the app's local settings, after which it is never added automatically again; `+` > Microsoft (whose picker lists it) adds it back. A local-only Windows account adds nothing. Details in A1. |
 | D18 | No "On this PC" tag (O) | A Microsoft account that signs in through Windows has no tag. The consent-withdrawal sentence (where to remove TimeTug's access at Microsoft) is shown for every Microsoft account in the remove question and under the box, because Microsoft holds the consent for both sign-in routes (C). |
 | D19 | Service logos (O) | Each row, and each `+` menu entry, shows its service's logo: the Microsoft four-square logo for Microsoft, the Google "G" for Google, the existing marks for the rest. Official, unaltered, with accessible names, correct in light, dark and high contrast. Sources and constraints in A1. |
+| D20 | The Windows account is a row in the first-run box (O) | When Windows lists exactly one named Microsoft account (or, Q6, several or unnamed ones) and the person has not removed it before, the welcome window's box starts with that account as its first row: Microsoft logo, the email, "Ready to connect" and "Windows will ask you to allow TimeTug when you continue." Nothing is requested from Windows until Continue. Replaces the explanation line under the box that PR 46 added. |
+| D21 | `-` removes the row without a question (C) | Selecting the row and pressing `-` (or Delete) drops it from the box at once and records the dismissal (A1.3). No question is asked: nothing is connected, nothing is forgotten, and `+` > Microsoft brings it back. |
+| D22 | Status of the row follows Continue (O/C) | Ready, then "Connecting…" while Windows asks, then the connected account's own row; after a decline, close or failure the row stays with "Not connected. Choose Continue to try again." and the usual failure text under the box. Once another account is connected the row says "Not connected. Continue goes on without it." and Continue goes on without asking again (Q11). |
 
 ## Amendment A1: no pinned row on Windows
 
@@ -164,6 +169,48 @@ Accessible names: the mark is an image named "Microsoft logo" or "Google logo" (
 - **Cross-platform documents.** `docs/parity.md` rows 37, 41, 42, 43 and the "pinned device row" row are rewritten (the Windows account is an ordinary row; row 41's counterpart note goes); ADR 0021 says the pinned device row is Mac-only and records the Windows rules; the program design's section 4.5 and the phase 5 and phase 6 notes point to A1; the Mac checklist needs no change (the Mac does not change).
 - **Test strategy.** The device-row cases become the offer and Continue cases of A1.2 (offered for `OneNamed` and `Unnamed`, not for `None`, `Unavailable`, a dismissal, a connected account or a browser account with the same email; Continue asks Windows once; decline stays; a second Continue with an account goes on; no broker call but the listing before Continue; none at all when dismissed), the dismissal cases of A1.3 (set for the matching, unnamed and unavailable cases, not for none or a different email; survives a restart through the store; `+` still adds), and the logo cases (mark per kind, accessible names, tile colours per theme, no mark recoloured). The owner-attended items 1 to 4 and 6 change: item 1 has no pinned row (Continue shows the real dialog and the row appears), item 2 decline stays with the link, item 3 a local-only account leaves Continue disabled and `+` > Microsoft opens the picker, item 4 skips the switch (add Google with `+`, Continue still offers Windows' dialog; declining and Continue again goes on), item 6 has no switch (`-` on the Windows row, then relaunch with no accounts: Continue does not add it again, and `+` > Microsoft adds it back).
 - **Open questions.** Q6 now only affects whether Continue can name nothing special (the offer treats one and several listed accounts alike); Q9 is moot (no tags).
+
+## Amendment A2: the Windows account is a row in the first-run box
+
+Owner decision of 2026-11-03, final, from the first real run of the A1 build (screenshot: an empty box reading "No accounts yet. Choose + to add one." with, under it, the line PR 46 added: "Continue connects the Microsoft account you sign in to Windows with (name). Windows asks you to allow TimeTug."). The owner's reading: a line that tells the person to press a button is not the interface; the account should be *in the box*. Windows first-run window only; Settings > Accounts and the Mac do not change. Decisions D20 to D22 in the table point here.
+
+### A2.1 What the person sees
+
+- **Step 2 "Connect your calendars".** When the Windows account is *offered* (A1.2: the broker is available and the build offers the brokered kind; the listing is `OneNamed` or `Unnamed`; no dismissal is recorded; the account is not connected already and no browser-connected Microsoft account holds the same email) the box shows it as its **first row**, already, before anything is pressed:
+  - the Microsoft logo (A1.5, "Microsoft logo");
+  - the name: the account's email when Windows names exactly one account; for `Unnamed` (several listed accounts, or one without an email; Q6 default) "The account you sign in to Windows with";
+  - the status "Ready to connect" and, as a second line, "Windows will ask you to allow TimeTug when you continue.";
+  - no "Sign in again" button (it is not an account yet).
+- The empty text "No accounts yet. Choose + to add one." shows only when the box has no rows: a local-only Windows account, an unavailable listing, a recorded dismissal, or after the row was removed. The line under the box (the A1-era "Continue connects ..." and "Windows didn't connect ..." notes) is **removed**. The line "Google and Microsoft open your browser to sign in." stays.
+- The row is an ordinary selectable row: Tab reaches the list, arrows select, `-` and Delete act on it, Narrator reads "Microsoft, me@example.com, Ready to connect. Windows will ask you to allow TimeTug when you continue." and "Remove me@example.com" on the minus button.
+- **Listing still pending** when step 2 opens: the row is not there yet; it appears in place when the answer arrives (no focus move; Narrator is told through the list's live region as for any row), and Continue stays disabled until the answer is known (A1.2). A listing that fails or times out (5 s) offers nothing and shows no row.
+- **Skip for now** adds nothing and records nothing (the row was never an account).
+
+### A2.2 Continue
+
+Continue behaves as in A1.2 and is the only thing that asks Windows for anything (the listing stays the one earlier call):
+
+| Moment | The row |
+|---|---|
+| Before Continue, and while another sign-in (Google, iCloud, a picker) runs | "Ready to connect" with its second line |
+| Continue pressed, Windows' dialog open ("Waiting for Windows…" under the box, Cancel) | "Connecting…", no second line; `-` and `+` are disabled (L9) |
+| Allowed | the connected account's own row takes the row's place ("Connected" or "Connecting…" while the engine reads the calendars); the window goes to step 3 |
+| Declined, closed, cancelled or failed | the row stays: "Not connected. Choose Continue to try again." (warning colour **and** a warning mark and the words, never colour alone); the failure text, if any, and "Use your browser instead" appear under the box exactly as in A1.2; Continue asks Windows again |
+| The same, once another account is connected (added with `+`) | "Not connected. Continue goes on without it."; Continue goes on to step 3 without asking (the next press after the single decline, Q11); the person may still select the row and remove it |
+
+A connected row can also arrive through `+` > Microsoft: choosing the Windows account in the picker replaces the offered row by the connected one; choosing a different account leaves the offered row first and adds the new row below it. Accounts added with `+` always appear below the offered row, which stays first.
+
+### A2.3 Removing the row (`-`, Delete)
+
+Select the row and press `-` (or Delete in the list): the row is dropped from the box **at once, with no question** (D21), the dismissal of A1.3 is recorded (the same rule and the same flag as removing a connected Windows account), selection and focus move as after any removal (L2: the row now in its place, else the previous one, else `+`), and the screen reader announces "<name> removed". `+` > Microsoft still adds the account (its picker lists it). With the box then empty, Continue is disabled and Skip for now is the way out. `-` is disabled while Windows is being asked (L9). Where nothing can persist the flag (no store, or a store that cannot write) the row still goes for the rest of that window's life.
+
+### A2.4 What does not change
+
+The engine, the library, the broker host and the intents (the Windows-account intent is armed by Continue exactly as before); the listing rule and the 5 s limit; the dismissal flag and its key; the approved one-click consent; Settings > Accounts (it gives no Windows account source, so it never shows the row); the Mac. Contract items: L1 (rows in the engine's order) reads "the offered row first, then the engine's order"; L3's question is not asked for the offered row (A2.3); L7 (empty text) as above.
+
+### A2.5 Test strategy (amends "Test strategy")
+
+View-model tests: the row exists before Continue for `OneNamed` and `Unnamed` (name, logo, status, hint, automation name), not for `None`, `Unavailable` or a dismissal; it appears in place after a late listing; it is selectable; Continue sets "Connecting…" and the connected account replaces it; a decline, a failure and a cancel each give "Not connected. Choose Continue to try again."; with another account connected the status reads "Continue goes on without it." and Continue goes on without a broker call; `+` accounts appear below it; the picker with the Windows email replaces it and with another email leaves it; a browser account with the same email leaves no row; `-` drops it with no question, records one dismissal, moves selection and focus, is disabled while busy and works without a store; Skip records nothing; only the listing is called before Continue. Self-tests (`welcome-brokered`, `welcome-dismissed`, `welcome-local-only`, and the welcome round of `a11y-hold`): the row is in the box with its logo, its automation name and the Selection and SelectionItem patterns; after a closed dialog its status says so; `-` on it drops it with no dialog and the next first-run window makes no listing call. Owner-attended: windows-checklist 2.17 to 2.20 are rewritten for the row.
 
 ## The shared control
 
