@@ -282,14 +282,6 @@ private struct EventCard: View {
                             .menuStyle(.borderlessButton).menuIndicator(.hidden).fixedSize()
                             .accessibilityLabel("\(summary). Actions")
                         }
-                        if isExpanded {
-                            VStack(alignment: .leading, spacing: 6) {
-                                ForEach(row.memberRows) { member in
-                                    memberRow(member)
-                                }
-                            }
-                            .padding(.top, 2)
-                        }
                     }
                     if row.kind == .current {
                         ProgressBar(fraction: PopupText.progress(start: row.start, end: row.end, now: now), palette: palette)
@@ -303,6 +295,16 @@ private struct EventCard: View {
                         .help(JoinLabel.text(for: url))
                         .accessibilityHint(JoinLabel.text(for: url))
                 }
+            }
+            if row.mergeSummaryText != nil, isExpanded {
+                VStack(alignment: .leading, spacing: 10) {
+                    Divider()
+                    ForEach(row.memberRows) { member in
+                        memberRow(member)
+                        if member.id != row.memberRows.last?.id { Divider() }
+                    }
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
             }
         }
         .padding(12)
@@ -324,34 +326,39 @@ private struct EventCard: View {
     }
 
     private func memberRow(_ member: MergedMemberRow) -> some View {
-        HStack(alignment: .top, spacing: 8) {
-            VStack(alignment: .leading, spacing: 1) {
-                HStack(spacing: 4) {
-                    Text(member.title)
-                        .font(.system(size: 11, weight: member.isShown ? .semibold : .regular))
-                        .foregroundStyle(titleColor).lineLimit(1)
-                    if member.copyCount > 1 {
-                        Text("\u{00D7}\(member.copyCount)").font(.system(size: 10)).foregroundStyle(secondaryColor)
-                    }
-                    if member.isShown {
-                        Text("shown").font(.system(size: 10)).foregroundStyle(secondaryColor)
-                    }
+        VStack(alignment: .leading, spacing: 4) {
+            Text(member.title)
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundStyle(titleColor)
+                .fixedSize(horizontal: false, vertical: true)
+                .frame(maxWidth: .infinity, alignment: .leading)
+            Text([member.calendarLabel, member.timeText].filter { !$0.isEmpty }.joined(separator: " \u{00B7} "))
+                .font(.system(size: 11))
+                .foregroundStyle(secondaryColor)
+                .fixedSize(horizontal: false, vertical: true)
+            HStack {
+                if member.copyCount > 1 {
+                    Text("\(member.copyCount) copies")
+                        .font(.system(size: 11))
+                        .foregroundStyle(secondaryColor)
                 }
-                Text([member.calendarLabel, member.timeText].filter { !$0.isEmpty }.joined(separator: " \u{00B7} "))
-                    .font(.system(size: 10)).foregroundStyle(secondaryColor).lineLimit(1)
+                Spacer(minLength: 0)
+                Button {
+                    onSeparate(event, member.members)
+                } label: {
+                    Label("Split off", systemImage: "arrow.triangle.branch").font(.system(size: 11))
+                }
+                .buttonStyle(.bordered).controlSize(.small)
+                .fixedSize()
+                .help("Show this as its own event")
+                .accessibilityLabel(member.copyCount > 1
+                    ? "Split off: \(member.title), \(member.copyCount) copies" : "Split off: \(member.title)")
             }
-            Spacer(minLength: 0)
-            Button {
-                onSeparate(event, member.members)
-            } label: {
-                Label("Split off", systemImage: "arrow.triangle.branch").font(.system(size: 10))
-            }
-            .buttonStyle(.bordered).controlSize(.small)
-            .help("Show this as its own event")
-            .accessibilityLabel(member.copyCount > 1
-                ? "Split off: \(member.title), \(member.copyCount) copies" : "Split off: \(member.title)")
+            .padding(.top, 4)
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
         .accessibilityElement(children: .contain)
+        .accessibilityValue(member.isShown ? "Shown on card" : "")
     }
 
     private var accessibilityText: String {
