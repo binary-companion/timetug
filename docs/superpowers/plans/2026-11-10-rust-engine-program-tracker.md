@@ -8,7 +8,7 @@ This is the saved progress for the move of the shared libraries to Rust. It is u
 ## How to resume
 
 1. Read the spec once, the conventions once, then this file.
-2. Go to **Now**. The first unchecked item is the next thing to do. Items marked **(owner)** are for the owner; agents never do them (merging, publishing releases, approving deployments, changing repository settings, entering credentials).
+2. Go to **Now**. The first unchecked item is the next thing to do. Items marked **(owner)** are for the owner; agents never do them (creating branches and opening pull requests is never one of them; they are merging, publishing releases, approving deployments, changing repository settings, entering credentials).
 3. Open the plan of the phase that item belongs to and continue at its first unchecked step. Plans use checkboxes; check them as you go and commit the plan with the work.
 4. When you finish an item here: check it, add a line to the **Session log**, commit this file.
 5. When a phase's gate is met, set its status to `done`, add its pull request links, and move **Now** to the next phase.
