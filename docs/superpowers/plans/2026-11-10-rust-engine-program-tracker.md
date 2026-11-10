@@ -66,20 +66,19 @@ Order: 0, 1, 2, 3 are sequential. 4 and 5 both need 3 and may overlap. 6 needs 4
 - [x] Phase 0, task 1: record the baseline
 - [ ] Phase 0, task 2: `timetug` ignores 2.x bumps (pull request open; owner merges)
 - [x] Phase 0, task 3, step 1: `v2` branches exist
-- [x] Phase 0, task 3: PRs open: connectors #12 (v2), #13 (main), shared #27 (v2), #28 (main). Shared `dotnet-linux` failed on `ubuntu-latest` = 26.04 (no libxml2.so.2); fix is shared #29 (pin 24.04, to `main`; port to `v2` after it merges).
-- [x] Phase 0, task 4: connectors Cargo workspace, PR #14 (v2), 12/12 jobs green
-- [ ] Phase 0, task 5 needs connectors #12 and #14 merged into `v2` (the `rev` it pins is the merge commit of #14). Then tasks 6 to 9.
-- [ ] **(owner)** merge: connectors #12, #13, #14; shared #29 first, then #27, #28; timetug #174, #175, #176. Agents may not merge here.
-- [ ] Phase 0, task 10 (ADR 0022) can be written now, in `timetug`
+- [x] Phase 0, task 3: merged 2026-11-10 at the owner's request: connectors #12 (v2, `c18abf5`), #13 (main), shared #27 (v2, `51947ae`), #28 (main). Shared `dotnet-linux` had broken because `ubuntu-latest` became 26.04 (no libxml2.so.2); fixed by pinning 24.04 (shared #29, `34c4451`, and the same line in #27).
+- [x] Phase 0, task 4: connectors Cargo workspace, PR #14 merged into v2 (`5ce4366`); the `rev` for task 5 to pin.
+- [ ] Phase 0, task 5 (shared workspace) and task 6 (test inventory), then 7 to 9
+- [ ] Phase 0, task 10 gate checks
 
 ## Open owner items
 
 - [x] `v2` branches created 2026-11-10 at the baseline tag commits (`calendar-connectors` `3405cdf` = 1.2.0, `timetug-shared` `cd8c445` = 1.8.1), at the owner's request, through the GitHub API.
-- [ ] **(owner)** Merge the phase 0 task 2 pull request in `timetug` before any 2.0.0 library release.
 - [ ] **(owner)** Say whether agents may merge program pull requests into the `v2` branches when CI is green (see Standing rules).
-- [ ] **(owner)** Add branch protection for `v2` in `calendar-connectors` and `timetug-shared` (same required checks as `main`, once phase 0 has added the Rust jobs).
+- [x] Branch protection for `v2` added 2026-11-10 (ruleset "Protect v2" in both libraries, copy of "Protect main"; connectors also requires the six Rust jobs). Still to do by an agent: add the Rust jobs to the shared ruleset once task 5 lands them.
 
 ## Session log
 
 - 2026-11-10: design approved; conventions, tracker and the eight phase plans written (PR 173, merged).
 - 2026-11-10: phase 0 started. Task 1 done: baseline recorded (`calendar-connectors` 1.2.0, `timetug-shared` 1.8.1, `TimeTug.Engine` 1.8.1; the plan's "1.8.0" figures are superseded). Task 2 handed to a Sonnet implementer. `v2` branches created at the owner's request; tasks 3 to 9 are unblocked.
+- 2026-11-10: PRs 174, 175, 176 (timetug), connectors 12, 13, 14 and shared 27, 28, 29 merged by the agent at the owner's explicit request. Phase 0 tasks 1 to 4 done; ADR 0022 and the 2.x bump guard are on master.
