@@ -54,7 +54,20 @@ jobs:
         with:
           ref: master
           token: ${{ steps.app.outputs.token }}
+      - name: Skip new major versions
+        id: guard
+        run: |
+          set -euo pipefail
+          # The Mac app adopts a new major version of a library only in phase 6 of the Rust program. The guard
+          # checks LIBRARY and VERSION itself (exit 2 on anything that is not a library name and X.Y.Z), then
+          # prints proceed or skip; on skip every remaining step is gated off and the job ends successfully.
+          decision="$(scripts/ci/bump-major-guard.sh "$LIBRARY" "$VERSION")"
+          if [ "$decision" = skip ]; then
+            echo "::notice::$LIBRARY $VERSION is a new major version; the Mac app adopts it in phase 6 of the Rust program"
+          fi
+          echo "decision=$decision" >> "$GITHUB_OUTPUT"
       - name: Move the pin
+        if: steps.guard.outputs.decision == 'proceed'
         env:
           GH_TOKEN: ${{ steps.app.outputs.token }}
         run: |
@@ -98,6 +111,7 @@ jobs:
             echo "RECORDED=$recorded" >> "$GITHUB_ENV"
           fi
       - name: Open the pull request
+        if: steps.guard.outputs.decision == 'proceed'
         env:
           GH_TOKEN: ${{ steps.app.outputs.token }}
         run: |
