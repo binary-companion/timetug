@@ -66,7 +66,10 @@ Order: 0, 1, 2, 3 are sequential. 4 and 5 both need 3 and may overlap. 6 needs 4
 - [x] Phase 0, task 1: record the baseline
 - [ ] Phase 0, task 2: `timetug` ignores 2.x bumps (pull request open; owner merges)
 - [x] Phase 0, task 3, step 1: `v2` branches exist
-- [ ] Phase 0, tasks 3 to 9 (see the plan)
+- [x] Phase 0, task 3: PRs open: connectors #12 (v2), #13 (main), shared #27 (v2), #28 (main). Shared `dotnet-linux` failed on `ubuntu-latest` = 26.04 (no libxml2.so.2); fix is shared #29 (pin 24.04, to `main`; port to `v2` after it merges).
+- [x] Phase 0, task 4: connectors Cargo workspace, PR #14 (v2), 12/12 jobs green
+- [ ] Phase 0, task 5 needs connectors #12 and #14 merged into `v2` (the `rev` it pins is the merge commit of #14). Then tasks 6 to 9.
+- [ ] **(owner)** merge: connectors #12, #13, #14; shared #29 first, then #27, #28; timetug #174, #175, #176. Agents may not merge here.
 - [ ] Phase 0, task 10 (ADR 0022) can be written now, in `timetug`
 
 ## Open owner items
