@@ -228,7 +228,8 @@
 
     <h2>What TimeTug does not do</h2>
     <ul>
-      <li>No analytics, telemetry, or crash reporting of any kind.</li>
+      <li>No analytics, telemetry, or crash reporting of any kind in TimeTug itself. (What Windows or the
+        Microsoft Store collects on its own is described under Software updates and the Microsoft Store.)</li>
       <li>No advertising and no ad or tracking SDKs.</li>
       <li>We do not sell, rent, or share your calendar data with anyone, for any purpose.</li>
       <li>Your calendar data is not used to train or improve any AI or machine-learning model.</li>
@@ -251,8 +252,10 @@
     <ul>
       <li><strong>Start when I sign in.</strong> Off until you turn it on in the welcome window or in Settings.
         Windows lists it under Settings › Apps › Startup, where you can also turn it off.</li>
-      <li><strong>Notification-area icon, countdown chip and taskbar jump list.</strong> These show the time to
-        your next meeting and its title on your own screen. They are not sent anywhere.</li>
+      <li><strong>Notification-area icon, countdown chip and taskbar jump list.</strong> The icon and chip show the
+        time to your next meeting, and the icon's tooltip names it, on your own screen. The jump list holds fixed
+        shortcuts (such as Open today's meetings and Join next meeting) and no calendar content. None of it is
+        sent anywhere.</li>
       <li><strong>Global keyboard shortcut.</strong> If you set one, TimeTug listens for that one key
         combination to open today's meetings. It does not read or record anything else you type.</li>
       <li><strong>Windows notifications.</strong> When a full-screen app prevents a takeover, TimeTug can show a
@@ -264,12 +267,13 @@
     <h2>Your controls</h2>
     <ul>
       <li><strong>Disconnect an account</strong> anytime in TimeTug's Settings › Accounts. TimeTug stops reading
-        it, deletes its sign-in token or password from the Keychain, deletes its entry in the account list and
-        its sync bookmarks, and immediately rewrites the widget agenda without its events. The alert history
+        it, deletes its sign-in token or password from the Keychain (on Windows, from Credential Locker), deletes its
+        entry in the account list and its sync bookmarks, and (on a Mac) immediately rewrites the widget agenda
+        without its events. The alert history
         and merge corrections described above aren't deleted at that moment: alert history disappears within
         seven days, and you can erase corrections at once with <em>Forget learned corrections</em>.</li>
       <li><strong>Revoke access at the provider.</strong> Disconnecting in TimeTug removes TimeTug's copy of your
-        sign-in from your Mac. To also cancel the access on the provider's side, revoke it there: for Google, at
+        sign-in from your Mac or PC. To also cancel the access on the provider's side, revoke it there: for Google, at
         <a href="https://myaccount.google.com/permissions" target="_blank" rel="noopener">Google Account ›
           Third-party access</a>; for Microsoft, in your Microsoft account's app permissions; for iCloud, by
         deleting the app-specific password at
