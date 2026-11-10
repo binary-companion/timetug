@@ -65,19 +65,13 @@ Order: 0, 1, 2, 3 are sequential. 4 and 5 both need 3 and may overlap. 6 needs 4
 
 - [x] Phase 0, task 1: record the baseline
 - [ ] Phase 0, task 2: `timetug` ignores 2.x bumps (pull request open; owner merges)
-- [ ] Phase 0, task 3, step 1: **(owner)** create the `v2` branches (commands under Open owner items). Tasks 3 to 9 wait for them.
+- [x] Phase 0, task 3, step 1: `v2` branches exist
+- [ ] Phase 0, tasks 3 to 9 (see the plan)
 - [ ] Phase 0, task 10 (ADR 0022) can be written now, in `timetug`
 
 ## Open owner items
 
-- [ ] **(owner)** Create the `v2` branches from the baseline tags (phase 0 task 3). Baselines are `calendar-connectors` `1.2.0` and `timetug-shared` `1.8.1`:
-  ```bash
-  git -C ~/Source/binary-companion/calendar-connectors fetch --tags origin && git -C ~/Source/binary-companion/calendar-connectors push origin refs/tags/1.2.0^{commit}:refs/heads/v2
-  ```
-  ```bash
-  git -C ~/Source/binary-companion/timetug-shared fetch --tags origin && git -C ~/Source/binary-companion/timetug-shared push origin refs/tags/1.8.1^{commit}:refs/heads/v2
-  ```
-  Check with `git ls-remote --heads origin v2` in each. If a library has released a later tag since, tell the agent which tag you used.
+- [x] `v2` branches created 2026-11-10 at the baseline tag commits (`calendar-connectors` `3405cdf` = 1.2.0, `timetug-shared` `cd8c445` = 1.8.1), at the owner's request, through the GitHub API.
 - [ ] **(owner)** Merge the phase 0 task 2 pull request in `timetug` before any 2.0.0 library release.
 - [ ] **(owner)** Say whether agents may merge program pull requests into the `v2` branches when CI is green (see Standing rules).
 - [ ] **(owner)** Add branch protection for `v2` in `calendar-connectors` and `timetug-shared` (same required checks as `main`, once phase 0 has added the Rust jobs).
@@ -85,4 +79,4 @@ Order: 0, 1, 2, 3 are sequential. 4 and 5 both need 3 and may overlap. 6 needs 4
 ## Session log
 
 - 2026-11-10: design approved; conventions, tracker and the eight phase plans written (PR 173, merged).
-- 2026-11-10: phase 0 started. Task 1 done: baseline recorded (`calendar-connectors` 1.2.0, `timetug-shared` 1.8.1, `TimeTug.Engine` 1.8.1; the plan's "1.8.0" figures are superseded). Task 2 handed to a Sonnet implementer. Tasks 3 to 9 are blocked on the owner creating the `v2` branches.
+- 2026-11-10: phase 0 started. Task 1 done: baseline recorded (`calendar-connectors` 1.2.0, `timetug-shared` 1.8.1, `TimeTug.Engine` 1.8.1; the plan's "1.8.0" figures are superseded). Task 2 handed to a Sonnet implementer. `v2` branches created at the owner's request; tasks 3 to 9 are unblocked.
