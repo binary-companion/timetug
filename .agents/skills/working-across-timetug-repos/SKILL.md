@@ -38,6 +38,8 @@ When `calendar-connectors` releases, its `notify` job dispatches to both `timetu
 
 `bump-pin.sh <library> X.Y.Z` always sets `exactVersion` for that library in `Apps/macOS/project.yml` and never touches the other library's pin. It raises the library's `from:` floors in `Packages/*/Package*.swift` only on a major bump; raise a floor by hand only when the code needs the new version, and keep every floor at most the pin and within one major (`scripts/ci/check-shared-pins.py`, which checks both libraries). `--at-least` makes it a no-op when the pin is already at or above the version.
 
+2.x releases of the libraries are skipped until phase 6 of the Rust program (see the tracker): `scripts/ci/bump-major-guard.sh` makes the workflow end with a notice and no pull request.
+
 ## When a bump does not arrive
 
 - Run the workflow by hand: `gh workflow run "Bump dependencies" --repo binary-companion/timetug -f library=<calendar-connectors|timetug-shared> -f version=X.Y.Z`.

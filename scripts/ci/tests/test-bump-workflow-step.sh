@@ -74,8 +74,8 @@ check(job.get('env') == {'LIBRARY': '${{ github.event.client_payload.library || 
       'the job env must be exactly LIBRARY and VERSION, each from the payload or the input')
 check('continue-on-error' not in job, 'the job must not set continue-on-error')
 steps = job['steps']
-check(len(steps) == 4, 'the job must have exactly four steps: token, checkout, move, open')
-token, checkout, move, open_pr = steps
+check(len(steps) == 5, 'the job must have exactly five steps: token, checkout, guard, move, open')
+token, checkout, guard, move, open_pr = steps
 check(token.get('id') == 'app' and token.get('uses') == 'actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510',
       'the first step must be the token step (id app) pinned to the reviewed create-github-app-token SHA')
 check(token.get('with') == {'app-id': '${{ vars.BUMP_APP_ID }}',
@@ -90,6 +90,15 @@ check(checkout.get('uses') == 'actions/checkout@3d3c42e5aac5ba805825da76410c1812
       'the checkout must be pinned to the reviewed actions/checkout SHA')
 check(checkout.get('with') == {'ref': 'master', 'token': '${{ steps.app.outputs.token }}'},
       'the checkout must be ref: master with the app token (so the push is made by the bot)')
+check(guard.get('name') == 'Skip new major versions' and guard.get('id') == 'guard'
+      and 'env' not in guard and '${{' not in guard['run']
+      and 'scripts/ci/bump-major-guard.sh "$LIBRARY" "$VERSION"' in guard['run']
+      and '::notice::' in guard['run'] and 'decision=' in guard['run'] and 'continue-on-error' not in guard,
+      'the third step must be the major-version guard (id guard), calling bump-major-guard.sh with LIBRARY and VERSION '
+      'and writing its decision to the step output')
+for gated in (move, open_pr):
+    check(gated.get('if') == "steps.guard.outputs.decision == 'proceed'",
+          f"the step {gated['name']!r} must run only when the guard decided proceed")
 check(move.get('name') == 'Move the pin' and open_pr.get('name') == 'Open the pull request',
       'the last two steps must be "Move the pin" and "Open the pull request", in that order')
 for step in (move, open_pr):
