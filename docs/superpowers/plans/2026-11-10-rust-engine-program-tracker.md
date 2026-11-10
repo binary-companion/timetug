@@ -32,18 +32,18 @@ Filled in by phase 0, task 1. Never changed afterwards.
 
 | Item | Value |
 |---|---|
-| `calendar-connectors` baseline tag | |
-| `timetug-shared` baseline tag | |
-| `TimeTug.Engine` baseline version | |
+| `calendar-connectors` baseline tag | `1.2.0` |
+| `timetug-shared` baseline tag | `1.8.1` |
+| `TimeTug.Engine` baseline version | `1.8.1` (NuGet, 2026-11-10) |
 | Swift tests at baseline | connectors: , shared: |
-| Windows native payload (x64 / ARM64, uncompressed) | |
+| Windows native payload (x64 / ARM64) | uncompressed 74,626,048 / 73,146,368 bytes (74.6 / 73.1 MB); compressed in the package 28,299,296 / 27,643,266 bytes. Sum of `runtimes/<rid>/native/*` in `timetug.engine.1.8.1.nupkg`. (1.8.0 measured 70.5 MB x64: the payload grew 4 MB in one patch release.) |
 | Idle memory, idle CPU, time to `ready`, dedup benchmark | see `docs/rust-port/baselines.md` in `timetug-shared` |
 
 ## Phases
 
 | Phase | Status | Plan | Gate | PRs |
 |---|---|---|---|---|
-| 0 Foundations | not started | [plan](2026-11-10-rust-phase-0-foundations.md) | Rust CI green on four platforms in both libraries; vectors committed; baselines recorded; `timetug` ignores 2.x bumps | |
+| 0 Foundations | in progress | [plan](2026-11-10-rust-phase-0-foundations.md) | Rust CI green on four platforms in both libraries; vectors committed; baselines recorded; `timetug` ignores 2.x bumps | |
 | 1 Connector library | not started | [plan](2026-11-10-rust-phase-1-connectors.md) | every connector test ported and passing; vectors pass; persisted formats load | |
 | 2 Core and Bridge | not started | [plan](2026-11-10-rust-phase-2-core-bridge.md) | Core and Bridge parity complete; benchmark not slower than Swift | |
 | 3 Engine and C interface | not started | [plan](2026-11-10-rust-phase-3-engine-c-interface.md) | fixtures, scenarios, concurrency harness, `c-smoke`, unchanged .NET suite pass on four platforms; size within 8 MB; first `2.0.0-alpha` | |
@@ -63,13 +63,26 @@ Order: 0, 1, 2, 3 are sequential. 4 and 5 both need 3 and may overlap. 6 needs 4
 
 ## Now
 
-- [ ] Phase 0, task 1: record the baseline (plan, Task 1)
+- [x] Phase 0, task 1: record the baseline
+- [ ] Phase 0, task 2: `timetug` ignores 2.x bumps (pull request open; owner merges)
+- [ ] Phase 0, task 3, step 1: **(owner)** create the `v2` branches (commands under Open owner items). Tasks 3 to 9 wait for them.
+- [ ] Phase 0, task 10 (ADR 0022) can be written now, in `timetug`
 
 ## Open owner items
 
+- [ ] **(owner)** Create the `v2` branches from the baseline tags (phase 0 task 3). Baselines are `calendar-connectors` `1.2.0` and `timetug-shared` `1.8.1`:
+  ```bash
+  git -C ~/Source/binary-companion/calendar-connectors fetch --tags origin && git -C ~/Source/binary-companion/calendar-connectors push origin refs/tags/1.2.0^{commit}:refs/heads/v2
+  ```
+  ```bash
+  git -C ~/Source/binary-companion/timetug-shared fetch --tags origin && git -C ~/Source/binary-companion/timetug-shared push origin refs/tags/1.8.1^{commit}:refs/heads/v2
+  ```
+  Check with `git ls-remote --heads origin v2` in each. If a library has released a later tag since, tell the agent which tag you used.
+- [ ] **(owner)** Merge the phase 0 task 2 pull request in `timetug` before any 2.0.0 library release.
 - [ ] **(owner)** Say whether agents may merge program pull requests into the `v2` branches when CI is green (see Standing rules).
 - [ ] **(owner)** Add branch protection for `v2` in `calendar-connectors` and `timetug-shared` (same required checks as `main`, once phase 0 has added the Rust jobs).
 
 ## Session log
 
-- 2026-11-10: design approved; conventions, tracker and the eight phase plans written.
+- 2026-11-10: design approved; conventions, tracker and the eight phase plans written (PR 173, merged).
+- 2026-11-10: phase 0 started. Task 1 done: baseline recorded (`calendar-connectors` 1.2.0, `timetug-shared` 1.8.1, `TimeTug.Engine` 1.8.1; the plan's "1.8.0" figures are superseded). Task 2 handed to a Sonnet implementer. Tasks 3 to 9 are blocked on the owner creating the `v2` branches.
