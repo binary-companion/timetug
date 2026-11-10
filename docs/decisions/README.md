@@ -22,3 +22,4 @@ ADRs record rationale and may describe the state when written. The [architecture
 | [0019](0019-shared-state-and-sandbox.md) | Shared state, sandbox | Current | App tests, manual checklist |
 | [0020](0020-timetug-shared-repository.md) | Core and Bridge in `timetug-shared` | Current | `verify.sh release-tools`; `timetug-shared` CI |
 | [0021](0021-one-accounts-list.md) | One accounts list on Mac and Windows | Current | App tests, manual checklist |
+| [0022](0022-shared-libraries-in-rust.md) | Shared libraries in Rust | Accepted; supersedes parts of 0001 and 0012 from the Windows cutover | parity table, vectors, size gate, `cargo deny` |
