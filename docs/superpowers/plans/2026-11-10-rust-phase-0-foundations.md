@@ -17,7 +17,7 @@
 - Crate names, kinds and dependencies are exactly those of design section 6.1. The C interface library is named `TimeTugEngineC`.
 - External crates are exactly those of conventions section 3.
 - Release profile and lints are exactly those of conventions section 2.
-- Agents never push to `v2` or `main`, never tag, never merge.
+- Agents create branches and open pull requests themselves (never an owner step). Agents never push commits directly to `v2` or `main`, never tag, never merge.
 - Python scripts follow the repositories' pattern: standard library only, a `unittest` file under `scripts/ci/tests/`.
 
 ## Review Focus
@@ -87,7 +87,7 @@ other-lib 1.0.0           -> exit 2
 - Modify: `.github/pull_request_template.md`
 - Create: `docs/rust-port/parity-ledger.md`, `docs/rust-port/README.md`
 
-- [ ] **Step 1: (owner) Create the branches.** Add to the tracker's open owner items, with the exact commands:
+- [x] **Step 1: Create the branches** (done 2026-11-10 by an agent through the GitHub API; the equivalent commands):
 
 ```bash
 git -C ~/Source/binary-companion/calendar-connectors push origin refs/tags/<connectors baseline>^{commit}:refs/heads/v2
@@ -96,7 +96,7 @@ git -C ~/Source/binary-companion/calendar-connectors push origin refs/tags/<conn
 git -C ~/Source/binary-companion/timetug-shared push origin refs/tags/<shared baseline>^{commit}:refs/heads/v2
 ```
 
-Stop until both exist (`git ls-remote --heads origin v2`).
+Check both exist (`git ls-remote --heads origin v2`).
 
 - [ ] **Step 2: In each library, branch from `v2`** and change `on.push.branches` in `ci.yml` from `[main]` to `[main, v2]`. Do not touch `release.yml`: it must keep reacting to `main` only.
 - [ ] **Step 3: Create `docs/rust-port/README.md`**: five lines saying what the directory holds and linking the tracker and conventions in `timetug`.

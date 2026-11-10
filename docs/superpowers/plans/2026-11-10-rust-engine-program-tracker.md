@@ -8,7 +8,7 @@ This is the saved progress for the move of the shared libraries to Rust. It is u
 ## How to resume
 
 1. Read the spec once, the conventions once, then this file.
-2. Go to **Now**. The first unchecked item is the next thing to do. Items marked **(owner)** are for the owner; agents never do them (merging, publishing releases, approving deployments, changing repository settings, entering credentials).
+2. Go to **Now**. The first unchecked item is the next thing to do. Items marked **(owner)** are for the owner; agents never do them (creating branches and opening pull requests is never one of them; they are merging, publishing releases, approving deployments, changing repository settings, entering credentials).
 3. Open the plan of the phase that item belongs to and continue at its first unchecked step. Plans use checkboxes; check them as you go and commit the plan with the work.
 4. When you finish an item here: check it, add a line to the **Session log**, commit this file.
 5. When a phase's gate is met, set its status to `done`, add its pull request links, and move **Now** to the next phase.
@@ -32,18 +32,18 @@ Filled in by phase 0, task 1. Never changed afterwards.
 
 | Item | Value |
 |---|---|
-| `calendar-connectors` baseline tag | |
-| `timetug-shared` baseline tag | |
-| `TimeTug.Engine` baseline version | |
+| `calendar-connectors` baseline tag | `1.2.0` |
+| `timetug-shared` baseline tag | `1.8.1` |
+| `TimeTug.Engine` baseline version | `1.8.1` (NuGet, 2026-11-10) |
 | Swift tests at baseline | connectors: , shared: |
-| Windows native payload (x64 / ARM64, uncompressed) | |
+| Windows native payload (x64 / ARM64) | uncompressed 74,626,048 / 73,146,368 bytes (74.6 / 73.1 MB); compressed in the package 28,299,296 / 27,643,266 bytes. Sum of `runtimes/<rid>/native/*` in `timetug.engine.1.8.1.nupkg`. (1.8.0 measured 70.5 MB x64: the payload grew 4 MB in one patch release.) |
 | Idle memory, idle CPU, time to `ready`, dedup benchmark | see `docs/rust-port/baselines.md` in `timetug-shared` |
 
 ## Phases
 
 | Phase | Status | Plan | Gate | PRs |
 |---|---|---|---|---|
-| 0 Foundations | not started | [plan](2026-11-10-rust-phase-0-foundations.md) | Rust CI green on four platforms in both libraries; vectors committed; baselines recorded; `timetug` ignores 2.x bumps | |
+| 0 Foundations | in progress | [plan](2026-11-10-rust-phase-0-foundations.md) | Rust CI green on four platforms in both libraries; vectors committed; baselines recorded; `timetug` ignores 2.x bumps | |
 | 1 Connector library | not started | [plan](2026-11-10-rust-phase-1-connectors.md) | every connector test ported and passing; vectors pass; persisted formats load | |
 | 2 Core and Bridge | not started | [plan](2026-11-10-rust-phase-2-core-bridge.md) | Core and Bridge parity complete; benchmark not slower than Swift | |
 | 3 Engine and C interface | not started | [plan](2026-11-10-rust-phase-3-engine-c-interface.md) | fixtures, scenarios, concurrency harness, `c-smoke`, unchanged .NET suite pass on four platforms; size within 8 MB; first `2.0.0-alpha` | |
@@ -63,13 +63,23 @@ Order: 0, 1, 2, 3 are sequential. 4 and 5 both need 3 and may overlap. 6 needs 4
 
 ## Now
 
-- [ ] Phase 0, task 1: record the baseline (plan, Task 1)
+- [x] Phase 0, task 1: record the baseline
+- [ ] Phase 0, task 2: `timetug` ignores 2.x bumps (pull request open; owner merges)
+- [x] Phase 0, task 3, step 1: `v2` branches exist
+- [x] Phase 0, task 3: PRs open: connectors #12 (v2), #13 (main), shared #27 (v2), #28 (main). Shared `dotnet-linux` failed on `ubuntu-latest` = 26.04 (no libxml2.so.2); fix is shared #29 (pin 24.04, to `main`; port to `v2` after it merges).
+- [x] Phase 0, task 4: connectors Cargo workspace, PR #14 (v2), 12/12 jobs green
+- [ ] Phase 0, task 5 needs connectors #12 and #14 merged into `v2` (the `rev` it pins is the merge commit of #14). Then tasks 6 to 9.
+- [ ] **(owner)** merge: connectors #12, #13, #14; shared #29 first, then #27, #28; timetug #174, #175, #176. Agents may not merge here.
+- [ ] Phase 0, task 10 (ADR 0022) can be written now, in `timetug`
 
 ## Open owner items
 
+- [x] `v2` branches created 2026-11-10 at the baseline tag commits (`calendar-connectors` `3405cdf` = 1.2.0, `timetug-shared` `cd8c445` = 1.8.1), at the owner's request, through the GitHub API.
+- [ ] **(owner)** Merge the phase 0 task 2 pull request in `timetug` before any 2.0.0 library release.
 - [ ] **(owner)** Say whether agents may merge program pull requests into the `v2` branches when CI is green (see Standing rules).
 - [ ] **(owner)** Add branch protection for `v2` in `calendar-connectors` and `timetug-shared` (same required checks as `main`, once phase 0 has added the Rust jobs).
 
 ## Session log
 
-- 2026-11-10: design approved; conventions, tracker and the eight phase plans written.
+- 2026-11-10: design approved; conventions, tracker and the eight phase plans written (PR 173, merged).
+- 2026-11-10: phase 0 started. Task 1 done: baseline recorded (`calendar-connectors` 1.2.0, `timetug-shared` 1.8.1, `TimeTug.Engine` 1.8.1; the plan's "1.8.0" figures are superseded). Task 2 handed to a Sonnet implementer. `v2` branches created at the owner's request; tasks 3 to 9 are unblocked.
