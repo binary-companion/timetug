@@ -35,7 +35,7 @@ Filled in by phase 0, task 1. Never changed afterwards.
 | `calendar-connectors` baseline tag | `1.2.0` |
 | `timetug-shared` baseline tag | `1.8.1` |
 | `TimeTug.Engine` baseline version | `1.8.1` (NuGet, 2026-11-10) |
-| Swift tests at baseline | connectors: , shared: |
+| Swift tests at baseline | connectors: 915, shared: 608 |
 | Windows native payload (x64 / ARM64) | uncompressed 74,626,048 / 73,146,368 bytes (74.6 / 73.1 MB); compressed in the package 28,299,296 / 27,643,266 bytes. Sum of `runtimes/<rid>/native/*` in `timetug.engine.1.8.1.nupkg`. (1.8.0 measured 70.5 MB x64: the payload grew 4 MB in one patch release.) |
 | Idle memory, idle CPU, time to `ready`, dedup benchmark | see `docs/rust-port/baselines.md` in `timetug-shared` |
 
@@ -43,7 +43,7 @@ Filled in by phase 0, task 1. Never changed afterwards.
 
 | Phase | Status | Plan | Gate | PRs |
 |---|---|---|---|---|
-| 0 Foundations | in progress | [plan](2026-11-10-rust-phase-0-foundations.md) | Rust CI green on four platforms in both libraries; vectors committed; baselines recorded; `timetug` ignores 2.x bumps | |
+| 0 Foundations | done (2026-11-10; see Session log for two open caveats) | [plan](2026-11-10-rust-phase-0-foundations.md) | Rust CI green on four platforms in both libraries; vectors committed; baselines recorded; `timetug` ignores 2.x bumps | timetug #174 #175 #176 #181; connectors #12 #13 #14 #15 #16 #17; shared #27 #28 #29 #31 #32 #33 #34 #35 |
 | 1 Connector library | not started | [plan](2026-11-10-rust-phase-1-connectors.md) | every connector test ported and passing; vectors pass; persisted formats load | |
 | 2 Core and Bridge | not started | [plan](2026-11-10-rust-phase-2-core-bridge.md) | Core and Bridge parity complete; benchmark not slower than Swift | |
 | 3 Engine and C interface | not started | [plan](2026-11-10-rust-phase-3-engine-c-interface.md) | fixtures, scenarios, concurrency harness, `c-smoke`, unchanged .NET suite pass on four platforms; size within 8 MB; first `2.0.0-alpha` | |
@@ -63,13 +63,7 @@ Order: 0, 1, 2, 3 are sequential. 4 and 5 both need 3 and may overlap. 6 needs 4
 
 ## Now
 
-- [x] Phase 0, task 1: record the baseline
-- [ ] Phase 0, task 2: `timetug` ignores 2.x bumps (pull request open; owner merges)
-- [x] Phase 0, task 3, step 1: `v2` branches exist
-- [x] Phase 0, task 3: merged 2026-11-10 at the owner's request: connectors #12 (v2, `c18abf5`), #13 (main), shared #27 (v2, `51947ae`), #28 (main). Shared `dotnet-linux` had broken because `ubuntu-latest` became 26.04 (no libxml2.so.2); fixed by pinning 24.04 (shared #29, `34c4451`, and the same line in #27).
-- [x] Phase 0, task 4: connectors Cargo workspace, PR #14 merged into v2 (`5ce4366`); the `rev` for task 5 to pin.
-- [ ] Phase 0, task 5 (shared workspace) and task 6 (test inventory), then 7 to 9
-- [ ] Phase 0, task 10 gate checks
+- [ ] Phase 1, task 1: start the connector library port (plan: [phase 1](2026-11-10-rust-phase-1-connectors.md)). Before the first ported test, re-run the dedup benchmark on a quiet machine (see Phase 0 caveats) and fill the two TODO rows in `docs/rust-port/baselines.md`.
 
 ## Open owner items
 
@@ -82,3 +76,4 @@ Order: 0, 1, 2, 3 are sequential. 4 and 5 both need 3 and may overlap. 6 needs 4
 - 2026-11-10: design approved; conventions, tracker and the eight phase plans written (PR 173, merged).
 - 2026-11-10: phase 0 started. Task 1 done: baseline recorded (`calendar-connectors` 1.2.0, `timetug-shared` 1.8.1, `TimeTug.Engine` 1.8.1; the plan's "1.8.0" figures are superseded). Task 2 handed to a Sonnet implementer. `v2` branches created at the owner's request; tasks 3 to 9 are unblocked.
 - 2026-11-10: PRs 174, 175, 176 (timetug), connectors 12, 13, 14 and shared 27, 28, 29 merged by the agent at the owner's explicit request. Phase 0 tasks 1 to 4 done; ADR 0022 and the 2.x bump guard are on master.
+- 2026-11-10: phase 0 done. 25 vector files (14 connectors, 11 shared) and both test inventories (915 and 608) committed; Rust CI on four platforms plus the C library names checked in both libraries; baselines in `timetug-shared` `docs/rust-port/baselines.md` (Windows x64/ARM64 and macOS measured on GitHub-hosted runners, 600 s idle, median of 3). Weekly `vectors-drift.yml` exists in both libraries but runs only after `v2` is promoted to `main` (use `workflow_dispatch` until then). **Caveats:** (1) the engine benchmark was not run on the dev Mac (no .NET SDK installed) nor in the Parallels ARM64 VM (suspended); hosted `macos-26` and `windows-11-arm` runners stand in and are the machines the Rust numbers must be compared on; (2) the dedup benchmark ran on a busy Mac (dense 5000 took 103 s), so re-run it on a quiet machine before relying on it as the phase 2 target; (3) the vectors were written on macOS 27 and trimmed to dates through 2026-11-01 (Casablanca 2026-06-01, Havana left out of the recurrence pool) because the macOS 26 runner's zone database differs.
