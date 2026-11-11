@@ -1,6 +1,6 @@
 # Rust phase 2: Core and Bridge — implementation plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [x]`) syntax for tracking.
 
 **Goal:** `timetug-core`, `timetug-bridge` and `dedup-benchmark` exist as Rust crates on `v2` of `timetug-shared`, equal in behaviour to `TimeTugCore`, `CalendarBridge` and `DedupBenchmark` at the baseline tag.
 
@@ -53,7 +53,7 @@ All paths are in `binary-companion/timetug-shared`; branches from `v2`, pull req
 - `TakeoverSettings` has a legacy decoding path (`settings-legacy.json`: `{"disabled":true,"skipSoloEvents":true,"leadTime":120}`); `TakeoverSettingsRemovalTests` and phase 3's `LegacyFixtureTests` pin it. Port the hand-written `init(from:)` key by key.
 - `check-no-clock.py` fails if any file under `crates/timetug-core/src` or `crates/timetug-bridge/src` (tests excluded) contains `Timestamp::now`, `SystemTime`, `Instant::now`, `Zoned::now`, `tokio::time`, or `std::env`. Test it with one clean and one offending fixture file. Add it to `rust-lint`.
 
-- [ ] Follow P1 to P8.
+- [x] Follow P1 to P8.
 
 ### Task 2: `timetug-core` — takeover
 
@@ -73,7 +73,7 @@ All paths are in `binary-companion/timetug-shared`; branches from `v2`, pull req
 - The ledger is persisted (family A): keys like `"s/a/1800000000"`, entries `{"fired":{}}` and `{"snoozed":{"until":<reference seconds>}}`, `end` and `recordedAt` as reference-date numbers. Write the serde for `Entry` by hand and test it against `Tests/TimeTugEngineTests/Fixtures/takeover-ledger.json` now (load, compare to expected values, save, reload), even though the store that reads the file is phase 3.
 - Pruning rules and the fire guard window are copied as constants with the Swift names.
 
-- [ ] Follow P1 to P8.
+- [x] Follow P1 to P8.
 
 ### Task 3: `timetug-core` — duplicate detection
 
@@ -96,7 +96,7 @@ All paths are in `binary-companion/timetug-shared`; branches from `v2`, pull req
 - `Adjudication.swift` line 172: its encoder uses sorted keys and **milliseconds since 1970**. `LessonBook` uses the default reference-date encoding (see `dedup-state.json`: `"lastUsed" : 821692800`). Test both against `Tests/TimeTugEngineTests/Fixtures/dedup-state.json`.
 - `DuplicateAdjudicator` (the seam the engine's text generator implements) becomes `#[async_trait] pub trait DuplicateAdjudicator: Send + Sync`.
 
-- [ ] Follow P1 to P8. Gate: all four vector files pass in full.
+- [x] Follow P1 to P8. Gate: all four vector files pass in full.
 
 ### Task 4: `timetug-core` — calendar store
 
@@ -113,7 +113,7 @@ All paths are in `binary-companion/timetug-shared`; branches from `v2`, pull req
 - The snapshot type (`CalendarSnapshot`) and the store's change notifications keep their Swift shapes; `changes` is an unbounded `mpsc`.
 - Add the Review Focus 4 test.
 
-- [ ] Follow P1 to P8.
+- [x] Follow P1 to P8.
 
 ### Task 5: `timetug-core` — agenda and widget data
 
@@ -131,7 +131,7 @@ All paths are in `binary-companion/timetug-shared`; branches from `v2`, pull req
 - `WidgetSnapshot` and `WidgetEvent` are `Codable` and written by the Mac app into the App Group (`agenda-snapshot.json`) and read by the widget extension. Their JSON is a contract with shipped widgets: family A dates (reference seconds) unless the Swift code sets a strategy at the write site (check `WidgetSnapshotStore.swift` in `timetug`'s `Apps/macOS/Shared` and match it). Add a test with a snapshot JSON string copied from a Swift encode of a fixed value (put the Swift snippet that produced it in the test's comment).
 - Every `calendar: Calendar` parameter becomes `zone: &Zone`.
 
-- [ ] Follow P1 to P8. After this task: `check-test-parity.py --require-complete TimeTugCoreTests` passes; add that flag to `rust-lint`.
+- [x] Follow P1 to P8. After this task: `check-test-parity.py --require-complete TimeTugCoreTests` passes; add that flag to `rust-lint`.
 
 ### Task 6: `timetug-bridge`
 
@@ -145,7 +145,7 @@ All paths are in `binary-companion/timetug-shared`; branches from `v2`, pull req
 **Decisions:**
 - `ConnectedSource` holds `Arc<dyn calendar_core::CalendarSource>` and implements `timetug_core::CalendarSource`. Error and change translation is a literal port; cancelled events are dropped in `EventMapper`.
 
-- [ ] Follow P1 to P8. Add `--require-complete CalendarBridgeTests` to `rust-lint`.
+- [x] Follow P1 to P8. Add `--require-complete CalendarBridgeTests` to `rust-lint`.
 
 ### Task 7: `dedup-benchmark` and the performance gate
 
@@ -154,15 +154,15 @@ All paths are in `binary-companion/timetug-shared`; branches from `v2`, pull req
 - Modify: `scripts/benchmarks/run-dedup.sh` (add `--rust`; default stays Swift while Swift exists)
 - Modify: `docs/rust-port/baselines.md`
 
-- [ ] **Step 1: Port `main.swift`** so the Rust binary builds the same synthetic inputs (same sizes, same generator constants) and prints lines in the same format.
-- [ ] **Step 2: Run both** on the same Mac, three times each, release builds: `scripts/benchmarks/run-dedup.sh` and `scripts/benchmarks/run-dedup.sh --rust`.
-- [ ] **Step 3: Record** the medians in `baselines.md` next to the Swift numbers.
-- [ ] **Step 4: Gate.** Each Rust median must be at or below the Swift median times 1.10. If not, profile (`cargo build --release` with `debug = true` in a local profile, `sample` or Instruments), fix the hot spot without changing results, and re-run the vectors.
-- [ ] **Step 5: Commit; pull request against `v2`.**
+- [x] **Step 1: Port `main.swift`** so the Rust binary builds the same synthetic inputs (same sizes, same generator constants) and prints lines in the same format.
+- [x] **Step 2: Run both** on the same Mac, three times each, release builds: `scripts/benchmarks/run-dedup.sh` and `scripts/benchmarks/run-dedup.sh --rust`.
+- [x] **Step 3: Record** the medians in `baselines.md` next to the Swift numbers.
+- [x] **Step 4: Gate.** Each Rust median must be at or below the Swift median times 1.10. If not, profile (`cargo build --release` with `debug = true` in a local profile, `sample` or Instruments), fix the hot spot without changing results, and re-run the vectors.
+- [x] **Step 5: Commit; pull request against `v2`.**
 
 ### Task 8: Phase close-out
 
-- [ ] **Step 1:** `python3 scripts/ci/check-test-parity.py --require-complete TimeTugCoreTests --require-complete CalendarBridgeTests`. Expected: PASS.
-- [ ] **Step 2:** List every `n/a` row in the pull request; none is expected in this phase.
-- [ ] **Step 3:** Port open parity-ledger entries that touch Core or Bridge.
-- [ ] **Step 4:** Update the tracker in `timetug` (phase 2 `done`, counts, benchmark numbers, Now to phase 3).
+- [x] **Step 1:** `python3 scripts/ci/check-test-parity.py --require-complete TimeTugCoreTests --require-complete CalendarBridgeTests`. Expected: PASS.
+- [x] **Step 2:** List every `n/a` row in the pull request; none is expected in this phase.
+- [x] **Step 3:** Port open parity-ledger entries that touch Core or Bridge.
+- [x] **Step 4:** Update the tracker in `timetug` (phase 2 `done`, counts, benchmark numbers, Now to phase 3).
