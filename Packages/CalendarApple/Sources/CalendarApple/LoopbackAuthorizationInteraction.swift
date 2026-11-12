@@ -154,6 +154,10 @@ final class LoopbackSession: OAuthRedirectSession, @unchecked Sendable {
         boundPort = port
     }
 
+    /// The listener is on 127.0.0.1, but a provider registration may list `http://localhost` instead (Microsoft's does,
+    /// and it ignores the port), so a connector may send either; the browser reaches the listener both ways.
+    private static let loopbackHosts: Set<String> = ["127.0.0.1", "localhost"]
+
     func authorize(at authorizationURL: URL) async throws -> URL {
         guard let authorization = URLComponents(url: authorizationURL, resolvingAgainstBaseURL: false),
               let items = authorization.queryItems,
@@ -162,7 +166,7 @@ final class LoopbackSession: OAuthRedirectSession, @unchecked Sendable {
               items.filter({ $0.name == "redirect_uri" }).count == 1,
               let redirectText = items.first(where: { $0.name == "redirect_uri" })?.value,
               let redirect = URLComponents(string: redirectText),
-              redirect.scheme == "http", redirect.host == "127.0.0.1", redirect.port == Int(port),
+              redirect.scheme == "http", redirect.host.map(Self.loopbackHosts.contains) == true, redirect.port == Int(port),
               redirect.query == nil, redirect.fragment == nil else {
             throw LoopbackError.listenerFailed("invalid authorization redirect")
         }
