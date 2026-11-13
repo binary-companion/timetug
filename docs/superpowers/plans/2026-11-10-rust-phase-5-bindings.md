@@ -230,8 +230,23 @@ public final class Engine {
 - [ ] **Step 7: Document** in `AGENTS.md`: the release commit, the asset, how the Mac pins it, and that "the latest release of a branch" is defined by `release-tags.py` (never `git tag --merged` or `git describe`).
 - [ ] **Step 8: Commit; pull request.**
 
+### Task 10: Keep the API docs current
+
+The public API documentation exists since 2026-11-13: `docs/api.md` in `calendar-connectors` (the Rust crates) and in `timetug-shared` (the Rust crates, the engine protocol, the C interface, C# on Windows, and Swift). Its Swift section says, truthfully, that only the 1.x Swift libraries exist and that bindings to the Rust engine are **not available**. This task keeps those pages true while phase 5 lands.
+
+**Files:**
+- Modify: `docs/api.md` in `timetug-shared` (section 7, "Swift on macOS", and the status table in section 1); `docs/api.md` in `calendar-connectors` only if a public item changes
+- Modify: `AGENTS.md` of both libraries (the release checklist below)
+
+- [ ] **Step 1: While the bindings are unreleased**, change nothing in the Swift section except its "planned" paragraph when the spike (Task 1) or a later task changes a name or a shape it mentions. The section stays "not available" until a release that contains `TimeTugKit` is published. Never describe Swift API that has not been built.
+- [ ] **Step 2: When the first release containing `TimeTugKit` is published**, fill in section 7 of `docs/api.md`: the SwiftPM install snippet (URL and tag of that release, product `TimeTugKit`, platforms), the real API taken from the generated Swift and `docs/bindings.md` (host interfaces, `Engine`, observer, the name-difference table, the threading rules for host implementors), and a complete example. The example is a file in the repository that the `swift-bindings` job builds and runs (a Swift test target, like the scenario test of Task 6), and a test fails when the page stops showing it verbatim, the way the Rust, C and C# examples are already proven (`next_takeover.rs`, `c-smoke/example.c`, `TimeTug.Engine.Example`). Update the status table in section 1 and the 1.x paragraph (the Mac app has moved or not).
+- [ ] **Step 3: The C# and Rust sections are checked, not rewritten:** their examples run in CI (`cargo test --workspace`, `c-smoke/run.sh`, `dotnet test`), and each fails if `docs/api.md` drifts from its example. Add this release checklist to `AGENTS.md` of both libraries (the owner or an agent runs it before publishing a release): the install lines name the newest tag; the sizes in `docs/api.md` section 6.5 equal `docs/rust-port/size.md`; the supported platforms equal the CI jobs; `RUSTDOCFLAGS="-D warnings" cargo doc --no-deps --workspace` passes; the Swift status line is still true.
+- [ ] **Step 4: CI:** add `RUSTDOCFLAGS="-D warnings" cargo doc --no-deps --workspace --locked` to the `rust-lint` job of both libraries (the workspace lint `missing_docs = "deny"` already fails clippy on an undocumented public item; this protects intra-doc links). Add a Rust API diff (for example `cargo semver-checks`) with the first stable `2.x` tag, as `AGENTS.md` already plans, and then change the compatibility paragraph in `docs/api.md` section 2 of `timetug-shared` and section 10 of `calendar-connectors`, which currently says there is none.
+- [ ] **Step 5: Commit; pull request** in each repository touched.
+
 ### Task 9: Phase close-out
 
 - [ ] **Step 1: Gate** (design section 9, phase 5): the Swift scenario test passes on macOS; the iOS simulator build links; Kotlin compiles; the Android library builds. Links in the tracker.
 - [ ] **Step 2: Sizes**: record the macOS static library slice size and the size it adds to a linked test executable in `docs/rust-port/size.md`.
-- [ ] **Step 3: Update `timetug`**: `docs/architecture.md` ("Adding a platform front end": Swift and Kotlin hosts use `TimeTugKit` / the Kotlin bindings; C-capable hosts use the C interface), tracker (phase 5 `done`, Now to phase 6).
+- [ ] **Step 3: API docs:** Task 10, step 2 done for the release that contains the bindings.
+- [ ] **Step 4: Update `timetug`**: `docs/architecture.md` ("Adding a platform front end": Swift and Kotlin hosts use `TimeTugKit` / the Kotlin bindings; C-capable hosts use the C interface), tracker (phase 5 `done`, Now to phase 6).
