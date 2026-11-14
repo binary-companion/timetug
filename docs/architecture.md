@@ -4,6 +4,7 @@ This is the current module map. The [2026-09-18 core design](superpowers/specs/2
 
 ## Modules
 - The [timetug-shared](https://github.com/binary-companion/timetug-shared) repository (ADR 0020), consumed by released version, holds `TimeTugCore`, `CalendarBridge` and `TimeTugEngine` (below) with their tests and the dedup benchmark; Windows is a CI target there.
+- **Rust from 2.0.0 (2026-11-14).** Both libraries are Rust on `main` from 2.0.0 (Rust engine program, phase 4): the engine core, bridge and engine as crates, the C interface and `TimeTug.Engine` for Windows, and the generated Swift package `TimeTugKit`. The Swift modules described below are the `1.x` branches, which this app still pins (1.x releases) until it moves to `TimeTugKit` in phase 6 of the [program](superpowers/specs/2026-11-10-rust-engine-program-design.md).
 - `TimeTugCore` (`Sources/TimeTugCore` in `timetug-shared`): pure Swift; depends only on `CalendarCore`. `TimeTugCalendarEvent` model (wraps the library `CalendarEvent`, adds merge and display state), `CalendarSource` protocol, `CalendarStore`
   (merge/dedupe/last-good), duplicate rules, resolver, lessons and the adjudicator interface (ADR 0009), `TakeoverPolicy`, `TakeoverLedger` + `Scheduler`,
   `DayAgenda`, `TakeoverRequest`, `TakeoverSettings` (including `enabled`), `WidgetSnapshot` and `WidgetTimeline` (widget data and entry dates, ADR 0010). Note: `additionalCalendarKeys` tracks when a meeting

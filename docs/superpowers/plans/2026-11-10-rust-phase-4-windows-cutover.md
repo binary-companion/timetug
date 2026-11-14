@@ -89,14 +89,14 @@ Preconditions, checked and recorded in the tracker with links: phase 3 gate met;
 
 **In each library (`calendar-connectors` first, then `timetug-shared`):**
 
-- [ ] **Step 1: (owner) Keep the Swift line.** Create branch `1.x` from the current `main`: `git push origin origin/main:refs/heads/1.x`. Add to owner items.
-- [ ] **Step 2: Release from `1.x`.** On a branch from `1.x`: change the `push` triggers of `release.yml` and `ci.yml` from `main` to `1.x`, and make `scripts/release/next-version.sh` consider only tags reachable from the branch being released (test first, in `scripts/release/tests/`: with tags `1.8.3` and `2.0.0` both present, a patch release from `1.x` is `1.8.4`). The `notify` job stays, so the Mac still receives bump pull requests for 1.x fixes. Pull request to `1.x`; the owner merges.
-- [ ] **Step 3: Merge `main` into `v2` one last time** on a branch from `v2`, tooling paths only (design section 8, "Keeping `v2` current"); resolve every Swift path to deleted. CI green.
-- [ ] **Step 4: Open the cutover pull request `v2` to `main`** with the label `semver:major`. Title: "2.0.0: the library in Rust". Body: the gate evidence links, the size and resource tables, the list of `n/a` parity rows with reasons, the note that the Swift API is removed and where 1.x lives. In `calendar-connectors` the `release.yml` change of Step 5 is part of this pull request.
-- [ ] **Step 5: Release workflow on `main` after the merge.** The push to `main` releases `2.0.0` through the existing label logic. Confirm before merging that `next-version.sh` given the highest tag `1.x.y` and the label `semver:major` yields `2.0.0` even though `2.0.0-alpha.N` tags exist: add that exact case to `scripts/release/tests/test-next-version.sh` (prerelease tags are ignored when computing the next stable version). For `timetug-shared`, first point the connector dependency at `tag = "2.0.0"` with `bump-cargo-dependency.py 2.0.0` (after `calendar-connectors` 2.0.0 exists).
-- [ ] **Step 6: (owner) Merge `calendar-connectors`' cutover pull request.** Verify: tag `2.0.0` and a GitHub release exist; the `notify` dispatches were sent; `timetug` logged the skip notice and opened no pull request; `timetug-shared` (whose `main` is still Swift at this moment) logged the skip notice and opened no pull request.
-- [ ] **Step 7: (owner) Merge `timetug-shared`'s cutover pull request.** Verify: tag `2.0.0`; `TimeTug.Engine` `2.0.0` on nuget.org with one native file per architecture; `timetug` skips.
-- [ ] **Step 8: Protect and tidy.** Owner items: branch protection for `1.x`; delete `v2` after confirming `main` equals it; update required check names if Task 10 of phase 3 changed any.
+- [x] **Step 1: (owner) Keep the Swift line.** Create branch `1.x` from the current `main`: `git push origin origin/main:refs/heads/1.x`. Add to owner items.
+- [x] **Step 2: Release from `1.x`.** On a branch from `1.x`: change the `push` triggers of `release.yml` and `ci.yml` from `main` to `1.x`, and make `scripts/release/next-version.sh` consider only tags reachable from the branch being released (test first, in `scripts/release/tests/`: with tags `1.8.3` and `2.0.0` both present, a patch release from `1.x` is `1.8.4`). The `notify` job stays, so the Mac still receives bump pull requests for 1.x fixes. Pull request to `1.x`; the owner merges.
+- [x] **Step 3: Merge `main` into `v2` one last time** on a branch from `v2`, tooling paths only (design section 8, "Keeping `v2` current"); resolve every Swift path to deleted. CI green.
+- [x] **Step 4: Open the cutover pull request `v2` to `main`** with the label `semver:major`. Title: "2.0.0: the library in Rust". Body: the gate evidence links, the size and resource tables, the list of `n/a` parity rows with reasons, the note that the Swift API is removed and where 1.x lives. In `calendar-connectors` the `release.yml` change of Step 5 is part of this pull request.
+- [x] **Step 5: Release workflow on `main` after the merge.** The push to `main` releases `2.0.0` through the existing label logic. Confirm before merging that `next-version.sh` given the highest tag `1.x.y` and the label `semver:major` yields `2.0.0` even though `2.0.0-alpha.N` tags exist: add that exact case to `scripts/release/tests/test-next-version.sh` (prerelease tags are ignored when computing the next stable version). For `timetug-shared`, first point the connector dependency at `tag = "2.0.0"` with `bump-cargo-dependency.py 2.0.0` (after `calendar-connectors` 2.0.0 exists).
+- [x] **Step 6: (owner) Merge `calendar-connectors`' cutover pull request.** Verify: tag `2.0.0` and a GitHub release exist; the `notify` dispatches were sent; `timetug` logged the skip notice and opened no pull request; `timetug-shared` (whose `main` is still Swift at this moment) logged the skip notice and opened no pull request.
+- [x] **Step 7: (owner) Merge `timetug-shared`'s cutover pull request.** Verify: tag `2.0.0`; `TimeTug.Engine` `2.0.0` on nuget.org with one native file per architecture; `timetug` skips.
+- [x] **Step 8: Protect and tidy.** (2026-11-14: "Protect 1.x" exists; "Protect v2" is gone; the Rust checks on "Protect main" of calendar-connectors and deleting `v2` are open owner items in the tracker.) Owner items: branch protection for `1.x`; delete `v2` after confirming `main` equals it; update required check names if Task 10 of phase 3 changed any.
 
 ### Task 7: Windows app adopts 2.0.0
 
@@ -104,13 +104,13 @@ Preconditions, checked and recorded in the tracker with links: phase 3 gate met;
 - Modify: `Directory.Packages.props` (`TimeTug.Engine` to `2.0.0`), `docs/third-party.md`, `docs/parity.md` (a line under engine: "Rust engine from 2.0.0"), `docs/release.md` (version note)
 - Cherry-pick from the trial branch: `scripts/vm/vm-upgrade-check.*`, `scripts/vm/vm-measure.ps1`, the checklist section
 
-- [ ] **Step 1: Make the changes; close the trial draft pull request.**
-- [ ] **Step 2: Full verification**: `scripts/verify.ps1` (VM), self-test on both architectures, `run-a11y.ps1`, the upgrade check, the release dry run. All green.
-- [ ] **Step 3: Version.** The Windows app's next release is a major version; set it wherever `docs/release.md` says the version is set (read the "version" section; do not guess a file).
-- [ ] **Step 4: Pull request**; the owner merges and publishes the release or Store flight per `docs/release.md`.
+- [x] **Step 1: Make the changes; close the trial draft pull request.**
+- [x] **Step 2: Full verification** (2026-11-14: CI and the release dry run green on both architectures; on the VM the in-place upgrade and the self-test with CI artifacts, see the tracker; `verify.ps1` and `run-a11y.ps1` ran in CI, not on the VM): `scripts/verify.ps1` (VM), self-test on both architectures, `run-a11y.ps1`, the upgrade check, the release dry run. All green.
+- [x] **Step 3: Version.** The Windows app's next release is a major version; set it wherever `docs/release.md` says the version is set (read the "version" section; do not guess a file).
+- [x] **Step 4: Pull request**; the owner merges and publishes the release or Store flight per `docs/release.md`.
 
 ### Task 8: Phase close-out
 
-- [ ] **Step 1: Update `timetug`**: `docs/engine-protocol.md` ("The package" section: one native library per architecture, about N MB, Rust), `docs/architecture.md` (the libraries are Rust from 2.0.0; the Mac still pins 1.x until phase 6), `AGENTS.md` (Repositories: `1.x` branches serve the Mac), the `working-across-timetug-repos` skill (Swift changes go to `1.x`; Rust changes to `main`).
-- [ ] **Step 2: Update the tracker**: phase 4 `done` with the measured before-and-after table; Now to the first open item of phase 5 or 6.
-- [ ] **Step 3: Update the memory note** `windows-program` (the engine package is Rust from 2.0.0) through the session's memory directory.
+- [x] **Step 1: Update `timetug`**: `docs/engine-protocol.md` ("The package" section: one native library per architecture, about N MB, Rust), `docs/architecture.md` (the libraries are Rust from 2.0.0; the Mac still pins 1.x until phase 6), `AGENTS.md` (Repositories: `1.x` branches serve the Mac), the `working-across-timetug-repos` skill (Swift changes go to `1.x`; Rust changes to `main`).
+- [x] **Step 2: Update the tracker**: phase 4 `done` with the measured before-and-after table; Now to the first open item of phase 5 or 6.
+- [x] **Step 3: Update the memory note** `windows-program` (the engine package is Rust from 2.0.0) through the session's memory directory.

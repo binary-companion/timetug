@@ -1,6 +1,6 @@
 # The engine's C interface and message contract
 
-The Windows app (and any other non-Swift front end) runs the same `TimeTugEngine` as the Mac app through four C functions that exchange UTF-8 JSON. This page is the short guide; the design of record is `docs/superpowers/specs/2026-10-15-phase-4-engine-c-interface-design.md`. The code lives in `binary-companion/timetug-shared`.
+The Windows app (and any other non-Swift front end) runs the shared engine (Rust from `timetug-shared` 2.0.0; the Mac app still runs the Swift 1.x engine until it moves to `TimeTugKit`) through four C functions that exchange UTF-8 JSON. This page is the short guide; the design of record is `docs/superpowers/specs/2026-10-15-phase-4-engine-c-interface-design.md`. The code lives in `binary-companion/timetug-shared`.
 
 ## The ABI
 
@@ -35,10 +35,10 @@ For a host whose operating system has its own account service (Windows' Web Acco
 
 ## Tests that guard it
 
-- Swift: `swift test` in `timetug-shared` (protocol round trips, lifecycle and race tests, the ten JSON scenarios in `Conformance/Scenarios/` run through the real C functions).
+- Rust: `cargo test --workspace --locked` in `timetug-shared` (protocol round trips, lifecycle and race tests, the JSON scenarios run through the real C functions, the concurrency harness). The Swift tests of the same contract live on the `1.x` branch.
 - C: `c-smoke/` builds a C program against the header on macOS, Linux and Windows.
 - C#: `dotnet test dotnet/TimeTug.Engine.sln`, which deserializes the same golden fixtures and runs the same scenarios through P/Invoke against the real native library, on Windows x64 and ARM64 (and macOS and Linux).
 
 ## The package
 
-`TimeTug.Engine` on nuget.org, version equal to the `timetug-shared` tag: native assets for `win-x64` and `win-arm64` with the Swift runtime DLLs, the managed wrapper (`net8.0`), the header and the fixtures. About 27 MB compressed per architecture (`docs/spikes/2026-10-phase-4-package-size.md`). The `publish-nuget` job in `release.yml` pushes it with nuget.org trusted publishing and reports a notice instead of failing while the repository variable `NUGET_USER` is unset.
+`TimeTug.Engine` on nuget.org, version equal to the `timetug-shared` tag. From 2.0.0 (2026-11-14) the engine is Rust: one native library per architecture, `runtimes/win-x64/native/TimeTugEngineC.dll` (3,528,704 B, about 3.5 MB) and `runtimes/win-arm64/native/TimeTugEngineC.dll` (3,345,920 B, about 3.3 MB), with no Swift runtime and no Foundation DLLs, plus the managed wrapper (`net8.0`), the header, the fixtures and `THIRD-PARTY-NOTICES.md`; the 2.0.0 package is 3,359,139 B. The 1.x packages (Swift engine, from the `1.x` branch) carried 18 native files and about 27 MB compressed per architecture (`docs/spikes/2026-10-phase-4-package-size.md`). The C interface, the wire contract and the fixtures did not change at 2.0.0. The `publish-nuget` job in `release.yml` pushes the package with nuget.org trusted publishing and reports a notice instead of failing while the repository variable `NUGET_USER` is unset.
