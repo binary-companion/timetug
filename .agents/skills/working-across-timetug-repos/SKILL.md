@@ -12,6 +12,14 @@ Two libraries live outside `timetug` (public, released as plain `X.Y.Z` tags, wh
 
 `timetug` pins a released `X.Y.Z` of each in `Apps/macOS/project.yml` (`exactVersion`, keys `CalendarConnectors` and `TimeTugShared`); the local packages say `from:`.
 
+## Which branch: `1.x` (Swift) or `main` (Rust)
+
+Since the Rust cutover (both libraries released **2.0.0** on 2026-11-14, phase 4 of the Rust engine program), each library has two lines:
+
+- `main` is the Rust library (2.x). Rust changes go to `main`; a merge to `main` releases `2.Y.Z`. The Windows app takes `TimeTug.Engine` 2.x from nuget.org. In Rust the steps below read `cargo test --workspace --locked` for `swift test`.
+- `1.x` is the last Swift state. The Mac app still pins the Swift 1.x libraries until it moves to `TimeTugKit` (phase 6), so **a Swift change for the Mac goes to a pull request against `1.x`**, not `main`; a merge to `1.x` releases `1.Y.Z` from that branch (its own `release.yml` and `ci.yml` run on `1.x`) and its `notify` job opens the usual bump pull requests here. A Swift fix that changes behaviour also needs the same change in Rust on `main`, or the Mac loses it when it moves to the Rust engine.
+- A `calendar-connectors` 1.x release also dispatches to `timetug-shared`, whose default branch is now Rust: its bump workflow refuses the downgrade (a red run, no pull request). Ignore it; a Swift `timetug-shared` that needs the connector fix is bumped by hand on `1.x` (`scripts/ci/bump-resolved.py` in a pull request to `1.x`).
+
 ## Change the connector library
 
 1. Work in a checkout of `calendar-connectors`. Branch, change, `swift test`, `scripts/ci/check-architecture.sh`.
@@ -38,7 +46,7 @@ When `calendar-connectors` releases, its `notify` job dispatches to both `timetu
 
 `bump-pin.sh <library> X.Y.Z` always sets `exactVersion` for that library in `Apps/macOS/project.yml` and never touches the other library's pin. It raises the library's `from:` floors in `Packages/*/Package*.swift` only on a major bump; raise a floor by hand only when the code needs the new version, and keep every floor at most the pin and within one major (`scripts/ci/check-shared-pins.py`, which checks both libraries). `--at-least` makes it a no-op when the pin is already at or above the version.
 
-2.x releases of the libraries are skipped until phase 6 of the Rust program (see the tracker): `scripts/ci/bump-major-guard.sh` makes the workflow end with a notice and no pull request.
+2.x releases of the libraries are skipped here until phase 6 of the Rust program (see the tracker): `scripts/ci/bump-major-guard.sh` makes the workflow end with a notice and no pull request (seen for `calendar-connectors` 2.0.0 and `timetug-shared` 2.0.0 on 2026-11-14).
 
 ## When a bump does not arrive
 
