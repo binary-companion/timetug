@@ -420,3 +420,32 @@ private struct ProxyPresenter: AuthorizationPresenting {
     await session.close()
     #expect(presenter.dismissals == 0)
 }
+
+/// The Microsoft registration lists `http://localhost`, so its connector sends that host while the listener is on
+/// 127.0.0.1; the browser reaches the listener either way.
+private func authorizationURL(for session: any OAuthRedirectSession, redirectHost: String) -> URL {
+    var redirect = URLComponents(url: session.redirectURI, resolvingAgainstBaseURL: false)!
+    redirect.host = redirectHost
+    var parts = URLComponents(string: "https://accounts.example/auth")!
+    parts.queryItems = [URLQueryItem(name: "state", value: "xyz"),
+                        URLQueryItem(name: "redirect_uri", value: redirect.url!.absoluteString)]
+    return parts.url!
+}
+
+@Test func authorizeAcceptsALocalhostRedirectHost() async throws {
+    let session = try await interaction().beginOAuthRedirect()
+    let waiting = Task { try await session.authorize(at: authorizationURL(for: session, redirectHost: "localhost")) }
+    try await Task.sleep(for: .milliseconds(100))
+    _ = try await URLSession.shared.data(from: URL(string: session.redirectURI.absoluteString + "/?code=abc&state=xyz")!)
+    let received = try await waiting.value
+    #expect(URLComponents(url: received, resolvingAgainstBaseURL: false)?.queryItems?.first { $0.name == "code" }?.value == "abc")
+    await session.close()
+}
+
+@Test func authorizeRejectsAForeignRedirectHost() async throws {
+    let session = try await interaction().beginOAuthRedirect()
+    await #expect(throws: LoopbackError.listenerFailed("invalid authorization redirect")) {
+        try await session.authorize(at: authorizationURL(for: session, redirectHost: "evil.example"))
+    }
+    await session.close()
+}
