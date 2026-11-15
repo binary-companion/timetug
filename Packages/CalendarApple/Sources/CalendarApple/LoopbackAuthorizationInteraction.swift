@@ -1,9 +1,9 @@
-import CalendarCore
 import Foundation
 import Network
+import TimeTugKit
 
 public enum LoopbackError: Error, Equatable {
-    case couldNotOpenBrowser, timedOut, cancelled, credentialPromptUnavailable
+    case couldNotOpenBrowser, timedOut, credentialPromptUnavailable
     case listenerFailed(String)
     case alreadyWaiting
 }
@@ -20,9 +20,9 @@ public protocol AuthorizationPresenting: Sendable {
 }
 
 /// OAuth via a loopback redirect: listens on 127.0.0.1 (ephemeral port), hands the authorization URL to the
-/// host's `openURL` (TimeTug passes NSWorkspace) and returns the redirect it receives. Swap it for your own
-/// `AuthorizationInteraction` on other hosts.
-public struct LoopbackAuthorizationInteraction: AuthorizationInteraction {
+/// host's `openURL` (TimeTug passes NSWorkspace) and returns the redirect it receives. A user cancel is
+/// `HostError.Cancelled`; any other failure is a `LoopbackError`, which the engine receives as `HostError.Failed`.
+public final class LoopbackAuthorizationInteraction: TimeTugKit.AuthorizationInteraction, Sendable {
     public typealias OpenURL = @Sendable (URL) async -> Bool
     public typealias PromptCredentials = @Sendable ([CredentialField]) async throws -> [String: String]
 
@@ -44,12 +44,13 @@ public struct LoopbackAuthorizationInteraction: AuthorizationInteraction {
         self.requestTimeout = requestTimeout
     }
 
-    public func beginOAuthRedirect() async throws -> any OAuthRedirectSession {
-        try await LoopbackSession.start(openURL: openURL, presenter: presenter, completionScheme: completionScheme,
-                                        timeout: timeout, requestTimeout: requestTimeout)
+    public func beginOauthRedirect() async throws -> OAuthRedirectHandle {
+        let session = try await LoopbackSession.start(openURL: openURL, presenter: presenter, completionScheme: completionScheme,
+                                                      timeout: timeout, requestTimeout: requestTimeout)
+        return OAuthRedirectHandle(session: session)
     }
 
-    public func promptCredentials(_ fields: [CredentialField]) async throws -> [String: String] {
+    public func promptCredentials(fields: [CredentialField]) async throws -> [String: String] {
         guard let prompt else { throw LoopbackError.credentialPromptUnavailable }
         return try await prompt(fields)
     }
@@ -66,10 +67,10 @@ private final class Once: @unchecked Sendable {
     }
 }
 
-final class LoopbackSession: OAuthRedirectSession, @unchecked Sendable {
+final class LoopbackSession: TimeTugKit.OAuthRedirectSession, @unchecked Sendable {
     private var boundPort: UInt16 = 0
     private var waitClaimed = false
-    var redirectURI: URL {
+    func redirectUri() -> URL {
         lock.lock(); defer { lock.unlock() }
         return boundPort == 0 ? URL(string: "http://127.0.0.1")! : URL(string: "http://127.0.0.1:\(boundPort)")!
     }
@@ -139,7 +140,7 @@ final class LoopbackSession: OAuthRedirectSession, @unchecked Sendable {
                 case .failed(let error):
                     once.run { continuation.resume(throwing: LoopbackError.listenerFailed(String(describing: error))) }
                 case .cancelled:
-                    once.run { continuation.resume(throwing: LoopbackError.cancelled) }
+                    once.run { continuation.resume(throwing: HostError.Cancelled) }
                 default: break
                 }
             }
@@ -158,7 +159,7 @@ final class LoopbackSession: OAuthRedirectSession, @unchecked Sendable {
     /// and it ignores the port), so a connector may send either; the browser reaches the listener both ways.
     private static let loopbackHosts: Set<String> = ["127.0.0.1", "localhost"]
 
-    func authorize(at authorizationURL: URL) async throws -> URL {
+    func authorize(authorizationUrl authorizationURL: URL) async throws -> URL {
         guard let authorization = URLComponents(url: authorizationURL, resolvingAgainstBaseURL: false),
               let items = authorization.queryItems,
               items.filter({ $0.name == "state" }).count == 1,
@@ -196,7 +197,7 @@ final class LoopbackSession: OAuthRedirectSession, @unchecked Sendable {
                 // The presenter has already cleared its own state, so the active sheet may now be another flow's.
                 self?.presentationDidEnd()
                 // nil: the sheet reached the completion URL, so the redirect was (or is being) delivered.
-                if error != nil { self?.deliver(.failure(LoopbackError.cancelled)) }
+                if error != nil { self?.deliver(.failure(HostError.Cancelled)) }
             }
             if presented { presentationDidStart() }
             if !presented { setCompletionRedirect(nil) }
@@ -234,7 +235,8 @@ final class LoopbackSession: OAuthRedirectSession, @unchecked Sendable {
         return presentationLive
     }
 
-    func close() async {
+    /// Called once by the engine, also when the sign-in was cancelled; idempotent.
+    func release() async {
         if claimDismissal() { await presenter?.dismiss() }
         let active = lock.withLock { () -> [NWConnection] in
             closed = true
@@ -243,7 +245,7 @@ final class LoopbackSession: OAuthRedirectSession, @unchecked Sendable {
         }
         listener.cancel()
         for connection in active { connection.cancel() }
-        deliver(.failure(LoopbackError.cancelled))
+        deliver(.failure(HostError.Cancelled))
     }
 
     private func deliver(_ result: Result<URL, Error>) {
@@ -270,7 +272,7 @@ final class LoopbackSession: OAuthRedirectSession, @unchecked Sendable {
                 }
             }
         } onCancel: {
-            self.deliver(.failure(LoopbackError.cancelled))
+            self.deliver(.failure(HostError.Cancelled))
         }
     }
 

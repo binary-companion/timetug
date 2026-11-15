@@ -1,10 +1,10 @@
-import CalendarCore
 import Foundation
 import Security
+import TimeTugKit
 
 /// One instance is the app's credential authority. Actor isolation makes a conditional refresh-token
 /// write atomic with sign-in/removal in that instance; other processes must not write these items.
-public actor KeychainCredentialStore: CredentialStore {
+public actor KeychainCredentialStore: TimeTugKit.CredentialStore {
     public struct KeychainError: Error, Equatable { public let status: OSStatus }
 
     private struct StoredCredential: Codable {
@@ -23,7 +23,7 @@ public actor KeychainCredentialStore: CredentialStore {
         self.accessGroup = accessGroup
     }
 
-    private func query(_ connectionID: ConnectionID) -> [String: Any] {
+    private func query(_ connectionID: String) -> [String: Any] {
         var q: [String: Any] = [kSecClass as String: kSecClassGenericPassword, kSecAttrService as String: service,
                                 kSecAttrAccount as String: connectionID]
         if let accessGroup {
@@ -38,7 +38,7 @@ public actor KeychainCredentialStore: CredentialStore {
         return q
     }
 
-    private func read(_ connectionID: ConnectionID) throws -> (credential: StoredCredential, isLegacy: Bool)? {
+    private func read(_ connectionID: String) throws -> (credential: StoredCredential, isLegacy: Bool)? {
         var q = query(connectionID)
         q[kSecReturnData as String] = true
         q[kSecMatchLimit as String] = kSecMatchLimitOne
@@ -63,28 +63,28 @@ public actor KeychainCredentialStore: CredentialStore {
         guard status == errSecSuccess else { throw KeychainError(status: status) }
     }
 
-    public func secrets(for connectionID: ConnectionID) async throws -> [String: String]? {
+    public func secrets(connectionId connectionID: String) async throws -> [String: String]? {
         try read(connectionID)?.credential.secrets
     }
 
-    public func credentialSnapshot(for connectionID: ConnectionID) async throws -> CredentialSnapshot? {
+    public func credentialSnapshot(connectionId connectionID: String) async throws -> CredentialSnapshot? {
         guard let found = try read(connectionID) else { return nil }
         if found.isLegacy { try save(found.credential, for: connectionID) }
         return CredentialSnapshot(secrets: found.credential.secrets, revision: found.credential.revision)
     }
 
-    public func setSecrets(_ secrets: [String: String], for connectionID: ConnectionID) async throws {
+    public func setSecrets(secrets: [String: String], connectionId connectionID: String) async throws {
         try save(StoredCredential(secrets: secrets, revision: UUID()), for: connectionID)
     }
 
-    public func updateRefreshToken(_ token: String, for connectionID: ConnectionID, expectedRevision: UUID) async throws -> Bool {
+    public func updateRefreshToken(token: String, connectionId connectionID: String, expectedRevision: UUID) async throws -> Bool {
         guard var stored = try read(connectionID)?.credential, stored.revision == expectedRevision else { return false }
         stored.secrets["refresh_token"] = token
         try save(stored, for: connectionID)
         return true
     }
 
-    public func removeSecrets(for connectionID: ConnectionID) async throws {
+    public func removeSecrets(connectionId connectionID: String) async throws {
         let status = SecItemDelete(query(connectionID) as CFDictionary)
         guard status == errSecSuccess || status == errSecItemNotFound else { throw KeychainError(status: status) }
     }
