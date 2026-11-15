@@ -8,8 +8,9 @@ protocol EventStoreAuthorization: Sendable {
     func requestFullAccess() async throws -> Bool
 }
 
-/// The real thing: `EKEventStore`'s class-level status and its prompt.
-struct SystemEventStoreAuthorization: EventStoreAuthorization {
+/// The real thing: `EKEventStore`'s class-level status and its prompt. `EKEventStore` is documented as safe to use from
+/// any thread, but EventKit does not mark it `Sendable`.
+struct SystemEventStoreAuthorization: EventStoreAuthorization, @unchecked Sendable {
     let store: EKEventStore
     func status() -> EKAuthorizationStatus { EKEventStore.authorizationStatus(for: .event) }
     func requestFullAccess() async throws -> Bool { try await store.requestFullAccessToEvents() }
