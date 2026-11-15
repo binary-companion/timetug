@@ -1,34 +1,34 @@
 ---
 name: working-across-timetug-repos
-description: Use when a change spans a shared library and the Mac app, when the connector library (binary-companion/calendar-connectors) or Core and Bridge (binary-companion/timetug-shared) must change, when testing unreleased library code in the app, when a "Bump calendar-connectors" pull request appears, or when a library release did not produce a bump pull request.
+description: Use when a change spans a shared library and the Mac app, when the connector library (binary-companion/calendar-connectors) or the engine (binary-companion/timetug-shared, Rust, with the Swift package TimeTugKit) must change, when testing unreleased library code in the app, when a "Bump calendar-connectors" pull request appears, or when a library release did not produce a bump pull request.
 ---
 
 # Working across the TimeTug repositories
 
 Two libraries live outside `timetug` (public, released as plain `X.Y.Z` tags, which are immutable and created only by each library's own Release workflow):
 
-- `binary-companion/calendar-connectors` (MIT): the connector library.
-- `binary-companion/timetug-shared` (MIT plus the Commons Clause): `TimeTugCore` and `CalendarBridge`, with their tests and the dedup benchmark. It depends on `calendar-connectors` by range and commits `Package.resolved`; its CI runs on macOS, Linux, Windows x64 and Windows ARM64.
+- `binary-companion/calendar-connectors` (MIT): the connector library (Rust).
+- `binary-companion/timetug-shared` (MIT plus the Commons Clause): the Rust engine, its tests and the dedup benchmark, the C interface and the generated Swift package `TimeTugKit` with its prebuilt `TimeTugEngineFFI.xcframework`. It depends on `calendar-connectors` by range and commits `Cargo.lock`; its CI runs on macOS, Linux, Windows x64 and Windows ARM64.
 
-`timetug` pins a released `X.Y.Z` of each in `Apps/macOS/project.yml` (`exactVersion`, keys `CalendarConnectors` and `TimeTugShared`); the local packages say `from:`.
+`timetug` pins a released `X.Y.Z` of `timetug-shared` only, in `Apps/macOS/project.yml` (`exactVersion`, key `TimeTugShared`, product `TimeTugKit`; the connectors come inside it); the local packages say `from:`. The Mac builds with no Rust toolchain: the XCFramework is prebuilt. Rust is needed only in a library checkout.
 
 ## Which branch: `1.x` (Swift) or `main` (Rust)
 
 Since the Rust cutover (both libraries released **2.0.0** on 2026-11-14, phase 4 of the Rust engine program), each library has two lines:
 
 - `main` is the Rust library (2.x). Rust changes go to `main`; a merge to `main` releases `2.Y.Z`. The Windows app takes `TimeTug.Engine` 2.x from nuget.org. In Rust the steps below read `cargo test --workspace --locked` for `swift test`.
-- `1.x` is the last Swift state. The Mac app still pins the Swift 1.x libraries until it moves to `TimeTugKit` (phase 6), so **a Swift change for the Mac goes to a pull request against `1.x`**, not `main`; a merge to `1.x` releases `1.Y.Z` from that branch (its own `release.yml` and `ci.yml` run on `1.x`) and its `notify` job opens the usual bump pull requests here. A Swift fix that changes behaviour also needs the same change in Rust on `main`, or the Mac loses it when it moves to the Rust engine.
+- `1.x` is the last Swift state. The Mac app moved to `TimeTugKit` 2.x in phase 6 (ADR 0023) and no longer uses it, so **a change for the Mac goes to `main` in Rust**, never to `1.x`. The `1.x` branches stay for history and for old Mac builds only. Before the cutover release ships, a Swift fix for the last Swift Mac release can still go to a pull request against `1.x` (and needs the same change in Rust on `main`).
 - A `calendar-connectors` 1.x release also dispatches to `timetug-shared`, whose default branch is now Rust: its bump workflow refuses the downgrade (a red run, no pull request). Ignore it; a Swift `timetug-shared` that needs the connector fix is bumped by hand on `1.x` (`scripts/ci/bump-resolved.py` in a pull request to `1.x`).
 
 ## Change the connector library
 
-1. Work in a checkout of `calendar-connectors`. Branch, change, `swift test`, `scripts/ci/check-architecture.sh`.
+1. Work in a checkout of `calendar-connectors`. Branch, change, `cargo test --workspace --locked`, and the checks in that repository's `AGENTS.md`.
 2. To try the change in the app before it is released: in `timetug`, run `scripts/dev/use-local-library.sh timetug-shared <path to a checkout named timetug-shared>` (since phase 6 `calendar-connectors` is refused: the connectors come inside `timetug-shared`, and the checkout needs `build/TimeTugEngineFFI.xcframework`, which the script builds when missing), build and test, then `scripts/dev/use-local-library.sh --restore` (it is hash-guarded; `--force` discards edits made during the override). `scripts/ci/check-shared-pins.py` fails while the override is in place, so it cannot be committed. One override at a time.
 3. Open the library pull request with one label: `semver:major` (breaks `docs/api.md`), `semver:minor` (new API) or `semver:patch` (the default). The labels of every pull request since the latest tag are considered. The owner merges.
 
 ## A change in Core or Bridge
 
-1. Work in a checkout of `timetug-shared`. Branch, write the failing test first, change, `swift test`, `scripts/ci/check-architecture.sh`. Core never reads the clock (`now: Date` is passed in) and imports only Foundation and `CalendarCore`.
+1. Work in a checkout of `timetug-shared`. Branch, write the failing test first, change, `cargo test --workspace --locked`, and the repository's architecture and crate checks. The core never reads the clock (the host's clock and `now` are passed in). A new binding surface item needs its Swift shim test (`docs/bindings.md`).
 2. To try the change in the app before it is released: in `timetug`, run `scripts/dev/use-local-library.sh timetug-shared <path to a checkout named timetug-shared>`, build and test (`xcodegen generate`, then the app tests), then `scripts/dev/use-local-library.sh --restore`. Same guards and refusal rules as above; never commit the result.
 3. Open the `timetug-shared` pull request with one `semver:*` label as above. CI there must pass on all four platforms. The owner merges; the merge releases `X.Y.Z` automatically.
 4. A bump pull request in `timetug` ("Bump timetug-shared to X.Y.Z") moves the `TimeTugShared` pin (since phase 6 the only library pin). `.github/workflows/bump-dependencies.yml` runs `bump-pin.sh timetug-shared X.Y.Z`. A `timetug-shared` release triggers it on its own: the release workflow's `notify` job dispatches `library-released` (`library` `timetug-shared`) to `timetug`. The chain was proven by a drill on 2026-10-15. If the dispatch did not arrive, start the workflow by hand (`gh workflow run "Bump dependencies" --repo binary-companion/timetug -f library=timetug-shared -f version=X.Y.Z`), or make the same change in an ordinary pull request with the two `bump-pin.sh` commands.
@@ -59,6 +59,6 @@ When `calendar-connectors` releases, its `notify` job dispatches to both `timetu
 
 - Never tag or release a library by hand.
 - Never edit `exactVersion` by hand; only `scripts/ci/bump-pin.sh timetug-shared <X.Y.Z>` moves it. Raise a `from:` floor by hand only when the code needs the new version.
-- Platform adapters (`CalendarApple`, `EventKitSource`, `AppleIntelligenceInference`) stay in `timetug`; they implement the libraries' seams.
-- The library's iCloud smoke test runs from a library checkout; the Google and Microsoft smoke tests run from timetug's `Packages/CalendarApple` (see `running-live-calendar-tests`).
+- Platform adapters (`CalendarApple`, `EventKitSource`, `AppleIntelligenceInference`, `Sources/EngineAdapters`) stay in `timetug`; they implement the interfaces the engine generates (UniFFI). No Rust is written in `timetug`.
+- The connectors' live smoke tests (Google, Microsoft, iCloud) run from a `calendar-connectors` checkout with `cargo test ... -- --ignored`; the Apple Calendar one runs from timetug's `Packages/EventKitSource` (see `running-live-calendar-tests`).
 - The agent never merges or publishes. The owner merges library and bump pull requests and publishes Mac releases.

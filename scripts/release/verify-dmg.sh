@@ -50,6 +50,9 @@ is_applications_link() { [ -L "$mnt/Applications" ] && [ "$(readlink "$mnt/Appli
 has_background() { compgen -G "$mnt/.background.*" >/dev/null || compgen -G "$mnt/.background/*" >/dev/null; }
 
 check "TimeTug.app/Contents/MacOS/TimeTug is executable" test -x "$mnt/TimeTug.app/Contents/MacOS/TimeTug"
+for notice in TimeTugEngine-THIRD-PARTY-NOTICES.md TimeTugEngine-LICENSE KeyboardShortcuts-LICENSE; do
+  check "licence notice $notice is in the app" test -s "$mnt/TimeTug.app/Contents/Resources/Licenses/$notice"
+done
 check "TimeTugWidgets.appex is embedded" test -d "$mnt/TimeTug.app/Contents/PlugIns/TimeTugWidgets.appex"
 # shellcheck disable=SC2329
 is_sandboxed() { codesign -d --entitlements - "$mnt/TimeTug.app" 2>/dev/null | grep -q "com.apple.security.app-sandbox"; }

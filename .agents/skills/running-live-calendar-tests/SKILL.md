@@ -12,9 +12,9 @@ Live write tests are opt-in, touch the user's real calendars and never run in CI
 | Apple Calendar (EventKit) | `TIMETUG_LIVE_EVENTKIT=1 swift test --package-path Packages/EventKitSource --filter eventKit` |
 | Google | `TIMETUG_LIVE_GOOGLE=1 GOOGLE_OAUTH_CLIENT_ID=... GOOGLE_OAUTH_CLIENT_SECRET=... cargo test -p calendar-google live_write_smoke -- --ignored --nocapture` (run in a checkout of `binary-companion/calendar-connectors`, `main`) |
 | Microsoft | `TIMETUG_LIVE_MICROSOFT=1 MICROSOFT_OAUTH_CLIENT_ID=... cargo test -p calendar-microsoft live_write_smoke -- --ignored --nocapture` (same checkout) |
-| iCloud | `TIMETUG_LIVE_ICLOUD=1 swift test --filter iCloudLiveSmoke` (run in a checkout of `binary-companion/calendar-connectors`) |
+| iCloud | `TIMETUG_LIVE_ICLOUD=1 cargo test -p calendar-caldav -- --ignored i_cloud_live_smoke` (run in a checkout of `binary-companion/calendar-connectors`, `main`; the library test stops where a host HTTP transport is needed) |
 
-- EventKit: every live test id starts with `eventKit`, so `--filter Live` matches nothing. xctest may lack calendar permission. If so, run the tests from a bundled context.
+- EventKit (the only Swift one: the adapter stays in this repository and implements the engine's system-calendar interface): every live test id starts with `eventKit`, so `--filter Live` matches nothing. xctest may lack calendar permission. If so, run the tests from a bundled context.
 - Google and Microsoft are Rust tests in the library (`crates/*/src/tests/live_write_smoke.rs`, `#[ignore]`d, and they do nothing without the `TIMETUG_LIVE_*=1` switch); they use the system `curl` for HTTP, so the app's HTTP code is not exercised. Put the Rust toolchain of the repository's `rust-toolchain.toml` first on `PATH`.
 - Google and Microsoft write attendee-free events named "TimeTug write smoke" to the primary calendar and then delete them. Google's events scope cannot create calendars, so the primary calendar is used.
 - The client ids come from the user's OAuth xcconfigs (see the `configuring-local-app-builds` skill). Have the user export them in their own shell, or read the values from those files into the environment. Never echo them or paste them into chat, logs or commit messages.

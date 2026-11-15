@@ -120,6 +120,12 @@ jobs:
           test ! -e "$app/Contents/Frameworks/Sparkle.framework"
           if /usr/libexec/PlistBuddy -c "Print :SUFeedURL" "$app/Contents/Info.plist" 2>/dev/null; then echo "SUFeedURL in the App Store build"; exit 1; fi
           test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$app/Contents/Info.plist")" = com.timetug.app.store
+      - name: The App Store build carries the licence notices
+        run: |
+          dir=build/DerivedData-store/Build/Products/Debug/TimeTug-AppStore.app/Contents/Resources/Licenses
+          for f in TimeTugEngine-THIRD-PARTY-NOTICES.md TimeTugEngine-LICENSE KeyboardShortcuts-LICENSE; do
+            test -s "$dir/$f" || { echo "missing or empty: $dir/$f"; exit 1; }
+          done
 
   dmg:
     runs-on: macos-26

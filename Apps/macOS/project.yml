@@ -68,10 +68,22 @@ targetTemplates:
         com.apple.security.app-sandbox: true
         com.apple.security.network.client: true
         com.apple.security.network.server: true
+    # Licence notices of the linked engine and KeyboardShortcuts go to Contents/Resources/Licenses; the build fails when
+    # a source is absent (Rust phase 6 Task 9). The script reads the SwiftPM folder outside the target's inputs, so the
+    # user-script sandbox is off for these targets; it runs on every build (cheap, and the inputs are not declarable).
+    postBuildScripts:
+      - name: Copy licence notices
+        script: '"$SRCROOT/../../scripts/ci/copy-licence-notices.sh"'
+        basedOnDependencyAnalysis: false
+        outputFiles:
+          - $(TARGET_BUILD_DIR)/$(UNLOCALIZED_RESOURCES_FOLDER_PATH)/Licenses/TimeTugEngine-THIRD-PARTY-NOTICES.md
+          - $(TARGET_BUILD_DIR)/$(UNLOCALIZED_RESOURCES_FOLDER_PATH)/Licenses/TimeTugEngine-LICENSE
+          - $(TARGET_BUILD_DIR)/$(UNLOCALIZED_RESOURCES_FOLDER_PATH)/Licenses/KeyboardShortcuts-LICENSE
     settings:
       base:
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         PRODUCT_NAME: TimeTug
+        ENABLE_USER_SCRIPT_SANDBOXING: NO
   TimeTugWidgetsBase:
     type: app-extension
     platform: macOS
