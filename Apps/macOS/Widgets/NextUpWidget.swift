@@ -1,6 +1,4 @@
-import CalendarCore
 import SwiftUI
-import TimeTugCore
 import WidgetKit
 
 struct NextUpWidget: Widget {

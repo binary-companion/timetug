@@ -1,4 +1,3 @@
-import TimeTugCore
 import WidgetKit
 
 struct AgendaEntry: TimelineEntry {

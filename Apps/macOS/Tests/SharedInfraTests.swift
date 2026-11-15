@@ -1,4 +1,3 @@
-import TimeTugCore
 import XCTest
 @testable import TimeTug
 
