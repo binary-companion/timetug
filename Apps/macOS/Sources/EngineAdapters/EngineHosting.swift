@@ -17,6 +17,15 @@ protocol EngineHosting: AnyObject, Sendable {
 
 extension ObservedEngine: EngineHosting {}
 
+extension EngineHosting {
+    /// The first state the engine publishes (revision above 0), which carries the settings and accounts loaded from
+    /// storage. `start()` can return before it arrives; until then `currentState()` is the empty placeholder.
+    func firstPublishedState() async -> EngineState {
+        for await state in states where state.revision > 0 { return state }
+        return currentState()   // the stream ended (shut down) before a state was published
+    }
+}
+
 extension EngineState {
     /// The state before the engine's first publication (revision 0): nothing known about this Mac yet.
     static let empty = EngineState(

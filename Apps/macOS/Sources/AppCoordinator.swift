@@ -195,7 +195,14 @@ final class AppCoordinator {
         // Loads the ledger and dedup state, requests Apple Calendar access if enabled, builds the sources and
         // refreshes once.
         await engine.start()
-        if engine.currentState().settings.takeover.takeoverCalendarKeys.isEmpty { openSettings(pane: .calendars) }
+        if await Self.opensCalendarsOnLaunch(engine) { openSettings(pane: .calendars) }
+    }
+
+    /// Whether launch opens the Calendars pane: only when no calendar is chosen for takeovers.
+    /// Decided on the engine's first published state: `start()` can return before it arrives, and the placeholder
+    /// before it has no selection even for a user who has one.
+    static func opensCalendarsOnLaunch(_ engine: any EngineHosting) async -> Bool {
+        await engine.firstPublishedState().settings.takeover.takeoverCalendarKeys.isEmpty
     }
 
     /// Hosting controller that reports its content size so the popover is exactly as tall as the popup.

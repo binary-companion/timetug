@@ -39,10 +39,10 @@ All paths are in `binary-companion/timetug` (this repository) unless a task says
 **Files:**
 - Create: `docs/rust-port/mac-migration-map.md` (in this repository)
 
-- [ ] **Step 1: List every use.** For each of the 88 files that import a shared library module (`grep -rlE '^import (TimeTugEngine|TimeTugCore|CalendarBridge|CalendarCore|GoogleCalendar|MicrosoftCalendar|CalDAVCalendar|ICalSubscription|ICalendar|CalendarOAuth)' --include='*.swift' Apps Packages`), record the library symbols it uses (build the app once, then use Serena `find_referencing_symbols`, or grep the type names from `docs/bindings-surface.txt`).
-- [ ] **Step 2: Classify each symbol** against `docs/bindings.md` of the pinned `timetug-shared`: same name in `TimeTugKit`; renamed (old to new); provided by a shim; replaced by config; not exposed and unused after the change; **missing**.
-- [ ] **Step 3: Close every "missing"** before any code change here: each becomes a `timetug-shared` pull request (a mirror, a shim or an exposed function) and a release. Record the `TimeTugKit` version that has them all in the map.
-- [ ] **Step 4: Write the map**: one table row per file with its symbols, class and the task below that changes it. Commit; pull request.
+- [x] **Step 1: List every use.** For each of the 88 files that import a shared library module (`grep -rlE '^import (TimeTugEngine|TimeTugCore|CalendarBridge|CalendarCore|GoogleCalendar|MicrosoftCalendar|CalDAVCalendar|ICalSubscription|ICalendar|CalendarOAuth)' --include='*.swift' Apps Packages`), record the library symbols it uses (build the app once, then use Serena `find_referencing_symbols`, or grep the type names from `docs/bindings-surface.txt`).
+- [x] **Step 2: Classify each symbol** against `docs/bindings.md` of the pinned `timetug-shared`: same name in `TimeTugKit`; renamed (old to new); provided by a shim; replaced by config; not exposed and unused after the change; **missing**.
+- [x] **Step 3: Close every "missing"** before any code change here: each becomes a `timetug-shared` pull request (a mirror, a shim or an exposed function) and a release. Record the `TimeTugKit` version that has them all in the map.
+- [x] **Step 4: Write the map**: one table row per file with its symbols, class and the task below that changes it. Commit; pull request.
 
 ### Task 2: Pins, scripts and the package reference
 
@@ -57,11 +57,11 @@ All paths are in `binary-companion/timetug` (this repository) unless a task says
 - `bump-major-guard.sh` now skips only a major greater than **2** (so 2.x flows and a future 3.0.0 is still held).
 - `use-local-library.sh timetug-shared <path>` points the package at a local checkout whose `build/TimeTugEngineFFI.xcframework` exists (it runs `<path>/scripts/dev/build-xcframework.sh` if not).
 
-- [ ] **Step 1: Tests first** for each script change (extend the existing shell and Python tests; one case per bullet above).
-- [ ] **Step 2: Change the scripts and the workflow.**
-- [ ] **Step 3: Move the pin**: `scripts/ci/bump-pin.sh timetug-shared <the version from Task 1>`; edit package product names in `project.yml` and the three `Package.swift` files (`.product(name: "TimeTugKit", package: "timetug-shared")`).
-- [ ] **Step 4:** `xcodegen generate --spec Apps/macOS/project.yml`; `swift package resolve` in each local package. Expected: resolution succeeds; compilation fails on the old imports (fixed by the next tasks).
-- [ ] **Step 5: Commit** on the phase branch `feature/rust-engine` (one long-lived branch for Tasks 2 to 8; a single pull request at the end, because the app does not build in between).
+- [x] **Step 1: Tests first** for each script change (extend the existing shell and Python tests; one case per bullet above).
+- [x] **Step 2: Change the scripts and the workflow.**
+- [x] **Step 3: Move the pin**: `scripts/ci/bump-pin.sh timetug-shared <the version from Task 1>`; edit package product names in `project.yml` and the three `Package.swift` files (`.product(name: "TimeTugKit", package: "timetug-shared")`).
+- [x] **Step 4:** `xcodegen generate --spec Apps/macOS/project.yml`; `swift package resolve` in each local package. Expected: resolution succeeds; compilation fails on the old imports (fixed by the next tasks).
+- [x] **Step 5: Commit** on the phase branch `feature/rust-engine` (one long-lived branch for Tasks 2 to 8; a single pull request at the end, because the app does not build in between).
 
 ### Task 3: `Packages/CalendarApple`
 
@@ -75,11 +75,11 @@ All paths are in `binary-companion/timetug` (this repository) unless a task says
 | new `URLSessionHTTPTransport.swift` | the host's HTTP: a port of the library's former `URLSessionTransport` (ephemeral session, no cache, `reloadIgnoringLocalCacheData`, **does not follow redirects**, cancellation mapped to `HostError.cancelled`, other `URLError`s to `HostError.network`), plus the feed session settings from the former `ICalSubscriptionKind.feedSessionConfiguration`; obligations listed in `calendar-connectors` `docs/host-http-contract.md` |
 | new `URLSessionHTTPTransportTests.swift` | the former `TransportCacheTests` and `TransportRedirectTests` from `calendar-connectors` 1.x, ported against the new type with `URLProtocol` stubs |
 
-- [ ] **Step 1: Port the two transport test files first** (from the `1.x` branch of `calendar-connectors`), expect failure, then write `URLSessionHTTPTransport`.
-- [ ] **Step 2: Change the three adapters**; keep their tests, changing only type names.
-- [ ] **Step 3: Thread-safety.** Each adapter is `Sendable`; the loopback interaction's listener state is guarded as today. No method blocks the calling thread on the main actor.
-- [ ] **Step 4:** `swift test --package-path Packages/CalendarApple`. Expected: PASS.
-- [ ] **Step 5: Commit.**
+- [x] **Step 1: Port the two transport test files first** (from the `1.x` branch of `calendar-connectors`), expect failure, then write `URLSessionHTTPTransport`.
+- [x] **Step 2: Change the three adapters**; keep their tests, changing only type names.
+- [x] **Step 3: Thread-safety.** Each adapter is `Sendable`; the loopback interaction's listener state is guarded as today. No method blocks the calling thread on the main actor.
+- [x] **Step 4:** `swift test --package-path Packages/CalendarApple`. Expected: PASS.
+- [x] **Step 5: Commit.**
 
 ### Task 4: `Packages/EventKitSource` and `Packages/AppleIntelligenceInference`
 
@@ -92,15 +92,15 @@ All paths are in `binary-companion/timetug` (this repository) unless a task says
 | `EventKitConnectorKind.swift` | deleted if it only existed to register the kind (the engine config's `systemCalendar: true` replaces it); if it carries display metadata the app uses, keep that part as a plain struct |
 | tests | type names only; `EventKitConnectorKindTests` follows the file above |
 
-- [ ] **Step 1:** Change mapping tests' type names; they must pass unchanged in meaning (`EventKitMappingTests`, `EventKitWriteMappingTests`, `EventKitWriteTests`).
-- [ ] **Step 2:** Add tests for `requestAccess` (granted, denied, already granted, using the existing EventKit fakes or protocol seam in the package) and for `setChangeHandler` (a store-changed notification calls the handler once).
-- [ ] **Step 3:** `EKEventStore` use stays on the queue or actor it uses today; the async interface methods hop there.
-- [ ] **Step 4:** `swift test --package-path Packages/EventKitSource`. PASS.
+- [x] **Step 1:** Change mapping tests' type names; they must pass unchanged in meaning (`EventKitMappingTests`, `EventKitWriteMappingTests`, `EventKitWriteTests`).
+- [x] **Step 2:** Add tests for `requestAccess` (granted, denied, already granted, using the existing EventKit fakes or protocol seam in the package) and for `setChangeHandler` (a store-changed notification calls the handler once).
+- [x] **Step 3:** `EKEventStore` use stays on the queue or actor it uses today; the async interface methods hop there.
+- [x] **Step 4:** `swift test --package-path Packages/EventKitSource`. PASS.
 
 **AppleIntelligenceInference:**
 
-- [ ] **Step 5:** `AppleTextGenerator` conforms to `TimeTugKit.TextGenerator`; `AppleIntelligence.swift` keeps the compile guard for macOS 26. Tests: type names only. `swift test --package-path Packages/AppleIntelligenceInference`. PASS.
-- [ ] **Step 6: Commit.**
+- [x] **Step 5:** `AppleTextGenerator` conforms to `TimeTugKit.TextGenerator`; `AppleIntelligence.swift` keeps the compile guard for macOS 26. Tests: type names only. `swift test --package-path Packages/AppleIntelligenceInference`. PASS.
+- [x] **Step 6: Commit.**
 
 ### Task 5: The engine host in the app
 
@@ -115,53 +115,53 @@ All paths are in `binary-companion/timetug` (this repository) unless a task says
 - `applySettings` call sites use the shim `engine.applySettings { ... }`.
 - Diagnostics: `OSLogEngineDiagnostics` and `OSLogDiagnosticLog` conform to `TimeTugKit.DiagnosticSink`; the redaction they do today stays.
 
-- [ ] **Step 1: Tests first**: update `AppConnectorsTests`, `EngineCommandQueueTests`, `EngineModelMirrorTests`, `UserDefaultsSettingsStorageTests`, `OSLogEngineDiagnosticsTests`, `AppDiagnosticsTests`, `AppCredentialsTests`, `CredentialPrompterTests` to the new types; add the time-zone test (a posted `NSSystemTimeZoneDidChange` results in `setTimeZone` then `.system(.timeZoneChanged)`, in that order, against a fake engine protocol the coordinator depends on; introduce that small protocol if the coordinator holds the concrete `Engine` today).
-- [ ] **Step 2: Change the sources** file by file per the migration map.
-- [ ] **Step 3: Build** the direct target: `xcodegen generate --spec Apps/macOS/project.yml` then the app build command from `docs/development.md`. Expected: remaining errors are only in view and model files (Task 6).
-- [ ] **Step 4: Commit.**
+- [x] **Step 1: Tests first**: update `AppConnectorsTests`, `EngineCommandQueueTests`, `EngineModelMirrorTests`, `UserDefaultsSettingsStorageTests`, `OSLogEngineDiagnosticsTests`, `AppDiagnosticsTests`, `AppCredentialsTests`, `CredentialPrompterTests` to the new types; add the time-zone test (a posted `NSSystemTimeZoneDidChange` results in `setTimeZone` then `.system(.timeZoneChanged)`, in that order, against a fake engine protocol the coordinator depends on; introduce that small protocol if the coordinator holds the concrete `Engine` today).
+- [x] **Step 2: Change the sources** file by file per the migration map.
+- [x] **Step 3: Build** the direct target: `xcodegen generate --spec Apps/macOS/project.yml` then the app build command from `docs/development.md`. Expected: remaining errors are only in view and model files (Task 6).
+- [x] **Step 4: Commit.**
 
 ### Task 6: Views, models and helpers
 
 The remaining importing files (accounts UI, calendars pane, overlay, popup, menu bar state, merge badge, settings, formatting, search): `AccountNoticeText`, `AccountStatusText`, `AccountsController`, `AccountsListBox`, `AccountsListModel`, `AccountsPane`, `AppModel`, `CalendarGrouping`, `CalendarSections`, `CalendarsPane`, `CredentialSheet`, `DropdownView`, `InferenceAvailability`, `InferenceStatusText`, `MenuBarIconState`, `MergeBadge`, `OverlayController`, `OverlayView`, `PopupRowModel`, `SafeJoin`, `SettingsSearch`, `SettingsStore`, `TimeFormatting`, and their tests.
 
-- [ ] **Step 1: Replace imports** with `import TimeTugKit` and apply the renames of the migration map. No logic changes. Where a file used a pure library function that is "not exposed" (for example `ConferenceDetector`, `JoinURLPolicy` in `SafeJoin.swift`, `DuplicateRules` helpers), the map's Task 1 decision applies: either `TimeTugKit` exposes it (preferred when the function embodies a rule, so the rule stays in one place) or the view uses a value the engine state already carries.
-- [ ] **Step 2: Build both targets.** Expected: no errors, no new warnings.
-- [ ] **Step 3: Run the app tests** (`scripts/dev/verify.sh app`). Expected: PASS, with the same test count as before the branch minus the deleted `CryptoKitSHA256Tests` and connector-kind tests; record both counts.
-- [ ] **Step 4: Commit.**
+- [x] **Step 1: Replace imports** with `import TimeTugKit` and apply the renames of the migration map. No logic changes. Where a file used a pure library function that is "not exposed" (for example `ConferenceDetector`, `JoinURLPolicy` in `SafeJoin.swift`, `DuplicateRules` helpers), the map's Task 1 decision applies: either `TimeTugKit` exposes it (preferred when the function embodies a rule, so the rule stays in one place) or the view uses a value the engine state already carries.
+- [x] **Step 2: Build both targets.** Expected: no errors, no new warnings.
+- [x] **Step 3: Run the app tests** (`scripts/dev/verify.sh app`). Expected: PASS, with the same test count as before the branch minus the deleted `CryptoKitSHA256Tests` and connector-kind tests; record both counts.
+- [x] **Step 4: Commit.**
 
 ### Task 7: Widgets
 
 **Files:** `Apps/macOS/Shared/WidgetSnapshotStore.swift`, `Apps/macOS/Widgets/AgendaProvider.swift`, `NextUpWidget.swift`, `TodayWidget.swift`; new `Apps/macOS/Shared/WidgetSnapshotModel.swift`, `Apps/macOS/Shared/WidgetTimeline.swift`; new tests `Apps/macOS/Tests/WidgetSnapshotModelTests.swift`, `WidgetTimelineTests.swift`; `Apps/macOS/project.yml` (the widget target drops the package dependency).
 
-- [ ] **Step 1: Port the tests first**: `WidgetTimelineTests` (14) and the decoding parts of `WidgetSnapshotTests` from `timetug-shared` `1.x` (`Tests/TimeTugCoreTests`) into the app's test target against app-owned types.
-- [ ] **Step 2: Create `WidgetSnapshotModel.swift`**: `WidgetSnapshot` and `WidgetEvent` as plain `Codable` Swift structs with the same property names and the same date coding as the file on disk today (`agenda-snapshot.json`); `isStale(now:)` copied.
-- [ ] **Step 3: Create `WidgetTimeline.swift`**: a copy of `TimeTugCore/Widget/WidgetTimeline.swift` from `1.x` (60 lines), using the app-owned types.
-- [ ] **Step 4: The app writes the snapshot** by converting `TimeTugKit.WidgetSnapshot` (from the `widgetSnapshot` event) to the app-owned struct in `WidgetSnapshotStore`. Add a test: a `TimeTugKit` snapshot converted and encoded equals a JSON string captured from the last Swift release's encoder for the same content (put the capture snippet in the test comment).
-- [ ] **Step 5: Compatibility both ways**: a test decodes a snapshot file written by the last Swift release (commit a small fixture `Apps/macOS/Tests/Fixtures/agenda-snapshot-2.x.json` with invented content).
-- [ ] **Step 6: Build the widget extension**; confirm with `otool -L` and the link map that it links no `TimeTugEngineFFI`. Record the extension's binary size before and after.
-- [ ] **Step 7: Commit.**
+- [x] **Step 1: Port the tests first**: `WidgetTimelineTests` (14) and the decoding parts of `WidgetSnapshotTests` from `timetug-shared` `1.x` (`Tests/TimeTugCoreTests`) into the app's test target against app-owned types.
+- [x] **Step 2: Create `WidgetSnapshotModel.swift`**: `WidgetSnapshot` and `WidgetEvent` as plain `Codable` Swift structs with the same property names and the same date coding as the file on disk today (`agenda-snapshot.json`); `isStale(now:)` copied.
+- [x] **Step 3: Create `WidgetTimeline.swift`**: a copy of `TimeTugCore/Widget/WidgetTimeline.swift` from `1.x` (60 lines), using the app-owned types.
+- [x] **Step 4: The app writes the snapshot** by converting `TimeTugKit.WidgetSnapshot` (from the `widgetSnapshot` event) to the app-owned struct in `WidgetSnapshotStore`. Add a test: a `TimeTugKit` snapshot converted and encoded equals a JSON string captured from the last Swift release's encoder for the same content (put the capture snippet in the test comment).
+- [x] **Step 5: Compatibility both ways**: a test decodes a snapshot file written by the last Swift release (commit a small fixture `Apps/macOS/Tests/Fixtures/agenda-snapshot-2.x.json` with invented content).
+- [x] **Step 6: Build the widget extension**; confirm with `otool -L` and the link map that it links no `TimeTugEngineFFI`. Record the extension's binary size before and after.
+- [x] **Step 7: Commit.**
 
 ### Task 8: Upgrade in place
 
 **Files:** new `Apps/macOS/Tests/UpgradeFromSwiftEngineTests.swift`, fixtures under `Apps/macOS/Tests/Fixtures/legacy-data/`.
 
-- [ ] **Step 1: Build the fixture directory** from library fixtures (`timetug-shared` `fixtures/engine/*`, `calendar-connectors` `fixtures/persisted-formats/1.2.0/*`) under the file names the Mac app's data directory uses (list the real names from a development build's App Group container; file names only, never contents from a real container).
-- [ ] **Step 2: Write the test**: copy the fixture to a temp directory; create the engine through the app's own factory with in-memory credential store, fake transport and no system calendar; start; assert the accounts (kind and display name each), behaviour settings from a prepared `UserDefaults` suite using today's keys, ledger entries and dedup lessons reported in state; send one settings change and one dismiss; shut down; assert every original file still parses and no file was removed.
-- [ ] **Step 3: Run; fix in `timetug-shared` if it fails** (a failure here is an engine defect, not an app change).
-- [ ] **Step 4: Commit.**
+- [x] **Step 1: Build the fixture directory** from library fixtures (`timetug-shared` `fixtures/engine/*`, `calendar-connectors` `fixtures/persisted-formats/1.2.0/*`) under the file names the Mac app's data directory uses (list the real names from a development build's App Group container; file names only, never contents from a real container).
+- [x] **Step 2: Write the test**: copy the fixture to a temp directory; create the engine through the app's own factory with in-memory credential store, fake transport and no system calendar; start; assert the accounts (kind and display name each), behaviour settings from a prepared `UserDefaults` suite using today's keys, ledger entries and dedup lessons reported in state; send one settings change and one dismiss; shut down; assert every original file still parses and no file was removed.
+- [x] **Step 3: Run; fix in `timetug-shared` if it fails** (a failure here is an engine defect, not an app change).
+- [x] **Step 4: Commit.**
 
 ### Task 9: Verification, measurement and the pull request
 
-- [ ] **Step 1:** `scripts/dev/verify.sh all`. Expected: PASS. Summary in `build/verify/`.
+- [x] **Step 1:** `scripts/dev/verify.sh all`. Expected: PASS. Summary in `build/verify/`.
 - [ ] **Step 2: Both distributions build** per `docs/development.md`, using the `configuring-local-app-builds` skill for signing and OAuth ids. Launch each; add no account; quit.
 - [ ] **Step 3: Measure** against the last released Swift build on the same Mac, three runs each, no accounts and then one synthetic iCal-link account: app bundle size; main executable size; time from launch to menu bar item (signpost or log timestamp); resident memory after five idle minutes (`footprint`); CPU time over ten idle minutes. Record in `docs/rust-port/mac-migration-map.md`. Gate: launch time, memory and idle CPU not worse (10% tolerance); bundle size growth recorded and under 8 MB.
 - [ ] **Step 4: Sandbox check**: run the App Store build; with `fs_usage` or the sandbox log, confirm no file access is denied and nothing is written outside the App Group container and the app's own container.
-- [ ] **Step 5: Privacy manifest**: check whether the linked Rust library uses any required-reason API category (file timestamps, system boot time, disk space, user defaults) with `nm` against the symbol lists Apple documents; add the reasons to the app's `PrivacyInfo.xcprivacy` if so. Record the finding.
-- [ ] **Step 5a: Licence notices** (owner decision of 2026-11-15: UniFFI's MPL-2.0 is accepted; what it requires is in `docs/licensing.md` of `timetug-shared`). The app statically links the XCFramework, so the shipped app carries the notices of everything in it: copy `THIRD-PARTY-NOTICES.md` and `LICENSE` from the resolved `TimeTugEngineFFI.xcframework` (they are inside it since the first release after 2026-11-15; a build-phase script reads them from the SwiftPM artifacts folder and fails the build when they are absent) into the app bundle's resources, for both distributions, and the same for KeyboardShortcuts' MIT notice, which the app does not carry today. The notices must be reachable by a user of the shipped app. Where: the plan's "No view, string or setting is added" constraint stands, so the files go in the bundle (`Contents/Resources/Licenses/`) and the README names them; whether to add an "Acknowledgements" row or link in About is the owner's call and is listed as an owner item, not done here. Unit-test (or `verify.sh`) that both files are in the built bundle. Update the README "Third-party" paragraph if the pinned `uniffi` version changes.
+- [x] **Step 5: Privacy manifest**: check whether the linked Rust library uses any required-reason API category (file timestamps, system boot time, disk space, user defaults) with `nm` against the symbol lists Apple documents; add the reasons to the app's `PrivacyInfo.xcprivacy` if so. Record the finding.
+- [x] **Step 5a: Licence notices** (owner decision of 2026-11-15: UniFFI's MPL-2.0 is accepted; what it requires is in `docs/licensing.md` of `timetug-shared`). The app statically links the XCFramework, so the shipped app carries the notices of everything in it: copy `THIRD-PARTY-NOTICES.md` and `LICENSE` from the resolved `TimeTugEngineFFI.xcframework` (they are inside it since the first release after 2026-11-15; a build-phase script reads them from the SwiftPM artifacts folder and fails the build when they are absent) into the app bundle's resources, for both distributions, and the same for KeyboardShortcuts' MIT notice, which the app does not carry today. The notices must be reachable by a user of the shipped app. Where: the plan's "No view, string or setting is added" constraint stands, so the files go in the bundle (`Contents/Resources/Licenses/`) and the README names them; whether to add an "Acknowledgements" row or link in About is the owner's call and is listed as an owner item, not done here. Unit-test (or `verify.sh`) that both files are in the built bundle. Update the README "Third-party" paragraph if the pinned `uniffi` version changes.
 - [ ] **Step 6: App Store validation**: produce the App Store archive per `docs/release.md` and run validation (owner step if it needs credentials; add to owner items).
-- [ ] **Step 7: Docs**: `docs/architecture.md` (modules: the app depends on `TimeTugKit`; adapters implement generated interfaces; the libraries are Rust), `AGENTS.md` (Boundaries and Repositories), `docs/development.md` (building needs no Rust toolchain: the XCFramework is prebuilt; local library work does), ADR `docs/decisions/0023-mac-app-on-rust-engine.md`, `docs/manual-tests/macos-checklist.md` (add an "engine cutover" section mirroring the Windows one in phase 4, Task 4), the `working-across-timetug-repos`, `running-live-calendar-tests`, `diagnosing-takeovers` and `configuring-local-app-builds` skills where they name Swift library types or commands.
-- [ ] **Step 8: Version**: the Mac app's next major version, set where `docs/release.md` says.
-- [ ] **Step 9: Review**: `deepseek-review` on the diff with the migration map and `docs/bindings.md` as context. Then open the pull request from `feature/rust-engine`.
+- [x] **Step 7: Docs**: `docs/architecture.md` (modules: the app depends on `TimeTugKit`; adapters implement generated interfaces; the libraries are Rust), `AGENTS.md` (Boundaries and Repositories), `docs/development.md` (building needs no Rust toolchain: the XCFramework is prebuilt; local library work does), ADR `docs/decisions/0023-mac-app-on-rust-engine.md`, `docs/manual-tests/macos-checklist.md` (add an "engine cutover" section mirroring the Windows one in phase 4, Task 4), the `working-across-timetug-repos`, `running-live-calendar-tests`, `diagnosing-takeovers` and `configuring-local-app-builds` skills where they name Swift library types or commands.
+- [x] **Step 8: Version**: the Mac app's next major version, set where `docs/release.md` says.
+- [x] **Step 9: Review**: `deepseek-review` on the diff with the migration map and `docs/bindings.md` as context. Then open the pull request from `feature/rust-engine`.
 
 ### Task 10: Owner checks and close-out
 

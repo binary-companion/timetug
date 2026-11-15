@@ -284,7 +284,7 @@ final class AccountsControllerTests: XCTestCase {
         }
         defer { mirror.cancel() }
         await engine.start()
-        controller.apply(kinds: engine.currentState().availableAccountKinds)
+        controller.apply(kinds: await engine.firstPublishedState().availableAccountKinds)
         XCTAssertTrue(controller.availableKinds.contains { $0.id == "icalsub" })
 
         controller.beginAddAccount(kindID: "icalsub")
