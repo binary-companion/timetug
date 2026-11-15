@@ -84,6 +84,7 @@ See `docs/architecture.md`. Agents and contributors: read `AGENTS.md`.
 
 ## Third-party
 Uses KeyboardShortcuts by Sindre Sorhus (MIT), the `calendar-connectors` library by Binary Companion LLC (MIT) and the `timetug-shared` package by Binary Companion LLC (MIT with the Commons Clause).
+From the Rust engine release (phase 6 of the Rust engine program) the app also links the UniFFI runtime crates (`uniffi`, 0.32.2 and later), which are under the Mozilla Public License 2.0, through the `TimeTugEngineFFI` XCFramework, together with the permissively licensed Rust crates listed in that package's `THIRD-PARTY-NOTICES.md`. The licence was accepted on 2026-11-15; the crates are used unmodified, their source is at https://github.com/mozilla/uniffi-rs, and what the licence requires is in [`docs/licensing.md` of timetug-shared](https://github.com/binary-companion/timetug-shared/blob/main/docs/licensing.md). The MPL-2.0 covers only those crates' files, not this app.
 
 ## Status
 Early development.
