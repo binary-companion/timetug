@@ -5,13 +5,13 @@ description: Use when a running TimeTug app took over the screen when it should 
 
 # Diagnosing takeovers
 
-Look at what the running app recorded before changing code. Then reproduce the decision in a Core test, which gets `now` passed in.
+Look at what the running app recorded before changing code. Then reproduce the decision in an engine test in `timetug-shared` (Rust, `cargo test`; the engine gets the time passed in), not in this repository: the engine decides, the app only shows the result.
 
 ## What the app records
 
 | Question | Where to look |
 | --- | --- |
-| Why did a meeting tug, or not? | `log show --predicate 'subsystem == "com.timetug.app" AND category == "takeover"' --last 1h` (titles are redacted) |
+| Why did a meeting tug, or not? | the engine's diagnostics reach the log through `OSLogEngineDiagnostics`, category = the diagnostic's category: `log show --predicate 'subsystem == "com.timetug.app" AND category == "takeover"' --last 1h` (titles are redacted) |
 | Duplicate detection | the same predicate with `category == "dedup"`. Lessons and verdicts persist in `~/Library/Application Support/TimeTug/dedup-state.json` |
 | Widgets | the same predicate with `category == "widgets"`. The app writes `agenda-snapshot.json` to `~/Library/Group Containers/YYA6ZKMD36.com.timetug.shared/` |
 | Already shown? | the ledger, `~/Library/Application Support/TimeTug/takeover-ledger.json` (ADR 0006) |
@@ -22,4 +22,4 @@ Look at what the running app recorded before changing code. Then reproduce the d
 
 ## Rules that explain most surprises
 
-The takeover and calendar rules are in `AGENTS.md` under "Gotchas": Enable Tug is enforced in Core, a hidden calendar never tugs, declined events never take over, and all-day events belong to their own time zone's date. Check the logged decision against them before assuming a bug. The decision itself is `TakeoverPolicy.qualifies` in Core; the app only shows the result.
+The takeover and calendar rules are in `AGENTS.md` under "Gotchas": Enable Tug is enforced in the engine, a hidden calendar never tugs, declined events never take over, and all-day events belong to their own time zone's date. Check the logged decision against them before assuming a bug. The decision itself is the engine's takeover policy (Rust, `timetug-shared`); the app only shows the result and sends exactly one closing command per `takeoverDue`.

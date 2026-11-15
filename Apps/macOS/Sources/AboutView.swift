@@ -41,8 +41,15 @@ struct AboutContent: View {
                 .font(.callout.weight(.medium)).foregroundStyle(palette.primary)
             Text("Source available under MIT with the Commons Clause.")
                 .font(.footnote).foregroundStyle(palette.secondary)
+            Button(AboutContent.thirdPartyNoticesTitle) { ThirdPartyNoticesWindowController.shared.show() }
+                .buttonStyle(.link)
+                .font(.footnote)
+                .accessibilityLabel("Licences of the third-party libraries in TimeTug")
         }
     }
+
+    /// The link to the bundled licence notices (the Windows About has the same "Third-party notices").
+    static let thirdPartyNoticesTitle = "Third-party notices"
 
     /// Author credit shown in the About window (also in the README).
     static let creditText = "Created by Scott O\u{2019}Bryan"

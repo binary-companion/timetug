@@ -48,6 +48,8 @@ Take the newest stable tag (`v*` with no suffix) as `X.Y.Z`, then:
 
 Never reuse a burned tag (see below).
 
+**The Rust engine cutover is a major release.** The first release whose Mac app runs on the Rust engine (ADR 0023) is the next major: with `v2.2.1` the newest stable tag it is `v3.0.0`, and betas cut before it are labelled `2.2.1-beta.<timestamp>`. The version comes from the tag (see "Channels and versioning"); nothing in `Apps/macOS/project.yml` is edited to set it (its `0.0.0-dev` is only the local fallback). The owner cuts the release.
+
 ## Channels and versioning
 Installed apps update through Sparkle from one feed, `https://timetug.binarycompanion.com/appcast.xml` (`SUFeedURL` in `Apps/macOS/project.yml`). That address answers 301 to the Pages feed at `https://binary-companion.github.io/timetug/appcast.xml` (`site/firebase.json`), so a later move only changes the redirect. Copies released before 2026-10-11 still ask `https://darkarena1.github.io/timetug/appcast.xml`, which the `darkarena1/darkarena1.github.io` mirror serves; keep that repository. Items in it are either stable or on the `beta` channel; a user sees beta items only after turning on Settings > General > Software Update > Beta updates.
 
