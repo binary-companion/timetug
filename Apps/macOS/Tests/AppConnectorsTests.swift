@@ -71,8 +71,11 @@ final class AppConnectorsTests: XCTestCase {
             try Engine(config: config, host: FakeEngineHost.interfaces(), observer: observer)
         }
         defer { engine.shutdown() }
-        await engine.start()   // the engine publishes its kinds with its first state
-        return engine.currentState().availableAccountKinds
+        await engine.start()
+        // The engine publishes its kinds with its first state, which can arrive after `start()` returns.
+        for await state in engine.states where state.revision > 0 { return state.availableAccountKinds }
+        XCTFail("the engine published no state")
+        return []
     }
 
     func testWithoutClientsGoogleAndMicrosoftAreListedAsUnconfigured() async throws {

@@ -22,15 +22,19 @@ for path in ('docs/architecture.md', 'docs/development.md', 'docs/release.md',
              'scripts/dev/verify.sh', 'Apps/macOS/project.yml'):
     read(path)
 
-registry = read('Apps/macOS/Sources/AppConnectors.swift')
-for kind in ('EventKitConnectorKind', 'GoogleConnectorKind', 'MicrosoftConnectorKind'):
-    require(f'registry.register({kind}' in registry, f'provider not registered: {kind}')
+# The engine enables the providers through EngineConfig (TimeTugKit); the app passes the system calendar and the
+# OAuth clients of the build.
+config = read('Apps/macOS/Sources/AppConnectors.swift')
+for field in ('googleClient: google', 'microsoftClient: microsoft', 'systemCalendar: true'):
+    require(field in config, f'engine config field missing: {field}')
 # The Microsoft scope and Google/Microsoft write-capability checks moved with the library
 # (binary-companion/calendar-connectors, scripts/ci/check-repository-contracts.py).
 eventkit = 'Packages/EventKitSource/Sources/EventKitSource'
-require('canWrite: true' in read(f'{eventkit}/EventKitSource.swift'), 'EventKitSource write capability changed')
-require('extension EventKitSource: WritableCalendarSource' in read(f'{eventkit}/EventKitSource+Write.swift'),
-        'EventKitSource write protocol implementation absent')
+source = read(f'{eventkit}/EventKitSource.swift')
+require('canWrite: true' in source, 'EventKitSource write capability changed')
+require('EventKitSource: SystemCalendarSource' in source, 'EventKitSource system calendar conformance absent')
+require('public func create(draft: EventDraft' in read(f'{eventkit}/EventKitSource+Write.swift'),
+        'EventKitSource write implementation absent')
 
 # XcodeGen is the source of truth for generated plist properties. A target's properties are its template's plus its own.
 project = yaml.safe_load(read('Apps/macOS/project.yml'))
