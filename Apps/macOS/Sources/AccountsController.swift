@@ -1,7 +1,5 @@
-import CalendarCore
+import TimeTugKit
 import Foundation
-import TimeTugCore
-import TimeTugEngine
 
 /// The Accounts pane's view of the engine's accounts: a mirror of `EngineState.accountStatus` whose actions are
 /// sent to the engine as commands. The account lifecycle itself (add, remove, re-sign-in, the Apple Calendar switch)
@@ -24,10 +22,8 @@ final class AccountsController: ObservableObject {
     /// The account `removeSelection()` asked the engine to remove, until the engine's state drops it.
     private var removalInFlight: ConnectionID?
 
-    /// Kind ids TimeTug supports in code but couldn't register this build — e.g. Google without an OAuth
-    /// client configured. Distinct from a kind that's simply not built yet: the `+` menu lists these as disabled
-    /// entries with the reason, plus a warning under the box, instead of silently leaving them out.
-    let unconfiguredKindIDs: [String]
+    /// The kinds the engine offers on this Mac, as of its last state (`EngineState.availableAccountKinds`).
+    @Published private(set) var kindInfos: [AccountKindInfo] = []
 
     /// What the pane shows while a sign-in runs: a password sign-in happens in the app, an OAuth one in the browser.
     @Published private(set) var waitingText = AccountsController.browserWaitingText
@@ -38,27 +34,34 @@ final class AccountsController: ObservableObject {
     static let browserWaitingText = "Waiting for your browser…"
     static let inAppWaitingText = "Signing in…"
 
-    private let registry: ConnectorRegistry
     private let settings: SettingsStore
     private let send: (EngineCommand) -> Void
 
-    init(
-        registry: ConnectorRegistry, settings: SettingsStore, unconfiguredKindIDs: [String] = [],
-        credentialPrompter: CredentialPrompter? = nil, send: @escaping (EngineCommand) -> Void
-    ) {
-        self.registry = registry
+    init(settings: SettingsStore, credentialPrompter: CredentialPrompter? = nil, send: @escaping (EngineCommand) -> Void) {
         self.settings = settings
-        self.unconfiguredKindIDs = unconfiguredKindIDs
         self.credentialPrompter = credentialPrompter ?? CredentialPrompter()
         self.send = send
     }
 
     /// Account kinds offered by `+` (system-permission kinds such as Apple Calendar are a switch, not an account).
-    /// "Other CalDAV" goes last: it is the catch-all for providers without their own entry. Read from the registry
-    /// rather than the engine's state so the `+` menu is complete before the engine's first publication.
-    var availableKinds: [any ConnectorKind] {
-        let kinds = registry.kinds(for: .current).filter { if case .system = $0.authorization { false } else { true } }
+    /// "Other CalDAV" goes last: it is the catch-all for providers without their own entry. A kind this build cannot
+    /// offer (Google without an OAuth client configured) is not here but in `unconfiguredKindIDs`.
+    var availableKinds: [AccountKindInfo] {
+        let kinds = kindInfos.filter { $0.authorization != .system && $0.isConfigured }
         return kinds.filter { $0.id != "caldav" } + kinds.filter { $0.id == "caldav" }
+    }
+
+    /// Kind ids TimeTug supports in code but this build can't offer — e.g. Google without an OAuth client configured.
+    /// The `+` menu lists these as disabled entries with the reason, plus a warning under the box, instead of silently
+    /// leaving them out.
+    var unconfiguredKindIDs: [String] {
+        kindInfos.filter { $0.authorization != .system && !$0.isConfigured }.map(\.id)
+    }
+
+    /// Mirrors the kinds the engine offers. The engine knows them from its creation on, so the `+` menu is complete
+    /// before its first publication.
+    func apply(kinds: [AccountKindInfo]) {
+        if kindInfos != kinds { kindInfos = kinds }
     }
 
     /// The key of this account's status in `CalendarSnapshot.statuses`: every connector names its source after the
@@ -66,7 +69,7 @@ final class AccountsController: ObservableObject {
     func statusKey(for connection: Connection) -> String { connection.sourceID }
 
     /// Mirrors the engine's account status.
-    func apply(_ status: AccountManager.Status) {
+    func apply(_ status: AccountStatus) {
         let previousIDs = accounts.map(\.connectionID)
         if accounts != status.accounts { accounts = status.accounts }
         reconcileSelection(previousIDs: previousIDs)
@@ -100,7 +103,7 @@ final class AccountsController: ObservableObject {
     func removeSelection() {
         guard canRemoveSelection, let selection else { return }
         removalInFlight = selection
-        send(.removeAccount(connectionID: selection))
+        send(.removeAccount(connectionId: selection))
     }
 
     /// The pure model of the list, from this controller's mirrored state plus the app's source statuses and notices.
@@ -113,19 +116,19 @@ final class AccountsController: ObservableObject {
 
     /// Starts a sign-in for a new account (the pane's Cancel button calls `cancelAuthorization`).
     func beginAddAccount(kindID: String) {
-        send(.addAccount(kindID: kindID))
+        send(.addAccount(kindId: kindID))
     }
 
     /// Starts "Sign in again"; Cancel works during it too.
     func beginReauthorize(connectionID: ConnectionID) {
         guard !isWorking else { return }
-        send(.reauthorizeAccount(connectionID: connectionID))
+        send(.reauthorizeAccount(connectionId: connectionID))
     }
 
     func cancelAuthorization() { send(.cancelAuthorization) }
 
     func removeAccount(connectionID: ConnectionID) async {
-        send(.removeAccount(connectionID: connectionID))
+        send(.removeAccount(connectionId: connectionID))
     }
 
     /// Turning it off hides the calendars but keeps their stored selections, so turning it back on is lossless.

@@ -1,6 +1,5 @@
 import Foundation
-import TimeTugCore
-import TimeTugEngine
+import TimeTugKit
 
 /// The engine's behaviour settings over the keys the Mac app has always used, so an upgrade changes nothing:
 /// `takeoverSettings.v1` (JSON), `dedupInference.v1`, `eventKitEnabled.v1`, and the shared-suite booleans that
@@ -36,7 +35,7 @@ final class UserDefaultsSettingsStorage: SettingsStorage, @unchecked Sendable {
         return loaded
     }
 
-    func save(_ settings: EngineSettings) {
+    func save(settings: EngineSettings) {
         let previous: EngineSettings? = lock.withLock {
             defer { lastKnown = settings }
             return lastKnown

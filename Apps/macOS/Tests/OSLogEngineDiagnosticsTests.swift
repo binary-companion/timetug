@@ -1,5 +1,5 @@
 import os
-import TimeTugEngine
+import TimeTugKit
 import XCTest
 @testable import TimeTug
 
@@ -10,10 +10,11 @@ final class OSLogEngineDiagnosticsTests: XCTestCase {
         XCTAssertEqual(OSLogEngineDiagnostics.osLogType(for: .error), .error)
     }
 
-    func testTheSinkAcceptsEveryLevel() {
-        let sink = OSLogEngineDiagnostics().sink
+    func testTheSinkAcceptsEveryLevelAndBothKindsOfLine() {
+        let sink = OSLogEngineDiagnostics()
         for level in [EngineDiagnostic.Level.info, .warning, .error] {
-            sink(EngineDiagnostic(level: level, category: "tests", message: "diagnostics test \(level.rawValue)"))
+            sink.log(diagnostic: EngineDiagnostic(level: level, category: "tests", message: "diagnostics test \(level)"))
         }
+        sink.record(event: DiagnosticEvent(level: .info, category: "tests", name: "recorded", fields: [], date: Date()))
     }
 }

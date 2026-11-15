@@ -1,12 +1,11 @@
-import CalendarCore
+import TimeTugKit
 import Foundation
-import TimeTugEngine
 
 /// The model behind the credential sheet. A `.password` connector kind's `promptCredentials` waits in `prompt` until the
 /// user signs in or cancels. Before each attempt the engine's account manager prepares (through `signIn`) the title,
 /// help, prefilled values and the last error; the sheet shows `request` and answers with `submit` or `cancel`.
 @MainActor
-final class CredentialPrompter: ObservableObject {
+final class CredentialPrompter: ObservableObject, SignInPrompting {
     struct Request: Identifiable, Equatable {
         let id = UUID()
         var title: String
@@ -19,23 +18,30 @@ final class CredentialPrompter: ObservableObject {
 
     @Published private(set) var request: Request?
     /// The non-secret values of the form submitted since the last `prepare`; nil when none was submitted.
-    private(set) var lastNonSecretValues: [String: String]?
+    private(set) var submittedNonSecretValues: [String: String]?
 
     private var prepared: (title: String, help: CredentialHelp?, values: [String: String], error: String?) = ("", nil, [:], nil)
     private var continuation: CheckedContinuation<[String: String], Error>?
 
-    func prepare(title: String, help: CredentialHelp?, values: [String: String] = [:], error: String? = nil) {
+    /// Arms the sheet for the next `prompt` (`SignInPrompting`, called by the engine before each attempt).
+    func prepare(title: String, help: CredentialHelp?, values: [String: String] = [:], error: String? = nil) async {
         prepared = (title, help, values, error)
-        lastNonSecretValues = nil
+        submittedNonSecretValues = nil
     }
 
-    /// Shows the sheet for `fields` and returns what the user entered. Throws `CancellationError` on Cancel, or when the
-    /// calling task is cancelled (which also closes the sheet).
+    /// The non-secret values of the last submitted form (`SignInPrompting`); nil when none was submitted since `prepare`.
+    func lastNonSecretValues() async -> [String: String]? {
+        submittedNonSecretValues
+    }
+
+    /// Shows the sheet for `fields` and returns what the user entered. Throws `HostError.Cancelled` on Cancel, which
+    /// the engine reads as the user cancelling the sign-in (no error shown), or when the calling task is cancelled
+    /// (which also closes the sheet).
     func prompt(_ fields: [CredentialField]) async throws -> [String: String] {
         cancel()   // never leave an earlier prompt waiting
         return try await withTaskCancellationHandler {
             try await withCheckedThrowingContinuation { continuation in
-                guard !Task.isCancelled else { return continuation.resume(throwing: CancellationError()) }
+                guard !Task.isCancelled else { return continuation.resume(throwing: HostError.Cancelled) }
                 self.continuation = continuation
                 let nonSecret = Set(fields.filter { !$0.isSecret }.map(\.key))
                 request = Request(title: prepared.title, fields: fields, help: prepared.help,
@@ -49,7 +55,7 @@ final class CredentialPrompter: ObservableObject {
     func submit(_ values: [String: String]) {
         guard let shown = request, let waiting = continuation else { return }
         let nonSecret = Set(shown.fields.filter { !$0.isSecret }.map(\.key))
-        lastNonSecretValues = values.filter { nonSecret.contains($0.key) }
+        submittedNonSecretValues = values.filter { nonSecret.contains($0.key) }
         request = nil
         continuation = nil
         waiting.resume(returning: values)
@@ -59,24 +65,6 @@ final class CredentialPrompter: ObservableObject {
         request = nil
         guard let waiting = continuation else { return }
         continuation = nil
-        waiting.resume(throwing: CancellationError())
-    }
-}
-
-extension CredentialPrompter {
-    /// The engine's view of this prompter (`EngineHost.signIn`). A wrapper rather than a conformance because the
-    /// seam's `lastNonSecretValues()` method would clash with the property of the same name.
-    var signIn: some SignInPrompting { SignIn(prompter: self) }
-
-    private struct SignIn: SignInPrompting {
-        let prompter: CredentialPrompter
-
-        func prepare(title: String, help: CredentialHelp?, values: [String: String], error: String?) async {
-            await prompter.prepare(title: title, help: help, values: values, error: error)
-        }
-
-        func lastNonSecretValues() async -> [String: String]? {
-            await prompter.lastNonSecretValues
-        }
+        waiting.resume(throwing: HostError.Cancelled)
     }
 }

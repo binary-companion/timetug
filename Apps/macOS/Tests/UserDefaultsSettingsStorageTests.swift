@@ -1,5 +1,4 @@
-import TimeTugCore
-import TimeTugEngine
+import TimeTugKit
 import XCTest
 @testable import TimeTug
 
@@ -72,7 +71,7 @@ final class UserDefaultsSettingsStorageTests: XCTestCase {
         settings.inferenceEnabled = true
         settings.systemCalendarEnabled = false
         defaults.isRecording = true
-        storage.save(settings)
+        storage.save(settings: settings)
         XCTAssertEqual(Set(defaults.recorded), [
             "takeoverSettings.v1", "dedupInference.v1", "eventKitEnabled.v1", "shared.enableTug", "shared.useIntelligence",
         ])
@@ -88,7 +87,7 @@ final class UserDefaultsSettingsStorageTests: XCTestCase {
         defaults.set(true, forKey: "shared.useIntelligence")
         settings.takeover.leadTime = 300
         defaults.isRecording = true
-        storage.save(settings)
+        storage.save(settings: settings)
         XCTAssertEqual(defaults.recorded, ["takeoverSettings.v1"])
         let reloaded = storage.load()
         XCTAssertFalse(reloaded.takeover.enabled)
@@ -102,7 +101,7 @@ final class UserDefaultsSettingsStorageTests: XCTestCase {
         let storage = storage(defaults)
         let settings = storage.load()
         defaults.isRecording = true
-        storage.save(settings)
+        storage.save(settings: settings)
         XCTAssertEqual(defaults.recorded, [])
     }
 
