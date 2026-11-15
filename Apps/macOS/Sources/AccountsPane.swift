@@ -1,7 +1,6 @@
 import AppKit
-import CalendarCore
+import TimeTugKit
 import SwiftUI
-import TimeTugCore
 
 struct AccountsPane: View {
     @ObservedObject var accounts: AccountsController

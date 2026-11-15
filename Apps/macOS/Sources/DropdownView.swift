@@ -1,6 +1,6 @@
 import AppKit
 import SwiftUI
-import TimeTugCore
+import TimeTugKit
 
 /// The left-click popup: problems, header, today's cards, lead-time footer. Sizes to its content.
 struct DropdownView: View {

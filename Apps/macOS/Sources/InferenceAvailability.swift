@@ -1,4 +1,4 @@
-import TimeTugCore
+import TimeTugKit
 
 extension InferenceStatus {
     /// False only when on-device intelligence definitively cannot run here. A user-disabled feature

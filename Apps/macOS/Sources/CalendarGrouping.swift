@@ -1,5 +1,5 @@
 import Foundation
-import TimeTugCore
+import TimeTugKit
 
 struct CalendarGroup: Hashable, Identifiable {
     let account: String

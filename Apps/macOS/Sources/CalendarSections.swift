@@ -1,6 +1,5 @@
-import CalendarCore
+import TimeTugKit
 import Foundation
-import TimeTugCore
 
 /// One source's calendars for the Calendars pane: Apple Calendar, or one connected account.
 struct CalendarSection: Hashable, Identifiable {

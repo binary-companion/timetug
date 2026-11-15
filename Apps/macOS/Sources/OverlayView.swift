@@ -1,6 +1,6 @@
 import AppKit
 import SwiftUI
-import TimeTugCore
+import TimeTugKit
 
 /// The takeover on the primary display: hero, live countdown, meeting details and the actions.
 struct OverlayView: View {
@@ -34,7 +34,7 @@ struct OverlayView: View {
                     .lineLimit(2)
                     .accessibilityAddTraits(.isHeader)
                 Text(TakeoverText.details(start: event.shownStart, end: event.end, calendarTitle: calendarTitle,
-                                          otherAttendees: event.otherAttendeeCount))
+                                          otherAttendees: Int(event.otherAttendeeCount)))
                     .font(.system(size: 16))
                     .foregroundStyle(TakeoverColors.muted)
                     .multilineTextAlignment(.center)

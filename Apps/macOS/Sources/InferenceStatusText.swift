@@ -1,4 +1,4 @@
-import TimeTugCore
+import TimeTugKit
 
 /// Words for the state of the on-device duplicate finder. nil means show nothing.
 enum InferenceStatusText {

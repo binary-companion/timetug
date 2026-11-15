@@ -1,6 +1,5 @@
 import Foundation
-import TimeTugCore
-import TimeTugEngine
+import TimeTugKit
 
 enum MenuBarDisplayMode: String, CaseIterable, Codable {
     case iconOnly, nextMeeting, countdown
@@ -113,7 +112,7 @@ final class SettingsStore: ObservableObject {
 
     private func behaviourDidChange(_ change: BehaviourChange) {
         guard !isApplyingSharedValues else { return }
-        if let sendBehaviourChange { sendBehaviourChange(change) } else { storage.save(behaviour) }
+        if let sendBehaviourChange { sendBehaviourChange(change) } else { storage.save(settings: behaviour) }
     }
 }
 

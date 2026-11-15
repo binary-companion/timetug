@@ -1,6 +1,6 @@
 import AppKit
 import SwiftUI
-import TimeTugCore
+import TimeTugKit
 
 /// A borderless window per display at a high level so it covers full-screen apps.
 @MainActor

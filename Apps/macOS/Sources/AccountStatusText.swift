@@ -1,4 +1,4 @@
-import TimeTugCore
+import TimeTugKit
 
 enum AccountStatusText {
     static func make(_ status: SourceStatus?) -> String {

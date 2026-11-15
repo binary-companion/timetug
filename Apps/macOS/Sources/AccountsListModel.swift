@@ -1,5 +1,4 @@
-import CalendarCore
-import TimeTugCore
+import TimeTugKit
 
 /// Everything the one accounts list shows and decides that can be tested without a view (spec L1 to L10).
 /// A value built from the engine's mirrored state; the SwiftUI box (`AccountsListBox`) only draws it.

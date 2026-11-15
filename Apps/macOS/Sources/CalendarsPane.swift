@@ -1,5 +1,5 @@
 import SwiftUI
-import TimeTugCore
+import TimeTugKit
 
 struct CalendarsPane: View {
     @ObservedObject var settings: SettingsStore
