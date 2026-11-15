@@ -1,7 +1,7 @@
-import CalendarCore
 import EventKit
 import Foundation
 import Testing
+import TimeTugKit
 @testable import EventKitSource
 
 private func iso(_ s: String) -> Date { ISO8601DateFormatter().date(from: s)! }
@@ -62,8 +62,8 @@ private func newYork() -> Calendar {
     do {
         try EventKitWriteMapping.checkNotify(.externalOnly, hasOtherAttendees: true)
         Issue.record("expected .unsupported")
-    } catch let error as WriteError {
-        #expect(error == .unsupported(fields: [.attendees]))
+    } catch let error as FfiError {
+        #expect(error == .Write(.unsupported(fields: [.attendees])))
     } catch {
         Issue.record("wrong error \(error)")
     }
@@ -144,6 +144,6 @@ private func newYork() -> Calendar {
         Reminder(trigger: .relative(offset: -60, to: .start), type: .procedure(url: nil)),
     ]
     for reminder in unsupported {
-        #expect(throws: WriteError.unsupported(fields: [.reminders])) { _ = try EventKitWriteMapping.alarms([reminder]) }
+        #expect(throws: FfiError.Write(.unsupported(fields: [.reminders]))) { _ = try EventKitWriteMapping.alarms([reminder]) }
     }
 }

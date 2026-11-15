@@ -1,7 +1,7 @@
-import CalendarCore
-import EventKit
 import CoreLocation
+import EventKit
 import Foundation
+import TimeTugKit
 
 /// Pure conversions for EventKit writes, kept free of `EKEventStore` so they are unit-testable.
 enum EventKitWriteMapping {
@@ -27,15 +27,15 @@ enum EventKitWriteMapping {
     }
 
     static func recurrenceRule(_ rule: RecurrenceRule) -> EKRecurrenceRule {
-        let days = rule.weekdays.map { EKRecurrenceDayOfWeek(dayOfTheWeek: weekday($0.weekday), weekNumber: $0.ordinal ?? 0) }
+        let days = rule.weekdays.map { EKRecurrenceDayOfWeek(dayOfTheWeek: weekday($0.weekday), weekNumber: Int($0.ordinal ?? 0)) }
         let end: EKRecurrenceEnd?
         switch rule.end {
         case .never: end = nil
-        case .count(let count): end = EKRecurrenceEnd(occurrenceCount: count)
+        case .count(let count): end = EKRecurrenceEnd(occurrenceCount: Int(count))
         case .until(let date): end = EKRecurrenceEnd(end: date)
         }
         return EKRecurrenceRule(
-            recurrenceWith: frequency(rule.frequency), interval: rule.interval,
+            recurrenceWith: frequency(rule.frequency), interval: Int(rule.interval),
             daysOfTheWeek: days.isEmpty ? nil : days,
             daysOfTheMonth: rule.monthDays.isEmpty ? nil : rule.monthDays.map { NSNumber(value: $0) },
             monthsOfTheYear: rule.months.isEmpty ? nil : rule.months.map { NSNumber(value: $0) },
@@ -48,11 +48,11 @@ enum EventKitWriteMapping {
     /// derives it from which of `soundName`, `emailAddress` and `url` is set.
     static func alarms(_ reminders: [Reminder]) throws -> [EKAlarm] {
         try reminders.map { reminder in
-            guard reminder.repeatCount == 0 else { throw WriteError.unsupported(fields: [.reminders]) }
+            guard reminder.repeatCount == 0 else { throw FfiError.Write(.unsupported(fields: [.reminders])) }
             let alarm: EKAlarm
             switch reminder.trigger {
             case .relative(let offset, .start): alarm = EKAlarm(relativeOffset: offset)
-            case .relative(_, .end): throw WriteError.unsupported(fields: [.reminders])
+            case .relative(_, .end): throw FfiError.Write(.unsupported(fields: [.reminders]))
             case .absolute(let date): alarm = EKAlarm(absoluteDate: date)
             case .location(let place, let proximity):
                 alarm = EKAlarm(relativeOffset: 0)
@@ -67,7 +67,7 @@ enum EventKitWriteMapping {
             switch reminder.type {
             case .display: break
             case .audio(let soundName): alarm.soundName = soundName ?? "Default"
-            default: throw WriteError.unsupported(fields: [.reminders])
+            default: throw FfiError.Write(.unsupported(fields: [.reminders]))
             }
             return alarm
         }
@@ -114,7 +114,7 @@ enum EventKitWriteMapping {
     /// EventKit cannot control notifications (the server decides), so anything but `.all` is refused when other
     /// attendees would be affected. With no other attendees every policy is accepted and ignored.
     static func checkNotify(_ policy: NotifyPolicy, hasOtherAttendees: Bool) throws {
-        if policy != .all && hasOtherAttendees { throw WriteError.unsupported(fields: [.attendees]) }
+        if policy != .all && hasOtherAttendees { throw FfiError.Write(.unsupported(fields: [.attendees])) }
     }
 
     /// EventKit stores all-day events as floating device-local dates whose end is the end of the last day (the shape
@@ -122,10 +122,10 @@ enum EventKitWriteMapping {
     /// `calendar`'s zone. nil when the timing has no zone. Always covers at least one day.
     static func floatingAllDay(_ timing: EventTiming, calendar: Calendar) -> (start: Date, end: Date)? {
         guard let zone = timing.timeZone else { return nil }
-        let days = AllDay.dates(start: timing.start, end: timing.end, in: zone)
-        let lastDay = max(days.first, days.endExclusive.adding(days: -1))
-        guard let first = AllDay.startOfDay(days.first, in: calendar.timeZone),
-              let last = AllDay.startOfDay(lastDay, in: calendar.timeZone),
+        let days = allDayDates(start: timing.start, end: timing.end, zone: zone)
+        let lastDay = max(days.first, calendarDateAddingDays(date: days.endExclusive, days: -1))
+        guard let first = allDayStartOfDay(date: days.first, zone: calendar.timeZone),
+              let last = allDayStartOfDay(date: lastDay, zone: calendar.timeZone),
               let end = calendar.date(byAdding: DateComponents(day: 1, second: -1), to: last)
         else { return nil }
         return (first, end)

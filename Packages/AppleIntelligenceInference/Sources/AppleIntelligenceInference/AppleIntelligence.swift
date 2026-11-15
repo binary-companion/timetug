@@ -1,8 +1,7 @@
 import Foundation
-import TimeTugCore
-import TimeTugEngine
+import TimeTugKit
 
-/// The one entry point the app calls. The prompt, the answer parsing and the adjudication live in `TimeTugEngine`;
+/// The one entry point the app calls. The prompt, the answer parsing and the adjudication live in the engine;
 /// this package only gives the engine Apple's on-device model as a `TextGenerator`.
 public enum AppleIntelligence {
     public static let engine = EngineInfo(id: "apple-intelligence", displayName: "Apple Intelligence", isOnDevice: true)

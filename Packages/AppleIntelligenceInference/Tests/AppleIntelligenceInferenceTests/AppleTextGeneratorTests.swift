@@ -1,6 +1,6 @@
 import Foundation
 import Testing
-import TimeTugEngine
+import TimeTugKit
 @testable import AppleIntelligenceInference
 #if canImport(FoundationModels)
 import FoundationModels

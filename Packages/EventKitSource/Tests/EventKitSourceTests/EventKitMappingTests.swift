@@ -1,9 +1,8 @@
-import CalendarCore
-import CalendarTestSupport
 import CoreLocation
 import EventKit
 import Foundation
 import Testing
+import TimeTugKit
 @testable import EventKitSource
 
 private func newYork() -> Calendar {
@@ -59,7 +58,7 @@ private func iso(_ s: String) -> Date { ISO8601DateFormatter().date(from: s)! }
         end: calendar.date(from: DateComponents(year: 2026, month: 9, day: 22))!, calendar: calendar)
     let event = CalendarEvent(eventID: "a", calendarID: "c", title: "Holiday", start: start, end: end,
                               timeZone: calendar.timeZone, isAllDay: true)
-    #expect(AllDayConformance.violations(event).isEmpty)
+    #expect(allDayViolations(event).isEmpty)
 }
 
 @Test func birthdayAndSubscriptionCalendarsAreNotStandard() {
@@ -100,7 +99,7 @@ private func iso(_ s: String) -> Date { ISO8601DateFormatter().date(from: s)! }
     let slot = iso("2026-09-18T10:00:00Z")
     let event = CalendarEvent(
         eventID: EventKitMapping.eventID(identifier: "abc", occurrenceDate: slot, isOccurrence: true), calendarID: "cal",
-        title: "Weekly", start: slot, end: slot.addingTimeInterval(1800), series: .occurrence(seriesID: "abc", originalStart: slot))
+        title: "Weekly", start: slot, end: slot.addingTimeInterval(1800), series: .occurrence(seriesId: "abc", originalStart: slot))
     let ref = EventRef(event)
     #expect(EventKitWriteMapping.isOccurrence(ref, eventIdentifier: "abc", occurrenceDate: slot))
     #expect(!EventKitWriteMapping.isOccurrence(ref, eventIdentifier: "abc", occurrenceDate: slot.addingTimeInterval(7 * 86_400)))
@@ -119,7 +118,7 @@ private func iso(_ s: String) -> Date { ISO8601DateFormatter().date(from: s)! }
 
 @Test func seriesSeparatesOccurrencesFromSingleEvents() {
     let slot = iso("2026-09-18T10:00:00Z")
-    #expect(EventKitMapping.series(isOccurrence: true, identifier: "abc", occurrenceDate: slot) == .occurrence(seriesID: "abc", originalStart: slot))
+    #expect(EventKitMapping.series(isOccurrence: true, identifier: "abc", occurrenceDate: slot) == .occurrence(seriesId: "abc", originalStart: slot))
     #expect(EventKitMapping.series(isOccurrence: false, identifier: "abc", occurrenceDate: slot) == .notRecurring)
 }
 
