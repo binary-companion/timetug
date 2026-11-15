@@ -7,14 +7,11 @@ options:
 packages:
   TimeTugShared:
     url: https://github.com/binary-companion/timetug-shared
-    exactVersion: 1.8.6
+    exactVersion: 2.1.1
   EventKitSource:
     path: ../../Packages/EventKitSource
   AppleIntelligenceInference:
     path: ../../Packages/AppleIntelligenceInference
-  CalendarConnectors:
-    url: https://github.com/binary-companion/calendar-connectors
-    exactVersion: 1.2.2
   CalendarApple:
     path: ../../Packages/CalendarApple
   KeyboardShortcuts:
@@ -43,25 +40,11 @@ targetTemplates:
       - Shared
     dependencies:
       - package: TimeTugShared
-        product: TimeTugCore
-      - package: TimeTugShared
-        product: TimeTugEngine
+        product: TimeTugKit
       - package: EventKitSource
         product: EventKitSource
       - package: AppleIntelligenceInference
         product: AppleIntelligenceInference
-      - package: CalendarConnectors
-        product: CalendarCore
-      - package: CalendarConnectors
-        product: GoogleCalendar
-      - package: CalendarConnectors
-        product: MicrosoftCalendar
-      - package: CalendarConnectors
-        product: CalDAVCalendar
-      - package: CalendarConnectors
-        product: ICalSubscription
-      - package: TimeTugShared
-        product: CalendarBridge
       - package: CalendarApple
         product: CalendarApple
       - package: KeyboardShortcuts
@@ -96,11 +79,6 @@ targetTemplates:
       - path: Widgets
         excludes: ["Info.plist", "*.entitlements"]
       - Shared
-    dependencies:
-      - package: TimeTugShared
-        product: TimeTugCore
-      - package: CalendarConnectors
-        product: CalendarCore
     info:
       properties:
         CFBundleName: TimeTugWidgets
@@ -208,21 +186,7 @@ targets:
     dependencies:
       - target: TimeTug
       - package: TimeTugShared
-        product: TimeTugCore
-      - package: TimeTugShared
-        product: TimeTugEngine
-      - package: CalendarConnectors
-        product: CalendarCore
-      - package: CalendarConnectors
-        product: GoogleCalendar
-      - package: CalendarConnectors
-        product: MicrosoftCalendar
-      - package: CalendarConnectors
-        product: CalDAVCalendar
-      - package: CalendarConnectors
-        product: ICalSubscription
-      - package: TimeTugShared
-        product: CalendarBridge
+        product: TimeTugKit
       - package: CalendarApple
         product: CalendarApple
     settings:

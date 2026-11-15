@@ -5,15 +5,11 @@ let package = Package(
     name: "CalendarApple",
     platforms: [.macOS(.v14)],
     products: [.library(name: "CalendarApple", targets: ["CalendarApple"])],
-    dependencies: [.package(url: "https://github.com/binary-companion/calendar-connectors", from: "1.0.0")],
+    dependencies: [.package(url: "https://github.com/binary-companion/timetug-shared", from: "2.1.1")],
     targets: [
-        .target(name: "CalendarApple", dependencies: [.product(name: "CalendarCore", package: "calendar-connectors"),
-                               .product(name: "CalendarOAuth", package: "calendar-connectors")],
+        .target(name: "CalendarApple", dependencies: [.product(name: "TimeTugKit", package: "timetug-shared")],
                 swiftSettings: [.swiftLanguageMode(.v5)]),
-        .testTarget(name: "CalendarAppleTests", dependencies: ["CalendarApple", .product(name: "CalendarCore", package: "calendar-connectors"),
-                                   .product(name: "CalendarOAuth", package: "calendar-connectors"),
-                                   .product(name: "GoogleCalendar", package: "calendar-connectors"),
-                                   .product(name: "MicrosoftCalendar", package: "calendar-connectors")],
+        .testTarget(name: "CalendarAppleTests", dependencies: ["CalendarApple", .product(name: "TimeTugKit", package: "timetug-shared")],
                     swiftSettings: [.swiftLanguageMode(.v5)]),
     ]
 )
