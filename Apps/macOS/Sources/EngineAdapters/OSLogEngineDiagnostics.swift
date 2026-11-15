@@ -24,6 +24,7 @@ final class OSLogEngineDiagnostics: DiagnosticSink, @unchecked Sendable {
         case .info: .info
         case .warning: .default
         case .error: .error
+        @unknown default: .default
         }
     }
 

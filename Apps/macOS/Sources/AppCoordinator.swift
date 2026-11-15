@@ -304,6 +304,9 @@ final class AppCoordinator {
         case .diagnostic:
             // Already written to the system log by the host's diagnostics sink.
             break
+        @unknown default:
+            // An event a later engine version adds: nothing to show until the app learns it.
+            break
         }
     }
 
