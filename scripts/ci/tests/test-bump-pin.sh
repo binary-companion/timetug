@@ -9,37 +9,30 @@ S="$ROOT/scripts/ci/bump-pin.sh"
 CHECK="$ROOT/scripts/ci/check-shared-pins.py"
 ORG=https://github.com/binary-companion
 
-# A fixture mirrors the real tree: both library entries in project.yml exactly as in Apps/macOS/project.yml, a
-# third package pinned the same way (Sparkle), a local package entry, and manifests that depend on both
-# libraries by URL (Package.swift and a Package@swift-X.Y.swift variant, which SwiftPM prefers and the contract
-# scans) next to local .package(path:) dependencies. Both pins start at 1.0.0 and both floors at 1.0.0.
+# A fixture mirrors the real tree: the timetug-shared entry in project.yml exactly as in Apps/macOS/project.yml,
+# a second package pinned the same way (Sparkle), a local package entry, and manifests that depend on the
+# library by URL (Package.swift and a Package@swift-X.Y.swift variant, which SwiftPM prefers and the contract
+# scans) next to local .package(path:) dependencies. The pin starts at 1.0.0 and the floors at 1.0.0.
 make_fixture() {
-  local dir="$1" cc="$ORG/calendar-connectors" ts="$ORG/timetug-shared"
+  local dir="$1" ts="$ORG/timetug-shared"
   mkdir -p "$dir/Apps/macOS" "$dir/Packages/A" "$dir/Packages/B"
-  printf 'packages:\n  TimeTugShared:\n    url: %s\n    exactVersion: 1.0.0\n  Sparkle:\n    url: https://github.com/sparkle-project/Sparkle\n    exactVersion: 2.10.0\n  LocalB:\n    path: ../../Packages/B\n  CalendarConnectors:\n    url: %s\n    exactVersion: 1.0.0\n' "$ts" "$cc" > "$dir/Apps/macOS/project.yml"
-  printf 'let package = Package(dependencies: [.package(url: "%s", from: "1.0.0"), .package(url: "%s", from: "1.0.0"), .package(path: "../B")])\n' "$cc" "$ts" > "$dir/Packages/A/Package.swift"
-  printf 'let package = Package(dependencies: [.package(url: "%s", from: "1.0.0"), .package(url: "%s", from: "1.0.0"), .package(path: "../B")])\n' "$cc" "$ts" > "$dir/Packages/A/Package@swift-6.0.swift"
-  printf 'let package = Package(dependencies: [.package(url: "%s", from: "1.0.0"), .package(url: "%s", from: "1.0.0")])\n' "$cc" "$ts" > "$dir/Packages/B/Package.swift"
+  printf 'packages:\n  TimeTugShared:\n    url: %s\n    exactVersion: 1.0.0\n  Sparkle:\n    url: https://github.com/sparkle-project/Sparkle\n    exactVersion: 2.10.0\n  LocalB:\n    path: ../../Packages/B\n' "$ts" > "$dir/Apps/macOS/project.yml"
+  printf 'let package = Package(dependencies: [.package(url: "%s", from: "1.0.0"), .package(path: "../B")])\n' "$ts" > "$dir/Packages/A/Package.swift"
+  printf 'let package = Package(dependencies: [.package(url: "%s", from: "1.0.0"), .package(path: "../B")])\n' "$ts" > "$dir/Packages/A/Package@swift-6.0.swift"
+  printf 'let package = Package(dependencies: [.package(url: "%s", from: "1.0.0")])\n' "$ts" > "$dir/Packages/B/Package.swift"
 }
 snapshot() { (cd "$1" && find Apps Packages -type f | LC_ALL=C sort | xargs cat | cksum); }
-# What a library's pin and floors look like in a tree, for asserting that the other library stayed put.
+# What the library's pin looks like in a tree.
 pin_of() { perl -0ne 'print $1 if m{^[ \t]+'"$2"':[ \t]*\n[ \t]+url:[^\n]*\n[ \t]+exactVersion:[ \t]*([0-9.]+)}m' "$1/Apps/macOS/project.yml"; }
-floors_of() { grep -rho "$ORG/$2\", from: \"[0-9.]*\"" "$1/Packages" | LC_ALL=C sort | uniq -c | tr -s ' ' | tr '\n' ';'; }
 
-# The whole phase 1 behaviour, once per library: $1 library slug, $2 its project.yml key, $3 the other slug and
-# $4 the other key (whose pin and floors must never move).
+# The whole behaviour for timetug-shared, the only library the Mac app pins since phase 6.
 exercise() {
-  local lib="$1" key="$2" other="$3" otherkey="$4" F N
+  local lib="$1" key="$2" F N
   F="$T/$lib-same-major"
   make_fixture "$F"
   python3 "$CHECK" "$F" >/dev/null || fail "$lib: the fixture should start clean"
-  local other_pin other_floors
-  other_pin="$(pin_of "$F" "$otherkey")"; other_floors="$(floors_of "$F" "$other")"
-  [ -n "$other_pin" ] && [ -n "$other_floors" ] || fail "$lib: the fixture has no $other pin or floors"
-  # Everything of the other library and the unrelated entries stays as it was after every bump of this one.
+  # Unrelated entries stay as they were after every bump.
   other_unchanged() {
-    [ "$(pin_of "$F" "$otherkey")" = "$other_pin" ] || fail "$lib $1: the $other pin changed"
-    [ "$(floors_of "$F" "$other")" = "$other_floors" ] || fail "$lib $1: the $other floors changed"
     grep -q '^    exactVersion: 2.10.0$' "$F/Apps/macOS/project.yml" || fail "$lib $1: another package's pin changed"
     grep -q 'path: ../../Packages/B' "$F/Apps/macOS/project.yml" || fail "$lib $1: local package entry changed in project.yml"
     grep -q 'path: "../B"' "$F/Packages/A/Package.swift" || fail "$lib $1: local path dependency changed"
@@ -96,8 +89,7 @@ exercise() {
   python3 "$CHECK" "$F" >/dev/null || fail "$lib: 1.10.0 result violates the pin contract"
   other_unchanged "1.10.0 bump"
 
-  # Major bump: this library's floors would sit in another major than its pin, which the contract rejects, so
-  # they follow; the other library's floors are in a major of their own pin and stay.
+  # Major bump: the floors would sit in another major than the pin, which the contract rejects, so they follow.
   "$S" "$lib" 2.0.0 "$F" >/dev/null
   [ "$(pin_of "$F" "$key")" = 2.0.0 ] || fail "$lib: major bump not applied"
   for m in Packages/A/Package.swift Packages/A/Package@swift-6.0.swift Packages/B/Package.swift; do
@@ -117,8 +109,7 @@ exercise() {
   [ "$(snapshot "$N")" = "$before" ] || fail "$lib: a tree without the library pin was modified"
 }
 
-exercise calendar-connectors CalendarConnectors timetug-shared TimeTugShared
-exercise timetug-shared TimeTugShared calendar-connectors CalendarConnectors
+exercise timetug-shared TimeTugShared
 
 # The message says which library moved and from where.
 M="$T/message"
@@ -126,14 +117,18 @@ make_fixture "$M"
 out="$("$S" timetug-shared 1.2.3 "$M")"
 [ "$out" = "timetug-shared pinned at 1.2.3 (was 1.0.0)" ] || fail "unexpected message: $out"
 
-# One command line moves one library: the other's pin stays at its own number (they are independent versions).
-M2="$T/independent"
-make_fixture "$M2"
-"$S" calendar-connectors 1.0.4 "$M2" >/dev/null
-"$S" timetug-shared 1.0.1 "$M2" >/dev/null
-[ "$(pin_of "$M2" CalendarConnectors)" = 1.0.4 ] || fail "calendar-connectors pin wrong after both bumps"
-[ "$(pin_of "$M2" TimeTugShared)" = 1.0.1 ] || fail "timetug-shared pin wrong after both bumps"
-python3 "$CHECK" "$M2" >/dev/null || fail "two independent bumps violate the pin contract"
+# calendar-connectors is no longer a library the Mac app pins (phase 6: it comes inside timetug-shared). The
+# call is refused with exit 2 and a message naming phase 6, with and without --at-least, and touches nothing.
+R="$T/refused"
+make_fixture "$R"
+before="$(snapshot "$R")"
+for args in "calendar-connectors 1.0.1" "--at-least calendar-connectors 1.0.1"; do
+  rc=0; out="$("$S" $args "$R" 2>&1)" || rc=$?
+  [ "$rc" = 2 ] || fail "$args should exit 2 (got $rc)"
+  case "$out" in *"phase 6"*) ;; *) fail "$args did not name phase 6: $out" ;; esac
+  case "$out" in *timetug-shared*) ;; *) fail "$args did not point at timetug-shared: $out" ;; esac
+done
+[ "$(snapshot "$R")" = "$before" ] || fail "a refused calendar-connectors call changed files"
 
 # Calls that do not name a library, or name an unknown one, are refused with a usage message and touch nothing.
 U="$T/usage"
@@ -149,7 +144,7 @@ rc=0; out="$("$S" 1.0.1 2>&1)" || rc=$?
 rc=0; out="$("$S" --at-least 1.0.1 "$U" 2>&1)" || rc=$?
 [ "$rc" = 2 ] || fail "--at-least with a bare version should exit 2 (got $rc)"
 case "$out" in *usage*) ;; *) fail "--at-least with a bare version did not print a usage message: $out" ;; esac
-for bad in unknown-library imposter Timetug-Shared TimeTugShared CalendarConnectors calendar-connectors/ ../timetug-shared; do
+for bad in unknown-library imposter Timetug-Shared TimeTugShared CalendarConnectors calendar-connectors/  ../timetug-shared; do
   rc=0; out="$("$S" "$bad" 1.0.1 "$U" 2>&1)" || rc=$?
   [ "$rc" = 2 ] || fail "library '$bad' should exit 2 (got $rc)"
   case "$out" in *"unknown library"*usage*) ;; *) fail "library '$bad' was not reported as unknown: $out" ;; esac
@@ -161,7 +156,7 @@ rc=0; "$S" >/dev/null 2>&1 || rc=$?
 [ "$rc" = 2 ] || fail "no arguments should exit 2 (got $rc)"
 rc=0; "$S" --at-least >/dev/null 2>&1 || rc=$?
 [ "$rc" = 2 ] || fail "--at-least alone should exit 2 (got $rc)"
-rc=0; out="$("$S" --bogus calendar-connectors 1.0.1 "$U" 2>&1)" || rc=$?
+rc=0; out="$("$S" --bogus timetug-shared 1.0.1 "$U" 2>&1)" || rc=$?
 [ "$rc" = 2 ] || fail "an unknown option should exit 2 (got $rc)"
 [ "$(snapshot "$U")" = "$before" ] || fail "a refused call changed files"
 

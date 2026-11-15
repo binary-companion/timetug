@@ -30,7 +30,7 @@ TimeTug is a macOS menu bar app that takes over the screen before meetings. Star
 - Core and Bridge tests (and the dedup benchmark, `scripts/benchmarks/run-dedup.sh`) run from a `timetug-shared` checkout: `swift test` there. They also run on Linux, Windows x64 and Windows ARM64 in that repository's CI.
 - EventKitSource tests: `swift test --package-path Packages/EventKitSource`
 - Apple adapter tests: `swift test --package-path Packages/CalendarApple`
-- Connector library tests run in its own repository (`swift test` there). To exercise a local change to the connector library or to `timetug-shared` in the app, use `scripts/dev/use-local-library.sh <calendar-connectors|timetug-shared> <checkout path>` (`use-local-connectors.sh` is a wrapper for the first); never commit its output.
+- Connector and engine tests run in `timetug-shared` (`cargo test`). To exercise a local change to `timetug-shared` in the app, use `scripts/dev/use-local-library.sh timetug-shared <checkout path>` (it builds the checkout's XCFramework when missing); never commit its output.
 - Inference package tests: `swift test --package-path Packages/AppleIntelligenceInference`
 - Generate app project: `xcodegen generate --spec Apps/macOS/project.yml`
 - Build app: `xcodebuild -project Apps/macOS/TimeTug.xcodeproj -scheme TimeTug -destination 'platform=macOS' build`

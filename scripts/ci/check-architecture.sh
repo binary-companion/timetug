@@ -15,7 +15,7 @@ imports() {
   local p existing=()
   for p in "$@"; do [ -e "$p" ] && existing+=("$p"); done
   [ ${#existing[@]} -gt 0 ] || return 0
-  grep -rnE --include='*.swift' '^[[:space:]]*(@[A-Za-z_]+(\([^)]*\))?[[:space:]]+)*import[[:space:]]' "${existing[@]}" |
+  grep -rnE --include='*.swift' --exclude-dir=.build --exclude-dir=build '^[[:space:]]*(@[A-Za-z_]+(\([^)]*\))?[[:space:]]+)*import[[:space:]]' "${existing[@]}" |
     sed -E 's/^([^:]+:[0-9]+):[[:space:]]*(@[A-Za-z_]+(\([^)]*\))?[[:space:]]+)*import[[:space:]]+((typealias|struct|class|enum|protocol|let|var|func)[[:space:]]+)?([A-Za-z_][A-Za-z0-9_]*).*/\1 \6/' || true
 }
 # only <label> <allowed modules> <path...>: every import must be in the allowed list.
@@ -36,31 +36,35 @@ never() {
 
 UI="AppKit SwiftUI UIKit WidgetKit"
 P=Packages
-# The connector library and the shared Core live in their own repositories and are consumed by released version
-# (scripts/ci/check-shared-pins.py). Their own layering rules (Core is portable, no clock reads, the bridge is thin)
-# are checked in those repositories.
-LIBURL=https://github.com/binary-companion/calendar-connectors
+# Everything the app and the packages know of the shared Rust engine, the connectors and the Core comes through
+# one module, TimeTugKit, from timetug-shared 2.x (a released version, pinned: scripts/ci/check-shared-pins.py).
+# The modules of the former Swift libraries no longer exist, so importing one is a leftover of the old layout.
+# Their own layering rules are checked in the timetug-shared repository.
 SHAREDURL=https://github.com/binary-companion/timetug-shared
+RETIRED="TimeTugEngine TimeTugCore CalendarBridge CalendarCore GoogleCalendar MicrosoftCalendar CalDAVCalendar ICalSubscription CalendarOAuth"
+never "$P (module removed in phase 6; use TimeTugKit)" "$RETIRED" $P
+never "Apps (module removed in phase 6; use TimeTugKit)" "$RETIRED" Apps
 
-# Source adapters speak the library, contain no UI and never see TimeTug (TimeTugCore, CalendarBridge).
-never EventKitSource "$UI TimeTugCore CalendarBridge CalendarApple AppleIntelligenceInference" $P/EventKitSource/Sources
-never CalendarApple "SwiftUI UIKit WidgetKit TimeTugCore CalendarBridge EventKitSource AppleIntelligenceInference" $P/CalendarApple/Sources
-never AppleIntelligenceInference "$UI CalendarBridge EventKitSource CalendarApple" $P/AppleIntelligenceInference/Sources
-# Foundation Models only in the inference package; Sparkle only in the app target.
+# Source adapters speak TimeTugKit and contain no UI. They never see each other.
+never EventKitSource "$UI CalendarApple AppleIntelligenceInference" $P/EventKitSource/Sources
+never CalendarApple "SwiftUI UIKit WidgetKit EventKitSource AppleIntelligenceInference" $P/CalendarApple/Sources
+never AppleIntelligenceInference "$UI EventKitSource CalendarApple" $P/AppleIntelligenceInference/Sources
+# EventKit only in EventKitSource, Foundation Models only in the inference package; Sparkle only in the app target.
 for d in $P/*; do
+  [ "$d" = $P/EventKitSource ] || never "$d" EventKit "$d"
   [ "$d" = $P/AppleIntelligenceInference ] || never "$d" FoundationModels "$d"
 done
+never "Apps/macOS (use EventKitSource)" EventKit Apps
 never "Apps/macOS (use AppleIntelligenceInference)" FoundationModels Apps
 never "$P (Sparkle is app-only)" Sparkle $P
-# Widgets read the snapshot; they never touch EventKit or Sparkle.
-never "Apps/macOS/Widgets and Shared" "EventKit Sparkle" Apps/macOS/Widgets Apps/macOS/Shared
+# Widgets read the snapshot; they never touch Sparkle and never link the engine (TimeTugKit).
+never "Apps/macOS/Widgets and Shared" "Sparkle TimeTugKit" Apps/macOS/Widgets Apps/macOS/Shared
 
-# Package dependencies are URL dependencies on the released libraries (scripts/ci/check-shared-pins.py checks the
-# pin). Only the inference package may use timetug-shared; no package depends on another local package.
+# Package dependencies are URL dependencies on the released library (scripts/ci/check-shared-pins.py checks the
+# pin). Every package depends on timetug-shared and on nothing else; no package depends on another local package.
 allowed_deps() {
   case "$1" in
-    EventKitSource | CalendarApple) echo "$LIBURL" ;;
-    AppleIntelligenceInference) echo "$SHAREDURL $LIBURL" ;;
+    EventKitSource | CalendarApple | AppleIntelligenceInference) echo "$SHAREDURL" ;;
     *) return 1 ;;
   esac
 }

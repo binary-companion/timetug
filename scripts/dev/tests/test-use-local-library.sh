@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
-# Tests use-local-library.sh in a throwaway repo shaped like this one, once per shared library. Needs PyYAML on
-# PATH (check-shared-pins.py reads project.yml).
+# Tests use-local-library.sh in a throwaway repo shaped like this one, for timetug-shared (the only shared
+# library since phase 6). The "checkout" is a directory with a Package.swift and a stub scripts/dev/build-xcframework.sh.
+# Needs PyYAML on PATH (check-shared-pins.py reads project.yml).
 set -euo pipefail
 cd "$(dirname "$0")/../../.."
 SRC="$PWD"
@@ -11,21 +12,30 @@ ORG=https://github.com/binary-companion
 # Runs a command, keeping its exit status in $rc and its output in $out.
 capture() { rc=0; out="$("$@" 2>&1)" || rc=$?; }
 
-# $1 library slug, $2 its project.yml key, $3 the other library's slug, $4 the other key.
+# $1 library slug, $2 its project.yml key, $3 a name that is not the library (used for refusals).
 exercise() {
-  local lib="$1" key="$2" other="$3" otherkey="$4"
+  local lib="$1" key="$2" other="$3" otherkey=Sparkle
   local R="$T/$lib-repo" W="$T/$lib-work"
   mkdir -p "$R/scripts/dev" "$R/scripts/ci" "$R/Apps/macOS" "$R/Packages/Alpha" "$R/Packages/Beta" \
-           "$W/$lib" "$W/$other" "$W/other" "$W/second/$lib" "$W/missing-pin/$lib" "$W/unknown-library"
+           "$W/$lib" "$W/$other" "$W/other" "$W/second/$lib" "$W/missing-pin/$lib" "$W/unknown-library" \
+           "$W/calendar-connectors" "$W/nobuild/$lib/scripts/dev" "$W/badbuild/$lib/scripts/dev"
   touch "$W/$lib/Package.swift" "$W/$other/Package.swift" "$W/other/Package.swift" "$W/second/$lib/Package.swift" \
-        "$W/missing-pin/$lib/Package.swift" "$W/unknown-library/Package.swift"
+        "$W/missing-pin/$lib/Package.swift" "$W/unknown-library/Package.swift" "$W/calendar-connectors/Package.swift" \
+        "$W/nobuild/$lib/Package.swift" "$W/badbuild/$lib/Package.swift"
+  # The checkouts' build output: the main one has the XCFramework already, the others have a build script that
+  # is a stub (it records that it ran and, for "nobuild", produces the XCFramework; "badbuild" produces nothing).
+  mkdir -p "$W/$lib/build/TimeTugEngineFFI.xcframework" "$W/second/$lib/build/TimeTugEngineFFI.xcframework" \
+           "$W/missing-pin/$lib/build/TimeTugEngineFFI.xcframework"
+  printf '#!/usr/bin/env bash\ntouch "%s/nobuild-ran"\nmkdir -p "%s/nobuild/%s/build/TimeTugEngineFFI.xcframework"\n' "$W" "$W" "$lib" > "$W/nobuild/$lib/scripts/dev/build-xcframework.sh"
+  printf '#!/usr/bin/env bash\ntouch "%s/badbuild-ran"\n' "$W" > "$W/badbuild/$lib/scripts/dev/build-xcframework.sh"
+  chmod +x "$W/nobuild/$lib/scripts/dev/build-xcframework.sh" "$W/badbuild/$lib/scripts/dev/build-xcframework.sh"
   cp "$SRC/scripts/dev/use-local-library.sh" "$R/scripts/dev/"
   cp "$SRC/scripts/ci/check-shared-pins.py" "$R/scripts/ci/"
-  # The same shape as the real tree: both libraries pinned, another package pinned, a local package, and
-  # manifests that depend on both libraries by URL (Package.swift and the version-specific variant SwiftPM
+  # The same shape as the real tree: the library pinned, another package pinned, a local package, and
+  # manifests that depend on the library by URL (Package.swift and the version-specific variant SwiftPM
   # prefers) next to a local sibling dependency.
-  printf 'packages:\n  Sparkle:\n    url: https://github.com/sparkle-project/Sparkle\n    exactVersion: 2.10.0\n  CalendarConnectors:\n    url: %s/calendar-connectors\n    exactVersion: 1.2.0\n  LocalBeta:\n    path: ../../Packages/Beta\n  TimeTugShared:\n    url: %s/timetug-shared\n    exactVersion: 1.0.0\n' "$ORG" "$ORG" > "$R/Apps/macOS/project.yml"
-  local deps="[.package(url: \"$ORG/calendar-connectors\", from: \"1.0.0\"), .package(url: \"$ORG/timetug-shared\", from: \"1.0.0\"), .package(path: \"../Beta\")]"
+  printf 'packages:\n  Sparkle:\n    url: https://github.com/sparkle-project/Sparkle\n    exactVersion: 2.10.0\n  LocalBeta:\n    path: ../../Packages/Beta\n  TimeTugShared:\n    url: %s/timetug-shared\n    exactVersion: 1.0.0\n' "$ORG" > "$R/Apps/macOS/project.yml"
+  local deps="[.package(url: \"$ORG/timetug-shared\", from: \"1.0.0\"), .package(path: \"../Beta\")]"
   printf 'let package = Package(dependencies: %s)\n' "$deps" > "$R/Packages/Alpha/Package.swift"
   printf 'let package = Package(dependencies: %s)\n' "$deps" > "$R/Packages/Alpha/Package@swift-6.0.swift"
   printf 'let package = Package(dependencies: [.package(url: "%s/%s", from: "1.0.0")])\n' "$ORG" "$lib" > "$R/Packages/Beta/Package.swift"
@@ -47,8 +57,6 @@ exercise() {
   grep -q "path: \"$W/$lib\"" $VARIANT || fail "$lib: version-specific manifest not redirected (SwiftPM prefers it)"
   grep -q "path: \"$W/$lib\"" Packages/Beta/Package.swift || fail "$lib: second manifest not redirected"
   if grep -q "$ORG/$lib\"" $MANIFEST $VARIANT Packages/Beta/Package.swift; then fail "$lib: a manifest still has the released url"; fi
-  grep -q "$ORG/$other\", from: \"1.0.0\"" $MANIFEST || fail "$lib: the $other dependency was redirected too"
-  grep -q "$ORG/$other\", from: \"1.0.0\"" $VARIANT || fail "$lib: the $other dependency was redirected in the variant too"
   grep -q 'path: "../Beta"' $MANIFEST || fail "$lib: a sibling path dependency changed"
   grep -Eq "path: .*/$lib\$" $PROJECT || fail "$lib: project.yml not redirected"
   [ -f $BACKUP/after.sha256 ] || fail "$lib: the override recorded no hashes"
@@ -57,7 +65,7 @@ exercise() {
   git show HEAD:$PROJECT | grep -q "$key:" || fail "$lib: fixture has no $key entry"
   [ "$(git show HEAD:$PROJECT | without_entry)" = "$(without_entry < $PROJECT)" ] || fail "$lib: lines outside the $key entry changed"
   grep -q "$otherkey:" $PROJECT || fail "$lib: the $otherkey entry is gone"
-  grep -q "url: $ORG/$other\$" $PROJECT || fail "$lib: the $otherkey entry lost its url"
+  grep -q "url: https://github.com/sparkle-project/Sparkle\$" $PROJECT || fail "$lib: the $otherkey entry lost its url"
   if python3 scripts/ci/check-shared-pins.py >/dev/null 2>&1; then fail "$lib: the contract accepted a local override"; fi
   $USE --restore >/dev/null
   [ -z "$(git status --porcelain)" ] || fail "$lib: restore left changes: $(git status --porcelain)"
@@ -70,6 +78,20 @@ exercise() {
   capture $USE "$lib" "$W/missing"; [ "$rc" = 2 ] || fail "$lib: accepted a missing checkout"
   capture $USE "$lib" "$W/other"; [ "$rc" = 2 ] || fail "$lib: accepted a checkout not named $lib"
   capture $USE "$lib" "$W/$other"; [ "$rc" = 2 ] || fail "$lib: accepted the $other checkout for $lib"
+  # calendar-connectors is no longer a library the app pins: refused with the phase 6 message, nothing touched,
+  # even for a checkout that is named like it and has a Package.swift.
+  capture $USE calendar-connectors "$W/calendar-connectors"
+  [ "$rc" = 2 ] || fail "$lib: calendar-connectors should exit 2 (got $rc)"
+  case "$out" in *"phase 6"*) ;; *) fail "$lib: calendar-connectors was not refused with a phase 6 message: $out" ;; esac
+  case "$out" in *"unknown library"*) fail "$lib: calendar-connectors was reported as unknown, not retired: $out" ;; esac
+  capture $USE calendar-connectors --restore; [ "$rc" = 2 ] || fail "$lib: 'calendar-connectors --restore' should exit 2 (got $rc)"
+  # The checkout needs build/TimeTugEngineFFI.xcframework. A missing one is built with the checkout's own
+  # scripts/dev/build-xcframework.sh; when that does not produce it (or does not exist) the override is refused.
+  [ ! -e "$W/nobuild/$lib/build" ] || fail "$lib: fixture should start without a build directory"
+  capture $USE "$lib" "$W/badbuild/$lib"; [ "$rc" = 2 ] || fail "$lib: a build that produced no XCFramework should exit 2 (got $rc)"
+  [ -e "$W/badbuild-ran" ] || fail "$lib: the checkout's build script was not run"
+  case "$out" in *TimeTugEngineFFI.xcframework*) ;; *) fail "$lib: the message did not name the XCFramework: $out" ;; esac
+  capture $USE "$lib" "$W/second/$lib/.."; [ "$rc" = 2 ] || fail "$lib: accepted a checkout not named $lib (via ..)"
   capture $USE unknown-library "$W/$lib"; [ "$rc" = 2 ] || fail "$lib: accepted an unknown library"
   # Even with a checkout that carries the unknown name, the library must be reported as unknown.
   capture $USE unknown-library "$W/unknown-library"; [ "$rc" = 2 ] || fail "$lib: accepted an unknown library by name"
@@ -112,7 +134,7 @@ exercise() {
   [ "$rc" = 2 ] || fail "$lib: second override should exit 2 (got $rc)"
   case "$out" in *"--restore"*) ;; *) fail "$lib: second override did not say to run --restore: $out" ;; esac
   capture $USE "$lib" "$W/$lib"; [ "$rc" = 2 ] || fail "$lib: second override of the same checkout should exit 2 (got $rc)"
-  capture $USE "$other" "$W/$other"; [ "$rc" = 2 ] || fail "$lib: an override of $other on top of $lib should exit 2 (got $rc)"
+  capture $USE calendar-connectors "$W/calendar-connectors"; [ "$rc" = 2 ] || fail "$lib: a connectors override on top of $lib should exit 2 (got $rc)"
   snapshot > "$W/snapshot.after"
   cmp -s "$W/snapshot.before" "$W/snapshot.after" || fail "$lib: a refused second override changed the tree or the backup"
   $USE "$lib" --restore >/dev/null
@@ -148,9 +170,21 @@ exercise() {
   capture $USE --restore; [ "$rc" = 2 ] || fail "$lib: restore without hashes should exit 2 (got $rc)"
   $USE --restore --force >/dev/null
   [ -z "$(git status --porcelain)" ] || fail "$lib: restore --force without hashes left changes"
+
+  # --- A checkout without the XCFramework is built first with its own script, then used
+  $USE "$lib" "$W/nobuild/$lib" >/dev/null || fail "$lib: a checkout that builds its XCFramework was refused"
+  [ -e "$W/nobuild-ran" ] || fail "$lib: the missing XCFramework was not built"
+  [ -d "$W/nobuild/$lib/build/TimeTugEngineFFI.xcframework" ] || fail "$lib: the build left no XCFramework"
+  grep -q "path: \"$W/nobuild/$lib\"" $MANIFEST || fail "$lib: manifest not redirected to the built checkout"
+  $USE --restore >/dev/null
+  [ -z "$(git status --porcelain)" ] || fail "$lib: restore after a built checkout left changes"
+  # A checkout that already has it is not rebuilt.
+  rm -f "$W/nobuild-ran"
+  $USE "$lib" "$W/nobuild/$lib" >/dev/null
+  [ ! -e "$W/nobuild-ran" ] || fail "$lib: an existing XCFramework was rebuilt"
+  $USE --restore >/dev/null
   cd "$SRC"
 }
 
-exercise calendar-connectors CalendarConnectors timetug-shared TimeTugShared
-exercise timetug-shared TimeTugShared calendar-connectors CalendarConnectors
+exercise timetug-shared TimeTugShared other-library
 echo PASS

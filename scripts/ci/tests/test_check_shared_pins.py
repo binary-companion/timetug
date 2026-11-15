@@ -5,13 +5,13 @@ from pathlib import Path
 SCRIPT = Path(__file__).resolve().parents[1] / 'check-shared-pins.py'
 ORG = 'https://github.com/binary-companion/'
 
-# slug (repository), project.yml key, a valid pin, and a floor above that pin within the same major. The two
-# libraries deliberately have different pins: a check that compared a floor with the wrong library's pin would
-# disagree with these numbers.
+# slug (repository), project.yml key, a valid pin, and a floor above that pin within the same major. Since
+# phase 6 timetug-shared is the only library the Mac app pins; calendar-connectors is retired (its connectors
+# come inside timetug-shared), so any reference to it is an error.
 Library = namedtuple('Library', 'slug key pin above')
 CALENDAR_CONNECTORS = Library('calendar-connectors', 'CalendarConnectors', '1.2.0', '1.3.0')
 TIMETUG_SHARED = Library('timetug-shared', 'TimeTugShared', '1.0.0', '1.1.0')
-LIBRARIES = (CALENDAR_CONNECTORS, TIMETUG_SHARED)
+LIBRARIES = (TIMETUG_SHARED,)
 
 MANIFEST = '''let package = Package(
     name: "%s",
@@ -76,9 +76,7 @@ class Checks:
             self.assertIn(needle, result.stderr)
 
 class LibraryPins(Checks):
-    """Every protection, for the library in `lib`; subclassed once per shared library so that none of them
-    exists for one library only. `self.dep` is the library's released form, `self.manifest` a manifest that
-    depends on it (the other library is left out so a failure can only come from this one)."""
+    """Every protection, for the library in `lib`."""
     lib = None
 
     @property
@@ -139,8 +137,7 @@ class LibraryPins(Checks):
 
     def test_project_entry_that_is_not_a_mapping_fails(self):
         with tempfile.TemporaryDirectory() as tmp:
-            others = ''.join(f'  {l.key}:\n{pinned(l)}' for l in LIBRARIES if l != self.lib)
-            make(Path(tmp), project=f'packages:\n{others}  {self.lib.key}: {self.url}\n')
+            make(Path(tmp), project=f'packages:\n  {self.lib.key}: {self.url}\n')
             result = run(tmp)
         self.assertNotEqual(result.returncode, 0)
         self.assertIn(f'{self.lib.key} must be a mapping', result.stderr)
@@ -152,9 +149,9 @@ class LibraryPins(Checks):
     def test_project_url_with_a_git_suffix_fails(self):
         self.check(False, f'{self.lib.key} must use url', project=self.own(pinned(self.lib, url_=self.url + '.git')))
 
-    def test_project_url_of_the_other_library_fails(self):
-        other = next(l for l in LIBRARIES if l != self.lib)
-        self.check(False, f'{self.lib.key} must use url', project=self.own(pinned(self.lib, url_=url(other))))
+    def test_project_url_of_the_retired_library_fails(self):
+        self.check(False, f'{self.lib.key} must use url',
+                   project=self.own(pinned(self.lib, url_=url(CALENDAR_CONNECTORS))))
 
     def test_pin_below_a_floor_fails(self):
         self.check(False, f'the {self.lib.slug} pin {self.lib.pin} is below',
@@ -397,67 +394,61 @@ class LibraryPins(Checks):
                 self.check(False, dependency, manifests=self.alone(dependency))
 
 
-class CalendarConnectorsPins(LibraryPins, unittest.TestCase):
-    lib = CALENDAR_CONNECTORS
-
-
 class TimeTugSharedPins(LibraryPins, unittest.TestCase):
     lib = TIMETUG_SHARED
 
 
-class BothLibraries(Checks, unittest.TestCase):
-    """The rules that involve both libraries at once: each is checked against its own pin and its own url."""
+class RetiredCalendarConnectors(Checks, unittest.TestCase):
+    """calendar-connectors came inside timetug-shared in phase 6: the Mac app no longer pins or depends on it."""
+    cc = CALENDAR_CONNECTORS
 
-    def test_both_entries_missing_fails_naming_both(self):
-        with tempfile.TemporaryDirectory() as tmp:
-            make(Path(tmp), project='packages:\n  Sparkle:\n    url: https://github.com/sparkle-project/Sparkle\n'
-                                    '    exactVersion: 2.10.0\n')
-            result = run(tmp)
-        self.assertNotEqual(result.returncode, 0)
-        for library in LIBRARIES:
-            self.assertIn(f'package {library.key} is missing', result.stderr)
+    def test_leftover_project_entry_fails(self):
+        self.check(False, 'CalendarConnectors', project=project_yml(
+            extra=f'  CalendarConnectors:\n{pinned(self.cc)}'))
 
-    def test_a_manifest_depending_on_both_libraries_passes(self):
-        self.check(True, manifests={'TimeTugCore': released(CALENDAR_CONNECTORS) + ', ' + released(TIMETUG_SHARED)})
+    def test_leftover_project_entry_under_another_key_fails(self):
+        self.check(False, 'Second', project=project_yml(
+            extra=f'  Second:\n    url: {url(self.cc)}\n    exactVersion: 1.2.0\n'))
 
-    def test_each_floor_is_compared_with_its_own_pin(self):
-        # calendar-connectors is pinned at 1.2.0 and timetug-shared at 1.0.0: a floor of 1.1.0 is fine for the
-        # first and above the pin of the second.
-        self.check(True, manifests={'TimeTugCore': released(CALENDAR_CONNECTORS, '1.1.0')})
-        self.check(False, f'the timetug-shared pin 1.0.0 is below',
+    def test_leftover_project_path_entry_fails(self):
+        self.check(False, 'CalendarConnectors', project=project_yml(
+            extra='  CalendarConnectors:\n    path: ../../../calendar-connectors\n'))
+
+    def test_leftover_manifest_dependency_fails(self):
+        self.check(False, 'calendar-connectors', manifests={
+            'TimeTugCore': released(TIMETUG_SHARED) + ', ' + released(self.cc)})
+
+    def test_manifest_dependency_alone_names_the_retirement(self):
+        self.check(False, 'phase 6', manifests={'TimeTugCore': released(self.cc)})
+
+    def test_leftover_project_entry_names_the_retirement(self):
+        self.check(False, 'phase 6', project=project_yml(extra=f'  CalendarConnectors:\n{pinned(self.cc)}'))
+
+    def test_leftover_manifest_path_dependency_fails(self):
+        self.check(False, 'Packages/TimeTugCore/Package.swift', manifests={
+            'TimeTugCore': released(TIMETUG_SHARED) + ', .package(path: "../calendar-connectors")'})
+
+    def test_leftover_local_packages_entry_fails(self):
+        self.check(False, 'localPackages', project=project_yml(extra='localPackages:\n  - ../../../calendar-connectors\n'))
+
+    def test_a_project_without_it_passes(self):
+        self.check(True)
+
+    def test_floor_check_is_only_for_timetug_shared(self):
+        # A floor above the single pin fails; a pin in another major fails.
+        self.check(False, 'the timetug-shared pin 1.0.0 is below',
                    manifests={'TimeTugCore': released(TIMETUG_SHARED, '1.1.0')})
-        self.check(False, f'the timetug-shared pin 1.0.0 is below',
-                   manifests={'TimeTugCore': released(CALENDAR_CONNECTORS, '1.1.0') + ', ' +
-                              released(TIMETUG_SHARED, '1.1.0')})
-        self.check(False, f'the calendar-connectors pin 1.2.0 is below',
-                   manifests={'TimeTugCore': released(CALENDAR_CONNECTORS, '1.3.0') + ', ' +
-                              released(TIMETUG_SHARED, '1.0.0')})
-
-    def test_each_floor_is_compared_with_the_major_of_its_own_pin(self):
-        project = project_yml({'calendar-connectors': pinned(CALENDAR_CONNECTORS, pin='2.0.0')})
-        self.check(True, project=project, manifests={
-            'TimeTugCore': released(CALENDAR_CONNECTORS, '2.0.0') + ', ' + released(TIMETUG_SHARED, '1.0.0')})
-        self.check(False, 'the calendar-connectors pin 2.0.0 is in another major', project=project, manifests={
-            'TimeTugCore': released(CALENDAR_CONNECTORS, '1.0.0') + ', ' + released(TIMETUG_SHARED, '1.0.0')})
-        self.check(False, 'the timetug-shared pin 1.0.0 is in another major', project=project, manifests={
-            'TimeTugCore': released(CALENDAR_CONNECTORS, '2.0.0') + ', ' + released(TIMETUG_SHARED, '2.0.0')})
+        self.check(False, 'the timetug-shared pin 1.0.0 is in another major',
+                   project=project_yml({'timetug-shared': pinned(TIMETUG_SHARED, pin='1.0.0')}),
+                   manifests={'TimeTugCore': released(TIMETUG_SHARED, '2.0.0')})
 
     def test_a_bad_dependency_after_a_good_one_is_still_found(self):
         self.check(False, 'branch', manifests={
-            'TimeTugCore': released(TIMETUG_SHARED) + f', .package(url: "{url(CALENDAR_CONNECTORS)}", branch: "main")'})
-        self.check(False, 'branch', manifests={
-            'TimeTugCore': released(CALENDAR_CONNECTORS) + f', .package(url: "{url(TIMETUG_SHARED)}", branch: "main")'})
+            'TimeTugCore': released(TIMETUG_SHARED) + f', .package(url: "{url(TIMETUG_SHARED)}", branch: "main")'})
 
-    def test_each_library_may_use_a_local_package_next_to_the_other(self):
+    def test_a_local_package_next_to_the_library_passes(self):
         self.check(True, siblings=['Shared'], project=project_yml(extra='  Shared:\n    path: ../../Packages/Shared\n'),
-                   manifests={'TimeTugCore': released(CALENDAR_CONNECTORS) + ', ' + released(TIMETUG_SHARED) +
-                              ', .package(path: "../Shared")'})
-
-    def test_a_second_key_cannot_carry_the_other_library_as_a_local_path(self):
-        for library in LIBRARIES:
-            with self.subTest(library=library.slug):
-                self.check(False, 'Second', project=project_yml(
-                    extra=f'  Second:\n    path: ../../../{library.slug}\n'))
+                   manifests={'TimeTugCore': released(TIMETUG_SHARED) + ', .package(path: "../Shared")'})
 
 
 if __name__ == '__main__':

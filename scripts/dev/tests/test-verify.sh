@@ -27,7 +27,6 @@ cat > "$T/repo/scripts/ci/tests/test-dummy.sh" <<'SCRIPT'
 exit 0
 SCRIPT
 cp "$T/repo/scripts/ci/tests/test-dummy.sh" "$T/repo/scripts/release/tests/test-dummy.sh"
-cp "$T/repo/scripts/ci/tests/test-dummy.sh" "$T/repo/scripts/dev/tests/test-use-local-connectors.sh"
 # Records that verify.sh ran it (the stubbed python3 and swift record their own calls).
 cat > "$T/repo/scripts/dev/tests/test-use-local-library.sh" <<'SCRIPT'
 #!/usr/bin/env bash
@@ -44,27 +43,33 @@ git commit -qm base
 export VERIFY_CALLS="$T/calls" PATH="$T/bin:$PATH"
 fail() { echo "FAIL: $*" >&2; exit 1; }
 run_mode() { : > "$VERIFY_CALLS"; scripts/dev/verify.sh "$@" >/dev/null; }
-run_mode core
-grep -q 'swift test --package-path Packages/AppleIntelligenceInference' "$VERIFY_CALLS" || fail 'inference omitted'
-# TimeTugCore and CalendarBridge are tested in timetug-shared, the connector library in calendar-connectors.
-for moved in Packages/TimeTugCore Packages/CalendarBridge Packages/CalendarConnectors; do
-  if grep -q "$moved" "$VERIFY_CALLS"; then fail "$moved is tested from this repository"; fi
+# The packages mode tests the three local packages: the adapters and the inference package.
+run_mode packages
+for package in CalendarApple EventKitSource AppleIntelligenceInference; do
+  grep -q "swift test --package-path Packages/$package" "$VERIFY_CALLS" || fail "packages mode omitted $package"
+done
+# The core and connector checks live in timetug-shared; the old `core` and `connectors` modes are gone.
+for gone in core connectors; do
+  if scripts/dev/verify.sh "$gone" >/dev/null 2>&1; then fail "the removed mode $gone is still accepted"; fi
 done
 export TIMETUG_LIVE_EVENTKIT=1 TIMETUG_LIVE_GOOGLE=1 TIMETUG_LIVE_MICROSOFT=1
-for mode in connectors all; do
+for mode in packages all; do
   run_mode "$mode"
+  for package in CalendarApple EventKitSource AppleIntelligenceInference; do
+    grep -q "swift test --package-path Packages/$package" "$VERIFY_CALLS" || fail "mode $mode omitted $package"
+  done
   for moved in Packages/TimeTugCore Packages/CalendarBridge Packages/CalendarConnectors; do
     if grep -q "$moved" "$VERIFY_CALLS"; then fail "mode $mode tests $moved from this repository"; fi
   done
 done
-# Every mode that runs the script tests runs the shared-library wrapper tests and the resolved-version tests.
+# Every mode that runs the script tests runs the shared-library wrapper tests; the connector wrapper and the
+# resolved-version tests are gone with phase 6.
 for mode in release-tools all; do
   run_mode "$mode"
   grep -q 'ran test-use-local-library.sh' "$VERIFY_CALLS" || fail "mode $mode omitted test-use-local-library.sh"
-  grep -q 'python3 -m unittest scripts/ci/tests/test_resolved_version.py' "$VERIFY_CALLS" ||
-    fail "mode $mode omitted test_resolved_version.py"
+  if grep -q 'resolved_version\|use-local-connectors' "$VERIFY_CALLS"; then fail "mode $mode still runs a removed script test"; fi
 done
-run_mode core
+run_mode packages
 if grep -q LIVE_FLAGS_INHERITED "$VERIFY_CALLS"; then fail 'live-test flags reached package tests'; fi
 mkdir -p Apps/macOS
 echo x > Apps/macOS/'file with spaces.swift'
@@ -120,5 +125,5 @@ cat > "$T/bin/swift" <<'SCRIPT'
 exit 7
 SCRIPT
 chmod +x "$T/bin/swift"
-if scripts/dev/verify.sh core >/dev/null 2>&1; then fail 'failed subprocess accepted'; fi
+if scripts/dev/verify.sh packages >/dev/null 2>&1; then fail 'failed subprocess accepted'; fi
 echo PASS

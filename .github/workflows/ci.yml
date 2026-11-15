@@ -3,8 +3,8 @@
 # Jobs:
 #   release-tooling  Runs release scripts, workflow contracts, and website tests on Ubuntu.
 #   core        Swift Testing suites for Packages/CalendarApple, Packages/EventKitSource and
-#               Packages/AppleIntelligenceInference (macOS). The connector library and the shared Core
-#               (TimeTugCore, CalendarBridge) are tested, on macOS and Linux, in their own repositories.
+#               Packages/AppleIntelligenceInference (macOS). The connectors, the Core and the engine
+#               (timetug-shared, product TimeTugKit) are tested in the timetug-shared repository.
 #   app         Generates the Xcode project with XcodeGen, then builds and runs the app's XCTest suite (macOS).
 #   app-store-build  Builds the App Store target unsigned and checks it has no Sparkle (macOS).
 #   dmg         Builds the release app and the unsigned drag-to-install DMG, verifies it and uploads it
