@@ -1,17 +1,17 @@
-import CalendarCore
 import EventKit
 import Foundation
+import TimeTugKit
 
 // Several behaviours below rest on EventKit facts that the Task 1 spike has not confirmed yet (marked "Unverified"):
 // how occurrences of a series share `eventIdentifier`, what `.futureEvents` does on a series' first occurrence,
 // whether `refresh()` reports a deleted event, and whether `lastModifiedDate` changes on every save. The live tests
 // in EventKitLiveWriteTests.swift check them: `TIMETUG_LIVE_EVENTKIT=1 swift test --package-path Packages/EventKitSource --filter eventKit`.
-extension EventKitSource: WritableCalendarSource {
-    public func create(_ draft: EventDraft, in calendarID: String, notify: NotifyPolicy) async throws -> CalendarEvent {
+extension EventKitSource {
+    public func create(draft: EventDraft, calendarId calendarID: String, notify: NotifyPolicy) async throws -> CalendarEvent {
         // Everything that does not need the store comes first: a malformed recurrence rule crashes EventKit with an
         // NSException, so it must never reach the mapping.
-        try draft.validate()
-        try WriteValidation.requireWritable(draft.usedFields, capabilities)
+        try validateEventDraft(draft: draft)
+        try requireWritable(fields: eventDraftUsedFields(draft: draft), capabilities: capabilities())
         let alarms = try draft.reminders.map(EventKitWriteMapping.alarms)   // before the store is touched
         try requireAccess()
         try EventKitWriteMapping.checkNotify(notify, hasOtherAttendees: false)
@@ -20,7 +20,7 @@ extension EventKitSource: WritableCalendarSource {
             let window = EventKitWriteMapping.duplicateSearchWindow(for: draft.timing)
             let candidates = store.events(matching: store.predicateForEvents(withStart: window.start, end: window.end, calendars: [calendar]))
             if let index = EventKitWriteMapping.matchingIndex(uid: uid, candidates: candidates.map { ($0.calendarItemExternalIdentifier, $0.status == .canceled) }) {
-                throw WriteError.alreadyExists(map(candidates[index]))
+                throw FfiError.Write(.alreadyExists(map(candidates[index])))
             }
         }
         let event = EKEvent(eventStore: store)
@@ -39,30 +39,31 @@ extension EventKitSource: WritableCalendarSource {
     /// Callers read expanded occurrences, so a `timing` in `patch` is the occurrence's absolute date. A series-wide
     /// (`.allInSeries`) write starts from the first occurrence, so a time change is accepted only when `ref` is that
     /// first occurrence; otherwise it throws `WriteError.unsupported(fields: [.timing])` before any save.
-    public func update(_ ref: EventRef, _ patch: EventPatch, scope: RecurrenceScope, notify: NotifyPolicy) async throws -> CalendarEvent {
-        try WriteValidation.requireWritable(patch.touchedFields, capabilities)
+    public func update(reference ref: EventRef, patch: EventPatch, scope: RecurrenceScope, notify: NotifyPolicy) async throws -> CalendarEvent {
+        let touched = eventPatchTouchedFields(patch: patch)
+        try requireWritable(fields: touched, capabilities: capabilities())
         try Self.validate(patch)
         // A rule belongs to the whole series: on one occurrence the store would take it as a change to the series or drop
         // it, so it is refused up front (Google refuses it too).
-        if scope == .thisInstance, ref.seriesID != nil, patch.recurrence != .keep { throw WriteError.unsupported(fields: [.recurrence]) }
+        if scope == .thisInstance, ref.seriesID != nil, !patch.recurrence.isKeep { throw FfiError.Write(.unsupported(fields: [.recurrence])) }
         try requireAccess()
         let target = try locateTarget(ref, scope: scope)
-        if patch.isEmpty { return patch.base ?? map(target.event) }
+        if touched.isEmpty { return patch.base ?? map(target.event) }
         try requireModifiable(target.event)
         if scope == .allInSeries, patch.timing != nil, ref.seriesID != nil {
             // Unverified: the event fetched by identifier is the series' first occurrence.
             guard let original = ref.originalStart, let slot = target.event.occurrenceDate,
                   abs(slot.timeIntervalSince(original)) < 1 else {
-                throw WriteError.unsupported(fields: [.timing])
+                throw FfiError.Write(.unsupported(fields: [.timing]))
             }
         }
         try EventKitWriteMapping.checkNotify(notify, hasOtherAttendees: hasOtherAttendees(target.event))
         // An occurrence's modification date does not describe the whole series, so a series-wide write has no lock.
         let version = scope == .allInSeries && ref.seriesID != nil ? nil : ref.version
-        return try await PatchMerge.apply(
-            patch: patch, version: version,
+        return try await applyPatch(
+            patch, version: version,
             fetchCurrent: { self.map(try self.locateTarget(ref, scope: scope).event) },
-            write: { expected -> PatchMerge.Attempt<CalendarEvent> in
+            write: { expected -> PatchAttempt in
                 let current = try self.locateTarget(ref, scope: scope)
                 // Unverified: `lastModifiedDate` changes on every save, and `refresh()` (in `locate`) makes it current.
                 if let expected, expected != EventKitWriteMapping.version(current.event.lastModifiedDate) { return .stale }
@@ -79,18 +80,50 @@ extension EventKitSource: WritableCalendarSource {
             })
     }
 
-    public func delete(_ ref: EventRef, scope: RecurrenceScope, notify: NotifyPolicy) async throws {
+    enum PatchAttempt {
+        case done(CalendarEvent)
+        /// The store rejected the write because the version is out of date.
+        case stale
+    }
+
+    /// Runs `write` with `version`. When it reports `.stale`, fetches the current event and judges the patch against it
+    /// (`patchMergeConflicts`): a real overlap throws `.conflict(fields:)`; otherwise the write is retried on the fresh
+    /// version. After `maxAttempts` writes, or when a retry is due but the fresh event carries no version although the
+    /// write was versioned, it throws `.conflict(fields: touched)`: retrying unversioned would be an unconditional write.
+    func applyPatch(
+        _ patch: EventPatch, version: String?, maxAttempts: Int = 3,
+        fetchCurrent: () async throws -> CalendarEvent, write: (String?) async throws -> PatchAttempt
+    ) async throws -> CalendarEvent {
+        let touched = eventPatchTouchedFields(patch: patch)
+        var version = version
+        for _ in 0..<max(1, maxAttempts) {
+            try Task.checkCancellation()
+            switch try await write(version) {
+            case .done(let result):
+                return result
+            case .stale:
+                let current = try await fetchCurrent()
+                let overlapping = patchMergeConflicts(patch: patch, current: current)
+                if !overlapping.isEmpty { throw FfiError.Write(.conflict(fields: overlapping)) }
+                if version != nil && current.version == nil { throw FfiError.Write(.conflict(fields: touched)) }
+                version = current.version
+            }
+        }
+        throw FfiError.Write(.conflict(fields: touched))
+    }
+
+    public func delete(reference ref: EventRef, scope: RecurrenceScope, notify: NotifyPolicy) async throws {
         try requireAccess()
         let target = try locateTarget(ref, scope: scope)
         try requireModifiable(target.event)
         try EventKitWriteMapping.checkNotify(notify, hasOtherAttendees: hasOtherAttendees(target.event))
         do { try store.remove(target.event, span: target.span, commit: true) }
-        catch { throw WriteError.invalid(error.localizedDescription) }
+        catch { throw FfiError.Write(.invalid(error.localizedDescription)) }
     }
 
     /// EventKit does not let apps change a response.
-    public func respond(to ref: EventRef, _ response: ResponseStatus, scope: RecurrenceScope, notify: NotifyPolicy) async throws -> CalendarEvent {
-        throw WriteError.unsupported(fields: [.attendees])
+    public func respond(reference: EventRef, response: ResponseStatus, scope: RecurrenceScope, notify: NotifyPolicy) async throws -> CalendarEvent {
+        throw FfiError.Write(.unsupported(fields: [.attendees]))
     }
 
     // MARK: Helpers
@@ -98,19 +131,19 @@ extension EventKitSource: WritableCalendarSource {
     /// The checks a patch needs before any store access. `patch.timing` is covered by `EventTiming.validate()`, but a
     /// recurrence rule and reminders are not (an invalid rule would crash EventKit).
     private static func validate(_ patch: EventPatch) throws {
-        try patch.timing?.validate()
-        if case .set(let rule) = patch.recurrence { try rule.validate() }
+        if let timing = patch.timing { try validateEventTiming(timing: timing) }
+        if case .set(let rule) = patch.recurrence { try validateRecurrenceRule(rule: rule) }
         if case .set(let reminders) = patch.reminders {
             if reminders.contains(where: { if case .relative(let offset, _) = $0.trigger { offset > 0 } else { false } }) {
-                throw WriteError.invalid("reminder minutes must not be negative")
+                throw FfiError.Write(.invalid("reminder minutes must not be negative"))
             }
             _ = try EventKitWriteMapping.alarms(reminders)   // refuses what EventKit cannot write before the store is touched
         }
     }
 
     private func writableCalendar(_ id: String) throws -> EKCalendar {
-        guard let calendar = store.calendar(withIdentifier: id) else { throw WriteError.notFound }
-        guard calendar.allowsContentModifications else { throw WriteError.forbidden("read-only calendar") }
+        guard let calendar = store.calendar(withIdentifier: id) else { throw FfiError.Write(.notFound) }
+        guard calendar.allowsContentModifications else { throw FfiError.Write(.forbidden("read-only calendar")) }
         return calendar
     }
 
@@ -127,17 +160,17 @@ extension EventKitSource: WritableCalendarSource {
 
     private func save(_ event: EKEvent, span: EKSpan) throws {
         do { try store.save(event, span: span, commit: true) }
-        catch { throw WriteError.invalid(error.localizedDescription) }
+        catch { throw FfiError.Write(.invalid(error.localizedDescription)) }
     }
 
     /// The closest value the calendar accepts (`Availability.closest`); a calendar that tracks none is left alone.
     private func setAvailability(_ availability: Availability, on event: EKEvent, in calendar: EKCalendar) {
         let supported = EventKitMapping.supportedAvailabilities(calendar.supportedEventAvailabilities)
-        if let value = availability.closest(in: supported) { event.availability = EventKitMapping.eventAvailability(value) }
+        if let value = EventKitMapping.closest(availability, in: supported) { event.availability = EventKitMapping.eventAvailability(value) }
     }
 
     private func requireModifiable(_ event: EKEvent) throws {
-        guard event.calendar?.allowsContentModifications == true else { throw WriteError.forbidden("read-only calendar") }
+        guard event.calendar?.allowsContentModifications == true else { throw FfiError.Write(.forbidden("read-only calendar")) }
     }
 
     /// The occurrence a ref designates, in the ref's calendar. A recurring occurrence is found through a date-range
@@ -148,8 +181,8 @@ extension EventKitSource: WritableCalendarSource {
     private func locate(_ ref: EventRef) throws -> EKEvent {
         var found: EKEvent?
         if ref.seriesID != nil {
-            guard let original = ref.originalStart else { throw WriteError.invalid("a recurring occurrence needs its original start") }
-            guard let calendar = store.calendar(withIdentifier: ref.calendarID) else { throw WriteError.notFound }
+            guard let original = ref.originalStart else { throw FfiError.Write(.invalid("a recurring occurrence needs its original start")) }
+            guard let calendar = store.calendar(withIdentifier: ref.calendarID) else { throw FfiError.Write(.notFound) }
             let window = EventKitWriteMapping.occurrenceSearchWindow(around: original)
             let predicate = store.predicateForEvents(withStart: window.start, end: window.end, calendars: [calendar])
             found = store.events(matching: predicate).first { event in
@@ -158,7 +191,7 @@ extension EventKitSource: WritableCalendarSource {
         } else {
             found = store.event(withIdentifier: ref.eventID)
         }
-        guard let event = found, event.calendar?.calendarIdentifier == ref.calendarID, event.refresh() else { throw WriteError.notFound }
+        guard let event = found, event.calendar?.calendarIdentifier == ref.calendarID, event.refresh() else { throw FfiError.Write(.notFound) }
         return event
     }
 
@@ -168,7 +201,7 @@ extension EventKitSource: WritableCalendarSource {
         guard ref.seriesID != nil else { return (try locate(ref), .thisEvent) }
         if scope == .allInSeries {
             guard let seriesID = ref.seriesID, let first = store.event(withIdentifier: seriesID), first.calendar?.calendarIdentifier == ref.calendarID,
-                  first.refresh() else { throw WriteError.notFound }
+                  first.refresh() else { throw FfiError.Write(.notFound) }
             return (first, .futureEvents)
         }
         return (try locate(ref), EventKitWriteMapping.span(for: scope))
@@ -206,4 +239,8 @@ extension EventKitSource: WritableCalendarSource {
             event.addRecurrenceRule(EventKitWriteMapping.recurrenceRule(rule))
         }
     }
+}
+
+private extension FieldUpdateRecurrenceRule {
+    var isKeep: Bool { if case .keep = self { true } else { false } }
 }

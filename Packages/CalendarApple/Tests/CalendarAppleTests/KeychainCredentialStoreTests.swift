@@ -1,5 +1,5 @@
 import Foundation
-import CalendarCore
+import TimeTugKit
 import Security
 import Testing
 @testable import CalendarApple
@@ -22,23 +22,23 @@ private func keychainAvailable() -> Bool {
 
 @Test(.enabled(if: keychainAvailable())) func setGetOverwriteRemove() async throws {
     let store = makeStore()
-    #expect(try await store.secrets(for: "c1") == nil)
-    try await store.setSecrets(["refresh_token": "r1"], for: "c1")
-    #expect(try await store.secrets(for: "c1") == ["refresh_token": "r1"])
-    try await store.setSecrets(["refresh_token": "r2", "extra": "x"], for: "c1")
-    #expect(try await store.secrets(for: "c1") == ["refresh_token": "r2", "extra": "x"])
-    try await store.removeSecrets(for: "c1")
-    #expect(try await store.secrets(for: "c1") == nil)
-    try await store.removeSecrets(for: "c1")   // idempotent
+    #expect(try await store.secrets(connectionId: "c1") == nil)
+    try await store.setSecrets(secrets: ["refresh_token": "r1"], connectionId: "c1")
+    #expect(try await store.secrets(connectionId: "c1") == ["refresh_token": "r1"])
+    try await store.setSecrets(secrets: ["refresh_token": "r2", "extra": "x"], connectionId: "c1")
+    #expect(try await store.secrets(connectionId: "c1") == ["refresh_token": "r2", "extra": "x"])
+    try await store.removeSecrets(connectionId: "c1")
+    #expect(try await store.secrets(connectionId: "c1") == nil)
+    try await store.removeSecrets(connectionId: "c1")   // idempotent
 }
 
 @Test(.enabled(if: keychainAvailable())) func connectionsAreIsolated() async throws {
     let store = makeStore()
-    try await store.setSecrets(["a": "1"], for: "c1")
-    try await store.setSecrets(["a": "2"], for: "c2")
-    #expect(try await store.secrets(for: "c1") == ["a": "1"])
-    try await store.removeSecrets(for: "c1")
-    try await store.removeSecrets(for: "c2")
+    try await store.setSecrets(secrets: ["a": "1"], connectionId: "c1")
+    try await store.setSecrets(secrets: ["a": "2"], connectionId: "c2")
+    #expect(try await store.secrets(connectionId: "c1") == ["a": "1"])
+    try await store.removeSecrets(connectionId: "c1")
+    try await store.removeSecrets(connectionId: "c2")
 }
 
 @Test(.enabled(if: keychainAvailable())) func legacyCredentialIsMigratedAndRotationCannotUndoNewSignIn() async throws {
@@ -53,10 +53,10 @@ private func keychainAvailable() -> Bool {
     ]
     #expect(SecItemAdd(query as CFDictionary, nil) == errSecSuccess)
     defer { SecItemDelete(query as CFDictionary) }
-    let snapshot = try #require(try await store.credentialSnapshot(for: "c1"))
+    let snapshot = try #require(try await store.credentialSnapshot(connectionId: "c1"))
     #expect(snapshot.secrets["refresh_token"] == "old")
-    #expect(try await store.updateRefreshToken("rotated", for: "c1", expectedRevision: snapshot.revision))
-    try await store.setSecrets(["refresh_token": "new-sign-in"], for: "c1")
-    #expect(try await store.updateRefreshToken("stale", for: "c1", expectedRevision: snapshot.revision) == false)
-    #expect(try await store.secrets(for: "c1")?["refresh_token"] == "new-sign-in")
+    #expect(try await store.updateRefreshToken(token: "rotated", connectionId: "c1", expectedRevision: snapshot.revision))
+    try await store.setSecrets(secrets: ["refresh_token": "new-sign-in"], connectionId: "c1")
+    #expect(try await store.updateRefreshToken(token: "stale", connectionId: "c1", expectedRevision: snapshot.revision) == false)
+    #expect(try await store.secrets(connectionId: "c1")?["refresh_token"] == "new-sign-in")
 }

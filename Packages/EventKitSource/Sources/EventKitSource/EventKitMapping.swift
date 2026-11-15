@@ -1,7 +1,7 @@
-import CalendarCore
 import CoreGraphics
 import EventKit
 import Foundation
+import TimeTugKit
 
 /// Pure conversions used by `EventKitSource`, kept free of `EKEventStore` so they are unit-testable.
 enum EventKitMapping {
@@ -88,17 +88,18 @@ enum EventKitMapping {
         var end = RecurrenceRule.End.never
         if let recurrenceEnd = rule.recurrenceEnd {
             if let date = recurrenceEnd.endDate { end = .until(date) }
-            else if recurrenceEnd.occurrenceCount > 0 { end = .count(recurrenceEnd.occurrenceCount) }
+            else if recurrenceEnd.occurrenceCount > 0 { end = .count(Int64(recurrenceEnd.occurrenceCount)) }
         }
-        func ints(_ numbers: [NSNumber]?) -> [Int] { (numbers ?? []).map(\.intValue) }
+        func ints(_ numbers: [NSNumber]?) -> [Int64] { (numbers ?? []).map(\.int64Value) }
         return RecurrenceRule(
-            frequency: frequency, interval: max(rule.interval, 1),
+            frequency: frequency, interval: Int64(max(rule.interval, 1)),
+            weekStart: rule.firstDayOfTheWeek == 0 ? .monday : (EKWeekday(rawValue: rule.firstDayOfTheWeek).flatMap(weekday) ?? .monday),
             weekdays: (rule.daysOfTheWeek ?? []).compactMap { day in
                 weekday(day.dayOfTheWeek).map { RecurrenceRule.WeekdayOccurrence($0, ordinal: day.weekNumber == 0 ? nil : day.weekNumber) }
             },
-            monthDays: ints(rule.daysOfTheMonth), months: ints(rule.monthsOfTheYear), end: end,
-            weekStart: rule.firstDayOfTheWeek == 0 ? .monday : (EKWeekday(rawValue: rule.firstDayOfTheWeek).flatMap(weekday) ?? .monday),
-            yearDays: ints(rule.daysOfTheYear), weekNumbers: ints(rule.weeksOfTheYear), setPositions: ints(rule.setPositions))
+            monthDays: ints(rule.daysOfTheMonth), months: ints(rule.monthsOfTheYear),
+            yearDays: ints(rule.daysOfTheYear), weekNumbers: ints(rule.weeksOfTheYear), setPositions: ints(rule.setPositions),
+            hours: [], minutes: [], seconds: [], end: end, unrecognizedParts: [])
     }
 
     /// The availability values a calendar accepts; an empty mask means it does not track availability.
@@ -109,6 +110,21 @@ enum EventKitMapping {
         if mask.contains(.tentative) { result.insert(.tentative) }
         if mask.contains(.unavailable) { result.insert(.unavailable) }
         return result
+    }
+
+    /// The value itself when the calendar supports it; otherwise the first supported value from its fallback list
+    /// (`tentative` and `unavailable` fall back to busy, then free; busy to free; free to busy). nil when `supported` is
+    /// empty (the calendar does not track availability). The same rule as `Availability.closest(in:)` of the 1.x libraries,
+    /// which `TimeTugKit` does not export.
+    static func closest(_ availability: Availability, in supported: Set<Availability>) -> Availability? {
+        if supported.contains(availability) { return availability }
+        let fallbacks: [Availability]
+        switch availability {
+        case .tentative, .unavailable: fallbacks = [.busy, .free]
+        case .busy: fallbacks = [.free]
+        case .free: fallbacks = [.busy]
+        }
+        return fallbacks.first { supported.contains($0) }
     }
 
     static func eventAvailability(_ availability: Availability) -> EKEventAvailability {
@@ -131,7 +147,7 @@ enum EventKitMapping {
 
     /// Instances of a series (and a detached, moved one) are occurrences; the series id is the raw shared identifier.
     static func series(isOccurrence: Bool, identifier: String, occurrenceDate: Date?) -> SeriesInfo {
-        isOccurrence ? .occurrence(seriesID: identifier, originalStart: occurrenceDate) : .notRecurring
+        isOccurrence ? .occurrence(seriesId: identifier, originalStart: occurrenceDate) : .notRecurring
     }
 
     /// `selfStatus` is the current user's attendee status, nil when they are not among the attendees. An unknown
