@@ -3,8 +3,8 @@
 # Jobs:
 #   release-tooling  Runs release scripts, workflow contracts, and website tests on Ubuntu.
 #   core        Swift Testing suites for Packages/CalendarApple, Packages/EventKitSource and
-#               Packages/AppleIntelligenceInference (macOS). The connector library and the shared Core
-#               (TimeTugCore, CalendarBridge) are tested, on macOS and Linux, in their own repositories.
+#               Packages/AppleIntelligenceInference (macOS). The connectors, the Core and the engine
+#               (timetug-shared, product TimeTugKit) are tested in the timetug-shared repository.
 #   app         Generates the Xcode project with XcodeGen, then builds and runs the app's XCTest suite (macOS).
 #   app-store-build  Builds the App Store target unsigned and checks it has no Sparkle (macOS).
 #   dmg         Builds the release app and the unsigned drag-to-install DMG, verifies it and uploads it
@@ -120,6 +120,12 @@ jobs:
           test ! -e "$app/Contents/Frameworks/Sparkle.framework"
           if /usr/libexec/PlistBuddy -c "Print :SUFeedURL" "$app/Contents/Info.plist" 2>/dev/null; then echo "SUFeedURL in the App Store build"; exit 1; fi
           test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$app/Contents/Info.plist")" = com.timetug.app.store
+      - name: The App Store build carries the licence notices
+        run: |
+          dir=build/DerivedData-store/Build/Products/Debug/TimeTug-AppStore.app/Contents/Resources/Licenses
+          for f in TimeTugEngine-THIRD-PARTY-NOTICES.md TimeTugEngine-LICENSE KeyboardShortcuts-LICENSE; do
+            test -s "$dir/$f" || { echo "missing or empty: $dir/$f"; exit 1; }
+          done
 
   dmg:
     runs-on: macos-26

@@ -1,5 +1,5 @@
 import Foundation
-import TimeTugCore
+import TimeTugKit
 
 /// One event card in the popup, with all text decided.
 struct PopupRowModel: Identifiable, Equatable {
@@ -52,7 +52,7 @@ struct PopupRowModel: Identifiable, Equatable {
             case .next, .upcoming: meta = withCalendar
             }
             return PopupRowModel(
-                id: item.id, kind: kind,
+                id: item.event.id, kind: kind,
                 timeText: kind == .allDay ? "All day" : PopupText.clock(e.shownStart, locale: locale, timeZone: timeZone),
                 title: e.title, metaText: meta, colorHex: calendar?.colorHex,
                 joinURL: (kind == .current || kind == .next) ? e.conferenceURL : nil,

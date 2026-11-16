@@ -1,5 +1,5 @@
 import Foundation
-import TimeTugCore
+import TimeTugKit
 
 /// Visible label strings, shared by the views and the search catalog so they cannot drift.
 /// `appearance` is a deliberate exception: it labels the search result, not the section it reveals

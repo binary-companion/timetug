@@ -1,4 +1,4 @@
-import CalendarCore
+import TimeTugKit
 import XCTest
 @testable import TimeTug
 

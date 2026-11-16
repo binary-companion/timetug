@@ -1,7 +1,7 @@
-import CalendarCore
 import Foundation
 import Network
 import Testing
+import TimeTugKit
 @testable import CalendarApple
 
 @Test func redirectURLParsesOAuthRedirectsOnly() {
@@ -36,7 +36,7 @@ private func interaction(timeout: Duration = .seconds(5), opened: @escaping @Sen
 private func authorizationURL(for session: any OAuthRedirectSession, state: String = "xyz") -> URL {
     var parts = URLComponents(string: "https://accounts.example/auth")!
     parts.queryItems = [URLQueryItem(name: "state", value: state),
-                        URLQueryItem(name: "redirect_uri", value: session.redirectURI.absoluteString)]
+                        URLQueryItem(name: "redirect_uri", value: session.redirectUri().absoluteString)]
     return parts.url!
 }
 
@@ -45,10 +45,10 @@ private func authorizationURL(for session: any OAuthRedirectSession, state: Stri
 /// response status must not send before this returns. `openURL` runs only after the state is recorded.
 private func beginArmedAuthorization() async throws -> (session: any OAuthRedirectSession, waiting: Task<URL, any Error>) {
     let (armed, arm) = AsyncStream<Void>.makeStream()
-    let session = try await interaction(opened: { _ in arm.yield() }).beginOAuthRedirect()
+    let session = try await interaction(opened: { _ in arm.yield() }).beginOauthRedirect().session
     let waiting = Task {
         defer { arm.finish() }
-        return try await session.authorize(at: authorizationURL(for: session))
+        return try await session.authorize(authorizationUrl: authorizationURL(for: session))
     }
     for await _ in armed { break }
     return (session, waiting)
@@ -59,32 +59,32 @@ private func beginArmedAuthorization() async throws -> (session: any OAuthRedire
     for path in ["/?code=bad&state=wrong", "/?code=bad", "/?code=bad&state=xyz&state=xyz",
                  "/?code=bad&code=other&state=xyz", "/?error=access_denied&error=other&state=xyz",
                  "/unexpected?code=bad&state=xyz", "/favicon.ico"] {
-        let response = try await rawGET(session.redirectURI, path: path)
+        let response = try await rawGET(session.redirectUri(), path: path)
         #expect(response.hasPrefix("HTTP/1.1 404"))
     }
-    let response = try await rawGET(session.redirectURI, path: "/?code=good&state=xyz")
+    let response = try await rawGET(session.redirectUri(), path: "/?code=good&state=xyz")
     #expect(response.hasPrefix("HTTP/1.1 200"))
     #expect(try await waiting.value.query?.contains("code=good") == true)
-    await session.close()
+    await session.release()
 }
 
 @Test func correctStateAccessDeniedIsDelivered() async throws {
     let (session, waiting) = try await beginArmedAuthorization()
-    let response = try await rawGET(session.redirectURI, path: "/?error=access_denied&state=xyz")
+    let response = try await rawGET(session.redirectUri(), path: "/?error=access_denied&state=xyz")
     #expect(response.hasPrefix("HTTP/1.1 200"))
     #expect(try await waiting.value.query?.contains("error=access_denied") == true)
-    await session.close()
+    await session.release()
 }
 
 @Test func oversizedAndIncompleteRequestsCannotCompleteAuthorization() async throws {
     let interaction = LoopbackAuthorizationInteraction(openURL: { _ in true }, timeout: .seconds(3),
                                                         requestTimeout: .milliseconds(100))
-    let session = try await interaction.beginOAuthRedirect()
-    let waiting = Task { try await session.authorize(at: authorizationURL(for: session)) }
+    let session = try await interaction.beginOauthRedirect().session
+    let waiting = Task { try await session.authorize(authorizationUrl: authorizationURL(for: session)) }
     try await Task.sleep(for: .milliseconds(30))
 
     let oversized = "GET /?code=oversized&state=xyz HTTP/1.1\r\nX-Fill: " + String(repeating: "a", count: 16_384) + "\r\n\r\n"
-    let port = NWEndpoint.Port(rawValue: UInt16(session.redirectURI.port!))!
+    let port = NWEndpoint.Port(rawValue: UInt16(session.redirectUri().port!))!
     let client = NWConnection(host: "127.0.0.1", port: port, using: .tcp)
     client.start(queue: DispatchQueue(label: "test.incomplete"))
     defer { client.cancel() }
@@ -97,18 +97,18 @@ private func beginArmedAuthorization() async throws -> (session: any OAuthRedire
         }
     }
     #expect(oversizedResponse.hasPrefix("HTTP/1.1 404"))
-    let response = try await rawGET(session.redirectURI, path: "/?code=good&state=xyz")
+    let response = try await rawGET(session.redirectUri(), path: "/?code=good&state=xyz")
     #expect(response.hasPrefix("HTTP/1.1 200"))
     #expect(try await waiting.value.query?.contains("code=good") == true)
-    await session.close()
+    await session.release()
 }
 
 @Test func stalledRequestExpiresWithoutUsingItsPartialCallback() async throws {
     let interaction = LoopbackAuthorizationInteraction(openURL: { _ in true }, timeout: .seconds(3),
                                                         requestTimeout: .milliseconds(100))
-    let session = try await interaction.beginOAuthRedirect()
-    let waiting = Task { try await session.authorize(at: authorizationURL(for: session)) }
-    let port = NWEndpoint.Port(rawValue: UInt16(session.redirectURI.port!))!
+    let session = try await interaction.beginOauthRedirect().session
+    let waiting = Task { try await session.authorize(authorizationUrl: authorizationURL(for: session)) }
+    let port = NWEndpoint.Port(rawValue: UInt16(session.redirectUri().port!))!
     let client = NWConnection(host: "127.0.0.1", port: port, using: .tcp)
     client.start(queue: DispatchQueue(label: "test.stalled"))
     defer { client.cancel() }
@@ -117,16 +117,16 @@ private func beginArmedAuthorization() async throws -> (session: any OAuthRedire
                     completion: .contentProcessed { _ in continuation.resume() })
     }
     try await Task.sleep(for: .milliseconds(150))
-    let response = try await rawGET(session.redirectURI, path: "/?code=good&state=xyz")
+    let response = try await rawGET(session.redirectUri(), path: "/?code=good&state=xyz")
     #expect(response.hasPrefix("HTTP/1.1 200"))
     #expect(try await waiting.value.query?.contains("code=good") == true)
-    await session.close()
+    await session.release()
 }
 
 @Test func ninthIdleConnectionCannotConsumeTheCallback() async throws {
-    let session = try await interaction().beginOAuthRedirect()
-    let waiting = Task { try await session.authorize(at: authorizationURL(for: session)) }
-    let port = NWEndpoint.Port(rawValue: UInt16(session.redirectURI.port!))!
+    let session = try await interaction().beginOauthRedirect().session
+    let waiting = Task { try await session.authorize(authorizationUrl: authorizationURL(for: session)) }
+    let port = NWEndpoint.Port(rawValue: UInt16(session.redirectUri().port!))!
     var idle: [NWConnection] = []
     defer { idle.forEach { $0.cancel() } }
     for index in 0..<8 {
@@ -135,75 +135,75 @@ private func beginArmedAuthorization() async throws -> (session: any OAuthRedire
         idle.append(connection)
     }
     try await Task.sleep(for: .milliseconds(100))
-    let rejected = try await rawGET(session.redirectURI, path: "/?code=blocked&state=xyz")
+    let rejected = try await rawGET(session.redirectUri(), path: "/?code=blocked&state=xyz")
     #expect(!rejected.hasPrefix("HTTP/1.1 200"))
     idle.removeFirst().cancel()
     try await Task.sleep(for: .milliseconds(100))
-    let accepted = try await rawGET(session.redirectURI, path: "/?code=good&state=xyz")
+    let accepted = try await rawGET(session.redirectUri(), path: "/?code=good&state=xyz")
     #expect(accepted.hasPrefix("HTTP/1.1 200"))
     #expect(try await waiting.value.query?.contains("code=good") == true)
-    await session.close()
+    await session.release()
 }
 
 @Test func sessionReceivesTheRedirectOnLoopback() async throws {
-    let session = try await interaction().beginOAuthRedirect()
-    #expect(session.redirectURI.host == "127.0.0.1" && session.redirectURI.port != nil)
-    let waiting = Task { try await session.authorize(at: authorizationURL(for: session)) }
+    let session = try await interaction().beginOauthRedirect().session
+    #expect(session.redirectUri().host == "127.0.0.1" && session.redirectUri().port != nil)
+    let waiting = Task { try await session.authorize(authorizationUrl: authorizationURL(for: session)) }
     try await Task.sleep(for: .milliseconds(100))
-    let (body, response) = try await URLSession.shared.data(from: URL(string: session.redirectURI.absoluteString + "/?code=abc&state=xyz")!)
+    let (body, response) = try await URLSession.shared.data(from: URL(string: session.redirectUri().absoluteString + "/?code=abc&state=xyz")!)
     #expect((response as? HTTPURLResponse)?.statusCode == 200)
     #expect(String(decoding: body, as: UTF8.self).contains("close this window"))
     let received = try await waiting.value
     #expect(URLComponents(url: received, resolvingAgainstBaseURL: false)?.queryItems?.first { $0.name == "code" }?.value == "abc")
-    await session.close()
+    await session.release()
 }
 
 @Test func redirectArrivingBeforeAuthorizeWaitsIsNotLost() async throws {
-    let session = try await interaction().beginOAuthRedirect()
-    _ = try await URLSession.shared.data(from: URL(string: session.redirectURI.absoluteString + "/?code=early&state=xyz")!)
-    let received = try await session.authorize(at: authorizationURL(for: session))
+    let session = try await interaction().beginOauthRedirect().session
+    _ = try await URLSession.shared.data(from: URL(string: session.redirectUri().absoluteString + "/?code=early&state=xyz")!)
+    let received = try await session.authorize(authorizationUrl: authorizationURL(for: session))
     #expect(received.query?.contains("code=early") == true)
-    await session.close()
+    await session.release()
 }
 
 @Test func authorizeTimesOut() async throws {
-    let session = try await interaction(timeout: .milliseconds(200)).beginOAuthRedirect()
-    await #expect(throws: LoopbackError.timedOut) { try await session.authorize(at: authorizationURL(for: session)) }
-    await session.close()
+    let session = try await interaction(timeout: .milliseconds(200)).beginOauthRedirect().session
+    await #expect(throws: LoopbackError.timedOut) { try await session.authorize(authorizationUrl: authorizationURL(for: session)) }
+    await session.release()
 }
 
 @Test func closeFreesThePortAndIsIdempotent() async throws {
-    let session = try await interaction().beginOAuthRedirect()
-    await session.close()
-    await session.close()
+    let session = try await interaction().beginOauthRedirect().session
+    await session.release()
+    await session.release()
     await #expect(throws: (any Error).self) {
-        _ = try await URLSession.shared.data(from: URL(string: session.redirectURI.absoluteString + "/?code=x&state=y")!)
+        _ = try await URLSession.shared.data(from: URL(string: session.redirectUri().absoluteString + "/?code=x&state=y")!)
     }
 }
 
 @Test func promptCredentialsIsUnavailableUnlessInjected() async {
     await #expect(throws: LoopbackError.credentialPromptUnavailable) {
-        _ = try await interaction().promptCredentials([CredentialField(key: "u", label: "User")])
+        _ = try await interaction().promptCredentials(fields: [CredentialField(key: "u", label: "User", isSecret: false)])
     }
 }
 
 @Test func secondConcurrentAuthorizeFailsFastAndFirstStillCompletes() async throws {
-    let session = try await interaction().beginOAuthRedirect()
-    let first = Task { try await session.authorize(at: authorizationURL(for: session)) }
+    let session = try await interaction().beginOauthRedirect().session
+    let first = Task { try await session.authorize(authorizationUrl: authorizationURL(for: session)) }
     try await Task.sleep(for: .milliseconds(200))
     await #expect(throws: LoopbackError.alreadyWaiting) {
-        try await session.authorize(at: authorizationURL(for: session, state: "second-flow"))
+        try await session.authorize(authorizationUrl: authorizationURL(for: session, state: "second-flow"))
     }
-    _ = try await URLSession.shared.data(from: URL(string: session.redirectURI.absoluteString + "/?code=one&state=xyz")!)
+    _ = try await URLSession.shared.data(from: URL(string: session.redirectUri().absoluteString + "/?code=one&state=xyz")!)
     let received = try await first.value
     #expect(received.query?.contains("code=one") == true)
-    await session.close()
+    await session.release()
 }
 
 @Test func abandonedSessionReleasesItsListener() async throws {
     weak var abandoned: LoopbackSession?
     do {
-        let session = try #require(try await interaction().beginOAuthRedirect() as? LoopbackSession)
+        let session = try #require(try await interaction().beginOauthRedirect().session as? LoopbackSession)
         abandoned = session
     }
     for _ in 0..<50 where abandoned != nil { try await Task.sleep(for: .milliseconds(10)) }
@@ -211,10 +211,10 @@ private func beginArmedAuthorization() async throws -> (session: any OAuthRedire
 }
 
 @Test func requestSplitAcrossChunksIsReassembled() async throws {
-    let session = try await interaction().beginOAuthRedirect()
-    let waiting = Task { try await session.authorize(at: authorizationURL(for: session)) }
+    let session = try await interaction().beginOauthRedirect().session
+    let waiting = Task { try await session.authorize(authorizationUrl: authorizationURL(for: session)) }
     try await Task.sleep(for: .milliseconds(100))
-    let port = NWEndpoint.Port(rawValue: UInt16(session.redirectURI.port!))!
+    let port = NWEndpoint.Port(rawValue: UInt16(session.redirectUri().port!))!
     let client = NWConnection(host: "127.0.0.1", port: port, using: .tcp)
     client.start(queue: DispatchQueue(label: "test.client"))
     func send(_ text: String) async {
@@ -229,7 +229,7 @@ private func beginArmedAuthorization() async throws -> (session: any OAuthRedire
     defer { watchdog.cancel(); client.cancel() }
     let received = try await waiting.value
     #expect(received.query?.contains("code=abc") == true)
-    await session.close()
+    await session.release()
 }
 
 // MARK: - Presenter seam
@@ -321,8 +321,8 @@ private func presenterSession(_ mode: (URL) -> FakePresenter.Mode, timeout: Dura
     let box = Box()
     let proxy = ProxyPresenter { box.presenter }
     let interaction = LoopbackAuthorizationInteraction(openURL: { _ in opened.hit(); return true }, presenter: proxy, timeout: timeout)
-    let session = try await interaction.beginOAuthRedirect()
-    let presenter = FakePresenter(mode(session.redirectURI))
+    let session = try await interaction.beginOauthRedirect().session
+    let presenter = FakePresenter(mode(session.redirectUri()))
     box.presenter = presenter
     return (session, presenter)
 }
@@ -338,93 +338,93 @@ private struct ProxyPresenter: AuthorizationPresenting {
 
 @Test func presenterSessionAnswersTheRedirectWith302ToTheCompletionScheme() async throws {
     let (session, presenter) = try await presenterSession { .hitListener($0) }
-    let received = try await session.authorize(at: authorizationURL(for: session))
+    let received = try await session.authorize(authorizationUrl: authorizationURL(for: session))
     #expect(received.query?.contains("code=abc") == true)
     #expect(presenter.completionScheme == "timetug-oauth")
     #expect(await eventually { presenter.response != nil })
     let response = try #require(presenter.response)
     #expect(response.hasPrefix("HTTP/1.1 302"))
     #expect(response.contains("Location: timetug-oauth://done"))
-    await session.close()
+    await session.release()
 }
 
 @Test func presenterCancellationEndsAuthorizeWithCancelledBeforeTheTimeout() async throws {
     let (session, _) = try await presenterSession({ _ in .endWith(CancellationError()) }, timeout: .seconds(3))
-    await #expect(throws: LoopbackError.cancelled) { try await session.authorize(at: authorizationURL(for: session)) }
-    await session.close()
+    await #expect(throws: HostError.Cancelled) { try await session.authorize(authorizationUrl: authorizationURL(for: session)) }
+    await session.release()
 }
 
 @Test func presenterThatCannotStartFallsBackToOpenURLAndPlainPage() async throws {
     let opened = Recorder()
     let (session, presenter) = try await presenterSession({ _ in .refuse }, opened: opened)
-    let waiting = Task { try await session.authorize(at: authorizationURL(for: session)) }
+    let waiting = Task { try await session.authorize(authorizationUrl: authorizationURL(for: session)) }
     #expect(await eventually { opened.count == 1 })
-    let response = try await rawGET(session.redirectURI, path: "/?code=abc&state=xyz")
+    let response = try await rawGET(session.redirectUri(), path: "/?code=abc&state=xyz")
     #expect(response.hasPrefix("HTTP/1.1 200"))
     #expect(!response.contains("Location:"))
     _ = try await waiting.value
     #expect(presenter.completionScheme == "timetug-oauth")
-    await session.close()
+    await session.release()
 }
 
 @Test func closeDismissesThePresenterOncePerCloseEvenAfterCompletion() async throws {
     let (session, presenter) = try await presenterSession { .hitListener($0) }
-    _ = try await session.authorize(at: authorizationURL(for: session))
-    await session.close()
-    await session.close()
-    await session.close()
+    _ = try await session.authorize(authorizationUrl: authorizationURL(for: session))
+    await session.release()
+    await session.release()
+    await session.release()
     #expect(presenter.dismissals == 1)
 }
 
 @Test func presenterEndedWithNilAfterTheRedirectDoesNotChangeTheResult() async throws {
     let (session, presenter) = try await presenterSession { .hitListener($0) }
-    let received = try await session.authorize(at: authorizationURL(for: session))
+    let received = try await session.authorize(authorizationUrl: authorizationURL(for: session))
     presenter.onEnded?(nil)
     presenter.onEnded?(CancellationError())
     #expect(received.query?.contains("code=abc") == true)
-    await session.close()
+    await session.release()
 }
 
 // A shared presenter's dismiss() cancels whatever sheet is active, so a flow may only dismiss a presentation it still owns.
 
 @Test func closeDoesNotDismissAfterThePresenterEndedWithCancellation() async throws {
     let (session, presenter) = try await presenterSession({ _ in .endWith(CancellationError()) }, timeout: .seconds(3))
-    await #expect(throws: LoopbackError.cancelled) { try await session.authorize(at: authorizationURL(for: session)) }
-    await session.close()
+    await #expect(throws: HostError.Cancelled) { try await session.authorize(authorizationUrl: authorizationURL(for: session)) }
+    await session.release()
     #expect(presenter.dismissals == 0)
 }
 
 @Test func closeDoesNotDismissWhenThePresenterCouldNotStart() async throws {
     let opened = Recorder()
     let (session, presenter) = try await presenterSession({ _ in .refuse }, opened: opened)
-    let waiting = Task { try await session.authorize(at: authorizationURL(for: session)) }
+    let waiting = Task { try await session.authorize(authorizationUrl: authorizationURL(for: session)) }
     #expect(await eventually { opened.count == 1 })
-    _ = try await rawGET(session.redirectURI, path: "/?code=abc&state=xyz")
+    _ = try await rawGET(session.redirectUri(), path: "/?code=abc&state=xyz")
     _ = try await waiting.value
-    await session.close()
+    await session.release()
     #expect(presenter.dismissals == 0)
 }
 
 @Test func closeTwiceDismissesALivePresentationExactlyOnce() async throws {
     let (session, presenter) = try await presenterSession { .hitListener($0) }
-    _ = try await session.authorize(at: authorizationURL(for: session))
-    await session.close()
-    await session.close()
+    _ = try await session.authorize(authorizationUrl: authorizationURL(for: session))
+    await session.release()
+    await session.release()
     #expect(presenter.dismissals == 1)
 }
 
 @Test func closeDoesNotDismissAfterThePresenterEndedWithNil() async throws {
     let (session, presenter) = try await presenterSession { .hitListener($0) }
-    _ = try await session.authorize(at: authorizationURL(for: session))
+    _ = try await session.authorize(authorizationUrl: authorizationURL(for: session))
     presenter.onEnded?(nil)
-    await session.close()
+    await session.release()
     #expect(presenter.dismissals == 0)
 }
 
 /// The Microsoft registration lists `http://localhost`, so its connector sends that host while the listener is on
 /// 127.0.0.1; the browser reaches the listener either way.
 private func authorizationURL(for session: any OAuthRedirectSession, redirectHost: String) -> URL {
-    var redirect = URLComponents(url: session.redirectURI, resolvingAgainstBaseURL: false)!
+    var redirect = URLComponents(url: session.redirectUri(), resolvingAgainstBaseURL: false)!
     redirect.host = redirectHost
     var parts = URLComponents(string: "https://accounts.example/auth")!
     parts.queryItems = [URLQueryItem(name: "state", value: "xyz"),
@@ -433,19 +433,19 @@ private func authorizationURL(for session: any OAuthRedirectSession, redirectHos
 }
 
 @Test func authorizeAcceptsALocalhostRedirectHost() async throws {
-    let session = try await interaction().beginOAuthRedirect()
-    let waiting = Task { try await session.authorize(at: authorizationURL(for: session, redirectHost: "localhost")) }
+    let session = try await interaction().beginOauthRedirect().session
+    let waiting = Task { try await session.authorize(authorizationUrl: authorizationURL(for: session, redirectHost: "localhost")) }
     try await Task.sleep(for: .milliseconds(100))
-    _ = try await URLSession.shared.data(from: URL(string: session.redirectURI.absoluteString + "/?code=abc&state=xyz")!)
+    _ = try await URLSession.shared.data(from: URL(string: session.redirectUri().absoluteString + "/?code=abc&state=xyz")!)
     let received = try await waiting.value
     #expect(URLComponents(url: received, resolvingAgainstBaseURL: false)?.queryItems?.first { $0.name == "code" }?.value == "abc")
-    await session.close()
+    await session.release()
 }
 
 @Test func authorizeRejectsAForeignRedirectHost() async throws {
-    let session = try await interaction().beginOAuthRedirect()
+    let session = try await interaction().beginOauthRedirect().session
     await #expect(throws: LoopbackError.listenerFailed("invalid authorization redirect")) {
-        try await session.authorize(at: authorizationURL(for: session, redirectHost: "evil.example"))
+        try await session.authorize(authorizationUrl: authorizationURL(for: session, redirectHost: "evil.example"))
     }
-    await session.close()
+    await session.release()
 }

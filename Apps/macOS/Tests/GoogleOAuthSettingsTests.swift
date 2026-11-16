@@ -1,11 +1,12 @@
+import TimeTugKit
 import XCTest
 @testable import TimeTug
 
 final class GoogleOAuthSettingsTests: XCTestCase {
     func testReadsBothKeys() {
         let config = GoogleOAuthSettings.config(from: ["TimeTugGoogleClientID": "id.apps", "TimeTugGoogleClientSecret": "s"])
-        XCTAssertEqual(config?.clientID, "id.apps")
-        XCTAssertEqual(config?.clientSecret, "s")
+        XCTAssertEqual(config?.id, "id.apps")
+        XCTAssertEqual(config?.secret, "s")
     }
     func testMissingEmptyOrUnexpandedValuesDisableGoogle() {
         XCTAssertNil(GoogleOAuthSettings.config(from: nil))

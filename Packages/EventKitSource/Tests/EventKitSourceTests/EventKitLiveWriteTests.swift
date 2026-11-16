@@ -1,8 +1,7 @@
-import CalendarCore
-import CalendarTestSupport
 import EventKit
 import Foundation
 import Testing
+import TimeTugKit
 @testable import EventKitSource
 
 // Opt-in live tests: they need calendar permission and create (then delete) a scratch calendar, so they never run in
@@ -13,7 +12,7 @@ import Testing
     try await withScratchCalendar { store, calendar in
         let source = EventKitSource(store: store)
         let window = DateInterval(start: nextHour(daysAhead: 1), duration: 86_400 * 3)
-        let violations = await WritableSourceConformance.violations(of: source, calendarID: calendar.calendarIdentifier, window: window)
+        let violations = await writableViolations(of: source, calendarID: calendar.calendarIdentifier, window: window)
         #expect(violations.isEmpty, "\(violations)")
     }
 }
@@ -69,8 +68,8 @@ import Testing
                 EventPatch(timing: EventTiming(start: list[3].start.addingTimeInterval(3600), end: list[3].end.addingTimeInterval(3600), timeZone: .current, isAllDay: false)),
                 scope: .allInSeries, notify: .none)
             Issue.record("expected .unsupported")
-        } catch let error as WriteError {
-            #expect(error == .unsupported(fields: [.timing]))
+        } catch let error as FfiError {
+            #expect(error == .Write(.unsupported(fields: [.timing])))
         }
 
         try await source.delete(EventRef(list[2]), scope: .thisAndFollowing, notify: .none)
@@ -110,8 +109,8 @@ import Testing
         do {
             _ = try await source.update(EventRef(merged), second.patch, scope: .thisInstance, notify: .none)
             Issue.record("expected a conflict")
-        } catch let error as WriteError {
-            #expect(error == .conflict(fields: [.title]))
+        } catch let error as FfiError {
+            #expect(error == .Write(.conflict(fields: [.title])))
         }
     }
 }
@@ -125,16 +124,16 @@ import Testing
         do {
             _ = try await source.create(draft, in: calendar.calendarIdentifier, notify: .none)
             Issue.record("expected .unsupported")
-        } catch let error as WriteError {
-            #expect(error == .unsupported(fields: [.attendees]))
+        } catch let error as FfiError {
+            #expect(error == .Write(.unsupported(fields: [.attendees])))
         }
         draft.attendees = []
         let created = try await source.create(draft, in: calendar.calendarIdentifier, notify: .none)
         do {
             _ = try await source.respond(to: EventRef(created), .accepted, scope: .thisInstance, notify: .none)
             Issue.record("expected .unsupported")
-        } catch let error as WriteError {
-            #expect(error == .unsupported(fields: [.attendees]))
+        } catch let error as FfiError {
+            #expect(error == .Write(.unsupported(fields: [.attendees])))
         }
     }
 }

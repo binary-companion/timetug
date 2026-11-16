@@ -1,4 +1,4 @@
-import TimeTugCore
+import TimeTugKit
 
 extension InferenceStatus {
     /// False only when on-device intelligence definitively cannot run here. A user-disabled feature
@@ -7,6 +7,8 @@ extension InferenceStatus {
         switch self {
         case .disabled, .active: true
         case .noEngine, .unavailable, .notOnDevice: false
+        // An unknown status is not a definitive "cannot run here".
+        @unknown default: true
         }
     }
 }

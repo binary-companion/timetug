@@ -1,4 +1,4 @@
-import TimeTugEngine
+import TimeTugKit
 import XCTest
 @testable import TimeTug
 
@@ -26,8 +26,8 @@ final class EngineCommandQueueTests: XCTestCase {
         let recorder = Recorder()
         let queue = EngineCommandQueue { await recorder.deliver($0) }
         var completed = false
-        queue.send(.takeoverPresented(eventID: "a", onScreen: true), lane: .takeover)
-        queue.send(.dismiss(eventID: "a"), lane: .takeover)
+        queue.send(.takeoverPresented(eventId: "a", onScreen: true), lane: .takeover)
+        queue.send(.dismiss(eventId: "a"), lane: .takeover)
         queue.send(.testTug(title: "t", calendarTitle: "c"), lane: .takeover) { completed = true }
         try await waitUntil { completed }
         let delivered = await recorder.delivered
@@ -43,7 +43,7 @@ final class EngineCommandQueueTests: XCTestCase {
         let queue = EngineCommandQueue { await recorder.deliver($0) }
         var takeoverDone = false
         queue.send(.settingsChangedExternally, lane: .externalSettings)
-        queue.send(.dismiss(eventID: "a"), lane: .takeover) { takeoverDone = true }
+        queue.send(.dismiss(eventId: "a"), lane: .takeover) { takeoverDone = true }
         try await waitUntil { takeoverDone }
         var delivered = await recorder.delivered
         XCTAssertEqual(delivered.count, 1)

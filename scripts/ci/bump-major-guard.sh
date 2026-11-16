@@ -1,16 +1,16 @@
 #!/usr/bin/env bash
 # Decides whether a library release may be bumped in the Mac app.
 #
-#   scripts/ci/bump-major-guard.sh <calendar-connectors|timetug-shared> <X.Y.Z>     (run from the repository root)
+#   scripts/ci/bump-major-guard.sh timetug-shared <X.Y.Z>     (run from the repository root)
 #
 # Prints `skip` when the new major version is greater than the major version pinned in Apps/macOS/project.yml
-# (the Mac app adopts a new major only in phase 6 of the Rust program), otherwise `proceed`. Exits 2 with a
+# (2 since phase 6 of the Rust program; a new major such as 3.0.0 needs a deliberate move), otherwise `proceed`. Exits 2 with a
 # message on stderr for a bad library or version. The argument rules and the pin lookup are the ones in
 # bump-pin.sh (same key mapping, same X.Y.Z expression, same exactVersion-after-url match).
 set -euo pipefail
 
 usage() {
-  echo "usage: bump-major-guard.sh <calendar-connectors|timetug-shared> X.Y.Z" >&2
+  echo "usage: bump-major-guard.sh timetug-shared X.Y.Z" >&2
   exit 2
 }
 
@@ -19,7 +19,10 @@ library="$1"
 version="$2"
 
 case "$library" in
-  calendar-connectors) KEY=CalendarConnectors ;;
+  calendar-connectors)
+    echo "calendar-connectors is no longer pinned by the Mac app (phase 6 of the Rust program): the connector" >&2
+    echo "library comes inside timetug-shared." >&2
+    exit 2 ;;
   timetug-shared) KEY=TimeTugShared ;;
   *) echo "unknown library: $library" >&2; usage ;;
 esac

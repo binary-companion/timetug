@@ -1,10 +1,10 @@
-# Opens "Bump <library> to X.Y.Z" when calendar-connectors or timetug-shared releases (repository_dispatch from
-# the library's release workflow), or on demand. The pull request is opened with a timetug-bot token so its CI
-# runs; the workflow never merges anything: the owner merges. A timetug-shared bump also raises the
-# calendar-connectors pin to the version that tag resolves (never lowers it), so the two libraries' pins cannot
-# drift apart; the open connector bump pull requests that this makes redundant are closed. A newer bump closes
-# the open bump pull requests for older versions of its own library. LIBRARY and VERSION are validated by the
-# "Move the pin" step before either reaches an API path or a command line.
+# Opens "Bump timetug-shared to X.Y.Z" when timetug-shared releases (repository_dispatch from its release
+# workflow), or on demand. The pull request is opened with a timetug-bot token so its CI runs; the workflow
+# never merges anything: the owner merges. Since phase 6 of the Rust program the connector library comes inside
+# timetug-shared and the Mac app no longer pins it, so a calendar-connectors dispatch (the connectors' notify
+# job may still send one) ends with a notice and no pull request, and does not fail. A newer bump closes the
+# open bump pull requests for older versions of timetug-shared. LIBRARY and VERSION are validated by the
+# "Move the pin" step before either reaches a command line.
 name: Bump dependencies
 
 on:
@@ -17,7 +17,6 @@ on:
         required: true
         type: choice
         options:
-          - calendar-connectors
           - timetug-shared
       version:
         description: "Library version (X.Y.Z)"
@@ -58,12 +57,21 @@ jobs:
         id: guard
         run: |
           set -euo pipefail
-          # The Mac app adopts a new major version of a library only in phase 6 of the Rust program. The guard
-          # checks LIBRARY and VERSION itself (exit 2 on anything that is not a library name and X.Y.Z), then
-          # prints proceed or skip; on skip every remaining step is gated off and the job ends successfully.
+          # calendar-connectors is no longer pinned by the Mac app (phase 6 of the Rust program): its dispatch
+          # ends here with a notice, successfully, so the connectors' notify job is not red.
+          case "$LIBRARY" in
+            calendar-connectors)
+              echo "::notice::calendar-connectors $VERSION: the Mac app no longer pins the connector library (phase 6 of the Rust program); it comes inside timetug-shared, so there is nothing to bump"
+              echo "decision=skip" >> "$GITHUB_OUTPUT"
+              exit 0 ;;
+          esac
+          # A new major version of timetug-shared beyond the pinned one (3.0.0 and up) is held for a deliberate
+          # move. The guard checks LIBRARY and VERSION itself (exit 2 on anything that is not a library name and
+          # X.Y.Z), then prints proceed or skip; on skip every remaining step is gated off and the job ends
+          # successfully.
           decision="$(scripts/ci/bump-major-guard.sh "$LIBRARY" "$VERSION")"
           if [ "$decision" = skip ]; then
-            echo "::notice::$LIBRARY $VERSION is a new major version; the Mac app adopts it in phase 6 of the Rust program"
+            echo "::notice::$LIBRARY $VERSION is a new major version; the Mac app is held on the pinned major until it is moved deliberately"
           fi
           echo "decision=$decision" >> "$GITHUB_OUTPUT"
       - name: Move the pin
@@ -76,7 +84,7 @@ jobs:
           # case, so the allow-list is checked again here, exactly, before either value is used in a path or
           # a command.
           case "$LIBRARY" in
-            calendar-connectors|timetug-shared) ;;
+            timetug-shared) ;;
             *) echo "::error::not a library this workflow bumps: $LIBRARY"; exit 2 ;;
           esac
           pattern='^(0|[1-9][0-9]{0,8})\.(0|[1-9][0-9]{0,8})\.(0|[1-9][0-9]{0,8})$'
@@ -84,32 +92,7 @@ jobs:
             echo "::error::not X.Y.Z (at most 9 digits per number): $VERSION"
             exit 2
           fi
-          recorded=""
-          if [ "$LIBRARY" = timetug-shared ]; then
-            # The connector version the timetug-shared tag resolves. Read before anything is moved, and fail
-            # loudly when it is not there: a bump that silently skipped the connector move would leave the app
-            # resolving two connector versions.
-            file="$RUNNER_TEMP/shared.resolved"
-            if ! gh api "repos/binary-companion/timetug-shared/contents/Package.resolved?ref=refs/tags/$VERSION" \
-                --jq .content | base64 -d > "$file"; then
-              echo "::error::cannot read Package.resolved at the timetug-shared tag $VERSION"
-              exit 1
-            fi
-            if ! recorded="$(scripts/ci/resolved-version.py "$file" calendar-connectors)"; then
-              echo "::error::the timetug-shared tag $VERSION has no calendar-connectors version pin in Package.resolved"
-              exit 1
-            fi
-            if ! [[ "$recorded" =~ $pattern ]]; then
-              echo "::error::the calendar-connectors pin of timetug-shared $VERSION is not X.Y.Z: $recorded"
-              exit 1
-            fi
-          fi
           scripts/ci/bump-pin.sh "$LIBRARY" "$VERSION"
-          if [ -n "$recorded" ]; then
-            # The connector pin follows the version the tag was built and tested with, but is never lowered.
-            scripts/ci/bump-pin.sh --at-least calendar-connectors "$recorded"
-            echo "RECORDED=$recorded" >> "$GITHUB_ENV"
-          fi
       - name: Open the pull request
         if: steps.guard.outputs.decision == 'proceed'
         env:
@@ -134,10 +117,6 @@ jobs:
             # Build the body first so that a failure here cannot leave a pushed branch without a pull request.
             {
               echo "Moves the pinned $LIBRARY to $VERSION. CI on this pull request proves the app still builds and passes its tests."
-              if [ -n "${RECORDED:-}" ]; then
-                echo
-                echo "timetug-shared $VERSION resolves calendar-connectors $RECORDED, so the calendar-connectors pin is at least $RECORDED after this change (an already higher pin is left alone)."
-              fi
               echo
               echo "## Release notes"
               gh release view "$VERSION" --repo "binary-companion/$LIBRARY" --json body --jq .body \
@@ -158,30 +137,17 @@ jobs:
             number="${url##*/}"
           fi
           # Supersede older bump pull requests. Only same-repository pull requests whose head branch is exactly
-          # bump/<library>-X.Y.Z are considered (versions compared numerically with sort -V, never as strings);
-          # every other pull request is left alone. Two kinds are closed:
-          #   - the same library's with a lower version than this one;
-          #   - when this is a timetug-shared bump that carried the connector pin (RECORDED), the
-          #     calendar-connectors bump pull requests at or below that version: they would move the same
-          #     exactVersion line to something this pull request already contains or exceeds.
-          # Each close is independent: one failure is reported and the step fails at the end, after the other
-          # closes were tried.
-          at_or_below() { [ "$(printf '%s\n%s\n' "$1" "$2" | sort -V | head -n 1)" = "$1" ]; }
+          # bump/timetug-shared-X.Y.Z with a lower version than this one are closed (versions compared
+          # numerically with sort -V, never as strings); every other pull request is left alone. Each close is
+          # independent: one failure is reported and the step fails at the end, after the other closes were tried.
           open_prs="$(gh pr list --state open --limit 100 --json number,headRefName,isCrossRepository \
             --jq '.[] | select(.isCrossRepository | not) | "\(.number) \(.headRefName)"')"
           failed=0
           while read -r old_number old_head; do
-            [[ "$old_head" =~ ^bump/(calendar-connectors|timetug-shared)-([0-9]+\.[0-9]+\.[0-9]+)$ ]] || continue
-            old_library="${BASH_REMATCH[1]}"
-            old_version="${BASH_REMATCH[2]}"
-            if [ "$old_library" = "$LIBRARY" ]; then
-              [ "$old_version" != "$VERSION" ] || continue
-              at_or_below "$old_version" "$VERSION" || continue
-            elif [ "$LIBRARY" = timetug-shared ] && [ "$old_library" = calendar-connectors ] && [ -n "${RECORDED:-}" ]; then
-              at_or_below "$old_version" "$RECORDED" || continue
-            else
-              continue
-            fi
+            [[ "$old_head" =~ ^bump/timetug-shared-([0-9]+\.[0-9]+\.[0-9]+)$ ]] || continue
+            old_version="${BASH_REMATCH[1]}"
+            [ "$old_version" != "$VERSION" ] || continue
+            [ "$(printf '%s\n%s\n' "$old_version" "$VERSION" | sort -V | head -n 1)" = "$old_version" ] || continue
             echo "Closing #$old_number ($old_head): superseded by #$number."
             gh pr close "$old_number" --comment "Superseded by #$number" --delete-branch \
               || { echo "::warning::could not close #$old_number"; failed=1; }

@@ -1,8 +1,7 @@
 import AppKit
-import CalendarCore
+import TimeTugKit
 import Foundation
 import SwiftUI
-import TimeTugCore
 import XCTest
 @testable import TimeTug
 
@@ -19,11 +18,11 @@ final class PopupLogicTests: XCTestCase {
     private func event(_ id: String, _ title: String, _ start: Date, _ end: Date, allDay: Bool = false,
                        calendarID: String = "work", conference: String? = nil) -> TimeTugCalendarEvent {
         var event = TimeTugCalendarEvent(
-            event: CalendarCore.CalendarEvent(
+            event: CalendarEvent(
                 eventID: id, calendarID: calendarID, title: title, start: start, end: end,
                 timeZone: utc, isAllDay: allDay),
             sourceID: "src")
-        event.conferences = conference.flatMap(URL.init(string:)).map { [ConferenceInfo(url: $0, provider: ConferenceDetector.provider(of: $0) ?? .other)] } ?? []
+        event.conferences = conference.flatMap(URL.init(string:)).map { [ConferenceInfo(url: $0, provider: .zoom)] } ?? []
         return event
     }
 
@@ -216,7 +215,7 @@ final class PopupLogicTests: XCTestCase {
             MergedMember(title: "Intermountain Health", calendarKey: "src/work", contentKey: "k1", details: "location", start: Date(timeIntervalSince1970: 0), end: Date(timeIntervalSince1970: 3600)),
             MergedMember(title: "Scott: Doctor", calendarKey: "src/home", contentKey: "k2", details: "bare", start: Date(timeIntervalSince1970: 0), end: Date(timeIntervalSince1970: 3600)),
         ]
-        merged.mergeProvenance = .inference(engineID: "apple-intelligence", engineName: "Apple Intelligence")
+        merged.mergeProvenance = .inference(engineId: "apple-intelligence", engineName: "Apple Intelligence")
         let row = rows([merged], now: at(9)).first!
         XCTAssertEqual(row.mergeBadge, "Merged with Apple Intelligence")
         XCTAssertTrue(row.isMerged)
@@ -253,7 +252,7 @@ final class PopupLogicTests: XCTestCase {
     }
 
     func testMergeSummaryTextCountsEventsPerProvenance() {
-        let ai = rows([mergedEvent(provenance: .inference(engineID: "a", engineName: "Apple Intelligence"), count: 4)], now: at(9))[0]
+        let ai = rows([mergedEvent(provenance: .inference(engineId: "a", engineName: "Apple Intelligence"), count: 4)], now: at(9))[0]
         XCTAssertEqual(ai.mergeSummaryText, "Merged with Apple Intelligence \u{00B7} 4 events")
         let manual = rows([mergedEvent(provenance: .userConfirmed)], now: at(9))[0]
         XCTAssertEqual(manual.mergeSummaryText, "Merged manually \u{00B7} 2 events")
@@ -352,7 +351,7 @@ final class PopupLogicTests: XCTestCase {
     }
 
     func testSummaryCountsDistinctEvents() {
-        let ai = MergeProvenance.inference(engineID: "a", engineName: "Apple Intelligence")
+        let ai = MergeProvenance.inference(engineId: "a", engineName: "Apple Intelligence")
         XCTAssertEqual(rows([identicalCopies(provenance: ai, extra: true)], now: at(9))[0].mergeSummaryText,
                        "Merged with Apple Intelligence \u{00B7} 2 events")
         XCTAssertEqual(rows([identicalCopies(provenance: .userConfirmed, extra: true)], now: at(9))[0].mergeSummaryText,
@@ -364,7 +363,7 @@ final class PopupLogicTests: XCTestCase {
     }
 
     func testIdenticalOnlyGroupIsPresentedAsPlainEvent() {
-        let ai = MergeProvenance.inference(engineID: "a", engineName: "Apple Intelligence")
+        let ai = MergeProvenance.inference(engineId: "a", engineName: "Apple Intelligence")
         for provenance in [MergeProvenance.rule, .userConfirmed, ai] {
             let row = rows([identicalCopies(provenance: provenance)], now: at(9))[0]
             XCTAssertNil(row.mergeSummaryText)

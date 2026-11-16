@@ -119,9 +119,12 @@ for job_name, job in bump['jobs'].items():
 bump_runs = '\n'.join(step.get('run', '') for job in bump['jobs'].values() for step in job['steps'])
 if re.search(r'gh\s+pr\s+merge|--auto\b|\bmerge\b', bump_runs):
     errors.append('bump-dependencies.yml: must never merge a pull request (no gh pr merge, --auto or merge)')
-# Two libraries release into this repository; the workflow accepts exactly these and nothing else, in the manual
-# input, in the job `if` and (through the same expression) in the concurrency group and the step's environment.
-BUMP_LIBRARIES = ['calendar-connectors', 'timetug-shared']
+# Only timetug-shared is bumped (the connectors came inside it in phase 6). A manual dispatch offers exactly that;
+# a dispatch event may still carry calendar-connectors (the connectors' notify job), which the guard step ends
+# with a notice. The job `if` allows exactly those two names, and the concurrency group and the step's
+# environment use the same expression.
+BUMP_LIBRARIES = ['timetug-shared']
+PAYLOAD_LIBRARIES = ['calendar-connectors', 'timetug-shared']
 dispatch_inputs = (bump_triggers.get('workflow_dispatch') or {}).get('inputs') or {}
 if set(dispatch_inputs) != {'library', 'version'}:
     errors.append(f'bump-dependencies.yml: workflow_dispatch inputs must be exactly library and version, got {sorted(dispatch_inputs)}')
@@ -133,9 +136,9 @@ for job_name, job in bump['jobs'].items():
     allow_list = re.fullmatch(
         r"github\.event_name == 'workflow_dispatch' \|\| contains\(fromJSON\('(\[[^']*\])'\), "
         + re.escape(PAYLOAD_LIBRARY) + r"\)", condition)
-    if allow_list is None or json.loads(allow_list.group(1)) != BUMP_LIBRARIES:
+    if allow_list is None or json.loads(allow_list.group(1)) != PAYLOAD_LIBRARIES:
         errors.append(f'bump-dependencies.yml/{job_name}: the job `if` must be a manual dispatch or a payload library in '
-                      f'exactly {BUMP_LIBRARIES}, got {condition!r}')
+                      f'exactly {PAYLOAD_LIBRARIES}, got {condition!r}')
     expected_env = {'LIBRARY': '${{ %s || inputs.library }}' % PAYLOAD_LIBRARY,
                     'VERSION': '${{ github.event.client_payload.version || inputs.version }}'}
     if job.get('env') != expected_env:
@@ -145,9 +148,16 @@ for job_name, job in bump['jobs'].items():
             errors.append(f'bump-dependencies.yml/{job_name}: the app token must be scoped to repositories: timetug')
     checks_input = [step for step in job['steps'] if step.get('name') == 'Move the pin']
     move_run = checks_input[0].get('run', '') if len(checks_input) == 1 else ''
-    if 'calendar-connectors|timetug-shared)' not in move_run or '${{' in move_run:
-        errors.append(f'bump-dependencies.yml/{job_name}: the Move the pin step must check LIBRARY against the two-name '
-                      'allow-list itself and receive its values through env')
+    if 'timetug-shared) ;;' not in move_run or 'calendar-connectors' in move_run or '${{' in move_run:
+        errors.append(f'bump-dependencies.yml/{job_name}: the Move the pin step must check LIBRARY against the '
+                      'timetug-shared allow-list itself and receive its values through env')
+    guard_steps = [step for step in job['steps'] if step.get('id') == 'guard']
+    guard_run = guard_steps[0].get('run', '') if len(guard_steps) == 1 else ''
+    if 'calendar-connectors)' not in guard_run or '::notice::' not in guard_run or 'exit 0' not in guard_run:
+        errors.append(f'bump-dependencies.yml/{job_name}: the guard step must end a calendar-connectors dispatch with a '
+                      'notice and a successful exit')
+    if 'resolved-version' in bump_runs:
+        errors.append(f'bump-dependencies.yml/{job_name}: the connector pin logic (resolved-version.py) must be gone')
 if (bump.get('concurrency') or {}).get('group') != 'bump-${{ %s || inputs.library }}' % PAYLOAD_LIBRARY:
     errors.append('bump-dependencies.yml: concurrency group must be bump-<library> (one queue per library)')
 

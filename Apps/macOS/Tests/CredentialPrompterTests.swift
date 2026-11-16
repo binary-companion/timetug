@@ -1,4 +1,4 @@
-import CalendarCore
+import TimeTugKit
 import XCTest
 @testable import TimeTug
 
@@ -12,14 +12,14 @@ func waitUntil(_ condition: () -> Bool, file: StaticString = #filePath, line: UI
 @MainActor
 final class CredentialPrompterTests: XCTestCase {
     private let fields = [
-        CredentialField(key: "username", label: "Apple ID"),
+        CredentialField(key: "username", label: "Apple ID", isSecret: false),
         CredentialField(key: "password", label: "App-specific password", isSecret: true),
     ]
 
     func testPromptShowsThePreparedRequestAndReturnsWhatWasSubmitted() async throws {
         let prompter = CredentialPrompter()
         let help = CredentialHelp(text: "Use an app-specific password.", linkTitle: "Create one", url: URL(string: "https://account.apple.com"))
-        prompter.prepare(title: "iCloud account", help: help, values: ["username": "me@icloud.test", "password": "never shown"], error: "Try again.")
+        await prompter.prepare(title: "iCloud account", help: help, values: ["username": "me@icloud.test", "password": "never shown"], error: "Try again.")
         let answer = Task { try await prompter.prompt(fields) }
         try await waitUntil { prompter.request != nil }
         let request = try XCTUnwrap(prompter.request)
@@ -32,7 +32,9 @@ final class CredentialPrompterTests: XCTestCase {
         let values = try await answer.value
         XCTAssertEqual(values, ["username": "me@icloud.test", "password": "app-pass"])
         XCTAssertNil(prompter.request)
-        XCTAssertEqual(prompter.lastNonSecretValues, ["username": "me@icloud.test"])
+        XCTAssertEqual(prompter.submittedNonSecretValues, ["username": "me@icloud.test"])
+        let reported = await prompter.lastNonSecretValues()
+        XCTAssertEqual(reported, ["username": "me@icloud.test"])
     }
 
     func testCancelEndsThePromptWithCancellation() async throws {
@@ -44,10 +46,10 @@ final class CredentialPrompterTests: XCTestCase {
             _ = try await answer.value
             XCTFail("expected a cancellation")
         } catch {
-            XCTAssertTrue(error is CancellationError)
+            XCTAssertEqual(error as? HostError, HostError.Cancelled)
         }
         XCTAssertNil(prompter.request)
-        XCTAssertNil(prompter.lastNonSecretValues)
+        XCTAssertNil(prompter.submittedNonSecretValues)
     }
 
     func testCancellingTheWaitingTaskClosesTheSheet() async throws {
@@ -59,7 +61,7 @@ final class CredentialPrompterTests: XCTestCase {
             _ = try await answer.value
             XCTFail("expected a cancellation")
         } catch {
-            XCTAssertTrue(error is CancellationError)
+            XCTAssertEqual(error as? HostError, HostError.Cancelled)
         }
         try await waitUntil { prompter.request == nil }
     }
@@ -70,9 +72,11 @@ final class CredentialPrompterTests: XCTestCase {
         try await waitUntil { prompter.request != nil }
         prompter.submit(["username": "a", "password": "b"])
         _ = try await answer.value
-        XCTAssertNotNil(prompter.lastNonSecretValues)
-        prompter.prepare(title: "Again", help: nil)
-        XCTAssertNil(prompter.lastNonSecretValues)
+        let submitted = await prompter.lastNonSecretValues()
+        XCTAssertNotNil(submitted)
+        await prompter.prepare(title: "Again", help: nil)
+        let afterPrepare = await prompter.lastNonSecretValues()
+        XCTAssertNil(afterPrepare)
     }
 
     func testSignInNeedsEveryField() {

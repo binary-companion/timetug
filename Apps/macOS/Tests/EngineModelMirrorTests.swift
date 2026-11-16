@@ -1,6 +1,4 @@
-import CalendarCore
-import TimeTugCore
-import TimeTugEngine
+import TimeTugKit
 import XCTest
 @testable import TimeTug
 
@@ -10,7 +8,7 @@ final class EngineModelMirrorTests: XCTestCase {
 
     private func event(startingIn seconds: TimeInterval, title: String = "Standup") -> TimeTugCalendarEvent {
         var event = TimeTugCalendarEvent(
-            event: CalendarCore.CalendarEvent(
+            event: CalendarEvent(
                 eventID: "e1", calendarID: "work", title: title,
                 start: now.addingTimeInterval(seconds), end: now.addingTimeInterval(seconds + 1800)),
             sourceID: "eventkit")
@@ -29,6 +27,7 @@ final class EngineModelMirrorTests: XCTestCase {
         state.statuses = ["eventkit": .ok]
         state.sourceNames = ["eventkit": "Calendar"]
         state.inferenceStatus = .noEngine
+        state.nextPendingStart = events.map(\.start).min()   // what the engine reports for an opted-in calendar
         return state
     }
 

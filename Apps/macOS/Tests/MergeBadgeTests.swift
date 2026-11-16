@@ -1,4 +1,4 @@
-import TimeTugCore
+import TimeTugKit
 import XCTest
 @testable import TimeTug
 
@@ -9,7 +9,7 @@ final class MergeBadgeTests: XCTestCase {
     }
 
     func testInferenceBadgeNamesTheEngine() {
-        XCTAssertEqual(MergeBadge.text(.inference(engineID: "apple-intelligence", engineName: "Apple Intelligence")),
+        XCTAssertEqual(MergeBadge.text(.inference(engineId: "apple-intelligence", engineName: "Apple Intelligence")),
                        "Merged with Apple Intelligence")
     }
 

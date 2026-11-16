@@ -6,7 +6,7 @@ ADRs record rationale and may describe the state when written. The [architecture
 |---|---|---|---|
 | [0001](0001-swift-and-native-stack.md) | Swift/native app | Current | `verify.sh app` |
 | [0002](0002-core-source-app-boundaries.md) | Core/source/app boundaries | Current | `verify.sh all` |
-| [0003](0003-current-day-window-with-lead-buffer.md) | Day window | Current | `verify.sh core` |
+| [0003](0003-current-day-window-with-lead-buffer.md) | Day window | Current | `verify.sh packages` |
 | [0004](0004-conference-link-allowlist.md) | Join URLs | Historical: see 0013 and current JoinURLPolicy | Core and connector tests |
 | [0005](0005-keyboardshortcuts-dependency.md) | App shortcut | Current | App tests, manual checklist |
 | [0006](0006-takeover-ledger-persistence-and-fire-guard.md) | Takeover ledger | Current | Core and app tests |
@@ -23,3 +23,4 @@ ADRs record rationale and may describe the state when written. The [architecture
 | [0020](0020-timetug-shared-repository.md) | Core and Bridge in `timetug-shared` | Current | `verify.sh release-tools`; `timetug-shared` CI |
 | [0021](0021-one-accounts-list.md) | One accounts list on Mac and Windows | Current | App tests, manual checklist |
 | [0022](0022-shared-libraries-in-rust.md) | Shared libraries in Rust | Accepted; supersedes parts of 0001 and 0012 from the Windows cutover | parity table, vectors, size gate, `cargo deny` |
+| [0023](0023-mac-app-on-rust-engine.md) | Mac app on the Rust engine | Accepted; supersedes parts of 0001 and 0012 for the Mac | app tests, `check-architecture.sh`, licence-notice tests, manual checklist |

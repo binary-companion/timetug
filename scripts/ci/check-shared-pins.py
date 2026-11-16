@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
 """Shared libraries are consumed by released version only (phase 1 and phase 2 specs).
 
-The shared libraries are calendar-connectors (project.yml key CalendarConnectors) and timetug-shared (key
-TimeTugShared); every rule below applies to each of them, and a pin is only ever compared with the floors of
-its own library.
+The only shared library is timetug-shared (project.yml key TimeTugShared; since phase 6 of the Rust program
+it contains the calendar connectors). calendar-connectors is retired: any entry for it in project.yml or a
+manifest is an error. Every rule below applies to timetug-shared.
 
 Every `.package(...)` in every Package*.swift at any depth under Packages/ (SwiftPM prefers
 Package@swift-X.Y.swift over Package.swift, so all of them are scanned; `.build` and `build` directories are
-skipped) must be either `.package(url: "<library url>", from: "X.Y.Z")` for one of the libraries or a
+skipped) must be either `.package(url: "<library url>", from: "X.Y.Z")` for the library or a
 `.package(path: "...")` that, resolved from the manifest's own directory, is an existing sibling directory of
 Packages/ (spelled exactly, not a symlink, and not a library itself); anything else fails. Swift comments are
 not stripped, so a `.package(...)` inside a comment is checked like code and fails closed unless it is an
@@ -29,12 +29,16 @@ from pathlib import Path
 import yaml
 
 LIBRARIES = {  # repository slug -> project.yml package key
-    'calendar-connectors': 'CalendarConnectors',
     'timetug-shared': 'TimeTugShared',
 }
+RETIRED = {  # libraries the Mac app no longer pins, same shape; any reference is an error
+    'calendar-connectors': 'CalendarConnectors',
+}
+RETIRED_NOTE = ('calendar-connectors is retired (phase 6 of the Rust program): the connector library comes '
+                'inside timetug-shared')
 URL_PREFIX = 'https://github.com/binary-companion/'
 ENTRY_KEYS = {'url', 'exactVersion'}
-LIBRARY_NAMES = {name.lower() for slug, key in LIBRARIES.items() for name in (slug, key)}
+LIBRARY_NAMES = {name.lower() for table in (LIBRARIES, RETIRED) for slug, key in table.items() for name in (slug, key)}
 PACKAGE_CALL = re.compile(r'\.package\s*\(([^)]*)\)')
 SIBLING_PATH = re.compile(r'path:\s*"((?:\.\./)+)([^"/]+)"')
 SKIPPED_DIRECTORIES = {'.build', 'build'}
@@ -95,6 +99,10 @@ def reaches_library(*values):
             return True
     return False
 
+def reaches_retired(*values):
+    text = ' '.join(str(v) for v in values).lower()
+    return any(name.lower() in text for pair in RETIRED.items() for name in pair)
+
 def library_reference(*values):
     return 'points at the shared library' if reaches_library(*values) else 'names the shared library'
 
@@ -113,7 +121,9 @@ for name, entry in (packages or {}).items():
     if not isinstance(entry, dict):
         errors.append(f'Apps/macOS/project.yml: package {name} must be a mapping with url or path')
         continue
-    if mentions_library(*entry.values()):
+    if name in RETIRED.values() or reaches_retired(name, *entry.values()):
+        errors.append(f'Apps/macOS/project.yml: package {name} is not allowed: {RETIRED_NOTE}')
+    elif mentions_library(*entry.values()):
         pinned = ', '.join(sorted(LIBRARIES.values()))
         errors.append(f'Apps/macOS/project.yml: package {name} {library_reference(*entry.values())}; only the '
                       f'pinned library entries ({pinned}: url and exactVersion) may')
@@ -126,7 +136,9 @@ if local_packages is not None and not isinstance(local_packages, list):
 for item in (local_packages if isinstance(local_packages, list) else ()):
     values = list(item.values()) if isinstance(item, dict) else [item]
     path = item.get('path') if isinstance(item, dict) else item
-    if mentions_library(*values):
+    if reaches_retired(*values):
+        errors.append(f'Apps/macOS/project.yml: localPackages entry {item} is not allowed: {RETIRED_NOTE}')
+    elif mentions_library(*values):
         errors.append(f'Apps/macOS/project.yml: localPackages entry {item} {library_reference(*values)}; '
                       'only the pinned library entries (url and exactVersion) may')
     elif path is None:
@@ -174,6 +186,9 @@ for manifest in manifests_under(packages_dir) if packages_dir.is_dir() else ():
                 errors.append(f'{rel}: the {matched} pin {shown} is in another major than from: {released.group(1)}')
             elif pin < floor:
                 errors.append(f'{rel}: the {matched} pin {shown} is below from: {released.group(1)}')
+            continue
+        if reaches_retired(body):
+            errors.append(f'{rel}: dependency {dependency} is not allowed: {RETIRED_NOTE}')
             continue
         sibling = sibling_name(manifest, body)
         if sibling in siblings and sibling.lower() not in LIBRARY_NAMES:

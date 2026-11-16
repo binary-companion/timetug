@@ -1,4 +1,4 @@
-import TimeTugCore
+import TimeTugKit
 
 /// Words for the state of the on-device duplicate finder. nil means show nothing.
 enum InferenceStatusText {
@@ -9,6 +9,8 @@ enum InferenceStatusText {
         case .unavailable(let reason): "The on-device model isn't available (\(reason)). Using rules only."
         case .notOnDevice: "That engine doesn't run on your device, so it isn't used. Using rules only."
         case .active(let engine): "Using \(engine.displayName)."
+        // A status a later engine version adds says nothing here until the app learns its words.
+        @unknown default: nil
         }
     }
 }

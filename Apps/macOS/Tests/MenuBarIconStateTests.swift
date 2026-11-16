@@ -1,62 +1,35 @@
 import AppKit
-import CalendarCore
-import TimeTugCore
+import TimeTugKit
 import XCTest
 @testable import TimeTug
 
 final class MenuBarIconStateTests: XCTestCase {
     private let now = Date(timeIntervalSince1970: 1_800_000_000)
-    private let calendarKey = CalendarInfo.key(sourceID: "src", calendarID: "cal")
 
-    private var settings: TakeoverSettings {
-        var s = TakeoverSettings()
-        s.takeoverCalendarKeys = [calendarKey]
-        return s
+    /// The engine decides which event is next (calendar opt-in, all-day, declined, acknowledged, snoozed: its own
+    /// tests cover those) and reports its start in `EngineState.nextPendingStart`; the icon only applies the window.
+    private func resolve(startingIn offset: TimeInterval?) -> MenuBarIconState {
+        MenuBarIconState.resolve(nextPendingStart: offset.map { now.addingTimeInterval($0) }, now: now)
     }
 
-    private func event(startingIn offset: TimeInterval, duration: TimeInterval = 1800,
-                       calendarID: String = "cal", isAllDay: Bool = false,
-                       response: CalendarCore.ResponseStatus? = nil) -> TimeTugCalendarEvent {
-        var event = TimeTugCalendarEvent(
-            event: CalendarCore.CalendarEvent(
-                eventID: "e1", calendarID: calendarID, title: "Sync",
-                start: now.addingTimeInterval(offset), end: now.addingTimeInterval(offset + duration),
-                timeZone: TimeZone(identifier: "UTC")!, isAllDay: isAllDay),
-            sourceID: "src")
-        event.otherAttendeeCount = 1
-        event.responseStatus = response
-        return event
+    func testNoPendingTakeoverIsIdle() { XCTAssertEqual(resolve(startingIn: nil), .idle) }
+    func testThirtyMinutesAwayIsIdle() { XCTAssertEqual(resolve(startingIn: 30 * 60), .idle) }
+    func testNineMinutesAwayIsSoon() { XCTAssertEqual(resolve(startingIn: 9 * 60), .soon) }
+    func testExactlyTenMinutesIsSoon() { XCTAssertEqual(resolve(startingIn: 10 * 60), .soon) }
+    func testElevenMinutesAwayIsIdle() { XCTAssertEqual(resolve(startingIn: 11 * 60), .idle) }
+    func testInProgressUnacknowledgedIsSoon() { XCTAssertEqual(resolve(startingIn: -300), .soon) }
+
+    @MainActor
+    func testTheStateCarriesThePendingStartIntoTheIcon() {
+        var state = EngineState.empty
+        XCTAssertEqual(EngineModelMirror.iconState(state, now: now), .idle)
+        state.nextPendingStart = now.addingTimeInterval(5 * 60)
+        XCTAssertEqual(EngineModelMirror.iconState(state, now: now), .soon)
+        // The pending start is kept while a takeover is on screen (`nextTakeover` is nil then): the icon stays color.
+        state.takeoverVisible = true
+        state.nextTakeover = nil
+        XCTAssertEqual(EngineModelMirror.iconState(state, now: now), .soon)
     }
-
-    private func resolve(_ events: [TimeTugCalendarEvent], ledger: TakeoverLedger = TakeoverLedger()) -> MenuBarIconState {
-        MenuBarIconState.resolve(events: events, settings: settings, ledger: ledger, now: now)
-    }
-
-    func testNoEventsIsIdle() { XCTAssertEqual(resolve([]), .idle) }
-    func testThirtyMinutesAwayIsIdle() { XCTAssertEqual(resolve([event(startingIn: 30 * 60)]), .idle) }
-    func testNineMinutesAwayIsSoon() { XCTAssertEqual(resolve([event(startingIn: 9 * 60)]), .soon) }
-    func testExactlyTenMinutesIsSoon() { XCTAssertEqual(resolve([event(startingIn: 10 * 60)]), .soon) }
-    func testElevenMinutesAwayIsIdle() { XCTAssertEqual(resolve([event(startingIn: 11 * 60)]), .idle) }
-    func testInProgressUnacknowledgedIsSoon() { XCTAssertEqual(resolve([event(startingIn: -300)]), .soon) }
-
-    func testAcknowledgedIsIdle() {
-        let e = event(startingIn: -300)
-        var ledger = TakeoverLedger()
-        ledger.markFired(e, now: Date(timeIntervalSince1970: 1_799_999_000))
-        XCTAssertEqual(resolve([e], ledger: ledger), .idle)
-    }
-
-    func testSnoozedStaysSoon() {
-        let e = event(startingIn: -300)
-        var ledger = TakeoverLedger()
-        ledger.snooze(e, for: 300, now: now)
-        XCTAssertEqual(resolve([e], ledger: ledger), .soon)
-    }
-
-    func testEndedMeetingIsIdle() { XCTAssertEqual(resolve([event(startingIn: -3600, duration: 1800)]), .idle) }
-    func testNotOptedInCalendarIsIdle() { XCTAssertEqual(resolve([event(startingIn: 60, calendarID: "other")]), .idle) }
-    func testAllDayIsIdle() { XCTAssertEqual(resolve([event(startingIn: 60, isAllDay: true)]), .idle) }
-    func testDeclinedIsIdle() { XCTAssertEqual(resolve([event(startingIn: 60, response: .declined)]), .idle) }
 
     func testIconAssetsExistInBundle() {
         XCTAssertNotNil(NSImage(named: "MenuBarColor"))

@@ -1,16 +1,13 @@
 import AppKit
 import AppleIntelligenceInference
 import CalendarApple
-import CalendarBridge
-import CalendarCore
 import Combine
 import EventKitSource
 import KeyboardShortcuts
 import Network
 import OSLog
 import SwiftUI
-import TimeTugCore
-import TimeTugEngine
+import TimeTugKit
 import WidgetKit
 
 /// Hosts the engine on the Mac: builds it from the Mac's adapters, forwards commands, and mirrors its state into the
@@ -39,9 +36,17 @@ final class AppCoordinator {
     }
 
     private let eventKit = EventKitSource()
-    private lazy var engine = Engine(host: makeHost())
-    private lazy var commands = EngineCommandQueue { [engine] command in await engine.send(command) }
-    private let engineDiagnostics = OSLogEngineDiagnostics()
+    /// Tests hand in a fake; the app builds the real engine on first use.
+    private let injectedEngine: (any EngineHosting)?
+    private lazy var engine: any EngineHosting = injectedEngine ?? makeEngine()
+    private lazy var commands = EngineCommandQueue(
+        deliver: { [engine] command in await engine.send(command) },
+        deliverSettings: { [engine] change in await engine.applySettings(change) })
+    private lazy var systemEvents = SystemEventRelay(
+        engine: engine, commands: commands, onTimeZoneError: { error in
+            Self.engineLog.error("engine time zone not updated: \(String(describing: error), privacy: .public)")
+        })
+    private let engineDiagnostics = OSLogEngineDiagnostics(events: AppDiagnostics.shared.log)
     /// The last state rendered; the status item is redrawn from it when a presentation setting changes.
     private var lastState = EngineState.empty
     /// The takeover on screen, until its one closing command (join, snooze, dismiss or closed) is sent.
@@ -58,17 +63,12 @@ final class AppCoordinator {
     private var cancellables = Set<AnyCancellable>()
     private var statusItem: StatusItemController?
     private let snapshotStore = WidgetSnapshotStore()
-    private var lastWidgetEvents: [WidgetEvent]?
+    private var lastWidgetEvents: [TimeTugKit.WidgetEvent]?
     private var widgetReloadTask: Task<Void, Never>?
     private var settingsSignal: SettingsChangeSignal.Observer?
-    private static let widgetLog = Logger(subsystem: "com.timetug.app", category: "widgets")
+    private nonisolated static let widgetLog = Logger(subsystem: "com.timetug.app", category: "widgets")
+    private nonisolated static let engineLog = Logger(subsystem: "com.timetug.app", category: "engine")
     private let overlay = OverlayController()
-    private lazy var googleOAuthConfig = GoogleOAuthSettings.config()
-    private lazy var microsoftOAuthConfig = MicrosoftOAuthSettings.config()
-    private lazy var registry = AppConnectors.makeRegistry(google: googleOAuthConfig, microsoft: microsoftOAuthConfig, eventKit: eventKit, diagnostics: AppDiagnostics.shared.log)
-    /// Kinds TimeTug supports in code but this build couldn't register — see `AccountsController.unconfiguredKindIDs`.
-    private lazy var unconfiguredKindIDs: [String] =
-        (googleOAuthConfig == nil ? ["google"] : []) + (microsoftOAuthConfig == nil ? ["microsoft"] : [])
     private let credentials: any CredentialStore = AppCredentials.make()
     private let credentialPrompter = CredentialPrompter()
     private lazy var interaction = LoopbackAuthorizationInteraction(
@@ -77,29 +77,51 @@ final class AppCoordinator {
         presenter: BrowserPreferringPresenter(
             sheet: WebAuthenticationSessionPresenter(anchor: { [weak self] in self?.settingsWindow.currentWindow ?? NSApp.keyWindow })))
     lazy var accounts: AccountsController = AccountsController(
-        registry: registry, settings: settings, unconfiguredKindIDs: unconfiguredKindIDs,
-        credentialPrompter: credentialPrompter, send: { [weak self] command in self?.commands.send(command) })
+        settings: settings, credentialPrompter: credentialPrompter, send: { [weak self] command in self?.commands.send(command) })
     private lazy var aboutWindow = AboutWindowController()
     private lazy var settingsWindow = SettingsWindowController { [unowned self] in
         SettingsView(settings: settings, model: model, navigation: navigation, accounts: accounts, updates: updates, onTestTug: { [weak self] in self?.fireTest() },
                      onForgetCorrections: { [weak self] in self?.forgetCorrections() })
     }
 
-    /// The engine's host services: today's files, settings keys, Keychain, sign-in UI, connectors and adapters.
-    private func makeHost() -> EngineHost {
-        let eventKit = eventKit
-        return EngineHost(
-            dataDirectory: AppSupportFiles.directory(),
-            settings: settings.storage,
+    init(engine: (any EngineHosting)? = nil) {
+        injectedEngine = engine
+    }
+
+    /// Builds the Rust engine from this build's settings and the Mac's adapters. A configuration the engine refuses
+    /// (the only one that can differ between Macs is the system time zone's name) falls back to UTC rather than
+    /// leaving the app without an engine.
+    private func makeEngine() -> any EngineHosting {
+        let textGenerator = AppleIntelligence.makeTextGenerator()
+        var config = AppConnectors.makeConfig(
+            dataDirectory: AppSupportFiles.directory(), google: GoogleOAuthSettings.config(),
+            microsoft: MicrosoftOAuthSettings.config(), textGeneration: textGenerator != nil)
+        let host = makeHost(textGenerator: textGenerator)
+        do {
+            return try ObservedEngine { observer in try Engine(config: config, host: host, observer: observer) }
+        } catch {
+            Self.engineLog.error("engine refused its configuration: \(String(describing: error), privacy: .public)")
+            config.timeZone = "UTC"
+            do {
+                return try ObservedEngine { observer in try Engine(config: config, host: host, observer: observer) }
+            } catch {
+                fatalError("The engine could not be created: \(error)")
+            }
+        }
+    }
+
+    /// The engine's host services: today's settings keys, Keychain, sign-in UI, HTTP and the Mac adapters.
+    private func makeHost(textGenerator: (any TextGenerator)?) -> EngineHostInterfaces {
+        EngineHostInterfaces(
             credentials: credentials,
-            interaction: interaction,
-            signIn: credentialPrompter.signIn,
-            registry: registry,
-            unconfiguredKindIDs: unconfiguredKindIDs,
-            buildSystemSource: { ConnectedSource(eventKit) },
-            requestSystemAccess: { _ = await eventKit.requestAccess() },
-            textGenerator: AppleIntelligence.makeTextGenerator(),
-            diagnostics: engineDiagnostics.sink)
+            authorization: interaction,
+            signIn: credentialPrompter,
+            settings: settings.storage,
+            http: URLSessionHTTPTransport(),
+            diagnostics: engineDiagnostics,
+            textGenerator: textGenerator,
+            externalTokens: nil,
+            systemCalendar: eventKit)
     }
 
     /// Another copy of TimeTug was opened and left (or was replaced by this one): show the hint unless this pair of
@@ -158,8 +180,8 @@ final class AppCoordinator {
         }
 
         let engine = engine
-        let states = await engine.states
-        let events = await engine.events
+        let states = engine.states
+        let events = engine.events
         stateTask = Task { [weak self] in
             for await state in states { self?.render(state) }
         }
@@ -172,8 +194,15 @@ final class AppCoordinator {
         observeNetworkReturn()
         // Loads the ledger and dedup state, requests Apple Calendar access if enabled, builds the sources and
         // refreshes once.
-        await engine.send(.start)
-        if await engine.currentState().settings.takeover.takeoverCalendarKeys.isEmpty { openSettings(pane: .calendars) }
+        await engine.start()
+        if await Self.opensCalendarsOnLaunch(engine) { openSettings(pane: .calendars) }
+    }
+
+    /// Whether launch opens the Calendars pane: only when no calendar is chosen for takeovers.
+    /// Decided on the engine's first published state: `start()` can return before it arrives, and the placeholder
+    /// before it has no selection even for a user who has one.
+    static func opensCalendarsOnLaunch(_ engine: any EngineHosting) async -> Bool {
+        await engine.firstPublishedState().settings.takeover.takeoverCalendarKeys.isEmpty
     }
 
     /// Hosting controller that reports its content size so the popover is exactly as tall as the popup.
@@ -196,7 +225,7 @@ final class AppCoordinator {
 
     private func sendBehaviour(_ change: SettingsStore.BehaviourChange) {
         let key: String
-        let apply: @Sendable (inout EngineSettings) -> Void
+        let apply: EngineCommandQueue.SettingsChange
         switch change {
         case .takeover(let old, let new):
             key = "takeover"
@@ -209,7 +238,7 @@ final class AppCoordinator {
             apply = { $0.systemCalendarEnabled = enabled }
         }
         pendingBehaviourWrites[key, default: 0] += 1
-        commands.send(.applySettings(apply), lane: .behaviour(key)) { [weak self] in
+        commands.sendSettings(apply, lane: .behaviour(key)) { [weak self] in
             self?.behaviourWriteFinished(key)
         }
     }
@@ -219,7 +248,7 @@ final class AppCoordinator {
         guard pendingBehaviourWrites[key] == 0 else { return }
         let engine = engine
         Task { [weak self] in
-            let state = await engine.currentState()
+            let state = engine.currentState()
             guard let self else { return }
             minimumSettingsRevision = max(minimumSettingsRevision, state.revision)
             mirrorSettings(state.settings)
@@ -244,6 +273,7 @@ final class AppCoordinator {
         guard state.revision >= lastState.revision else { return }
         lastState = state
         EngineModelMirror.apply(state, to: model)
+        accounts.apply(kinds: state.availableAccountKinds)
         accounts.apply(state.accountStatus)
         if state.revision >= minimumSettingsRevision { mirrorSettings(state.settings) }
         // Revision 0 is the placeholder before the engine's first publication; it says nothing about this Mac.
@@ -281,11 +311,14 @@ final class AppCoordinator {
         case .diagnostic:
             // Already written to the system log by the host's diagnostics sink.
             break
+        @unknown default:
+            // An event a later engine version adds: nothing to show until the app learns it.
+            break
         }
     }
 
     /// Writes the agenda snapshot for widgets; reloads their timelines only when the events changed.
-    private func publishWidgetSnapshot(_ widgetSnapshot: WidgetSnapshot) {
+    private func publishWidgetSnapshot(_ widgetSnapshot: TimeTugKit.WidgetSnapshot) {
         do {
             try snapshotStore.write(widgetSnapshot)
         } catch {
@@ -310,14 +343,14 @@ final class AppCoordinator {
     private func present(_ request: TakeoverRequest, calendarTitle: String?) {
         let id = request.event.id
         // The same id again (a second test tug that raced the first) replaces the overlay and stays outstanding.
-        if let shown = shownTakeoverID, shown != id { closeTakeover(shown, with: .takeoverClosed(eventID: shown)) }
+        if let shown = shownTakeoverID, shown != id { closeTakeover(shown, with: .takeoverClosed(eventId: shown)) }
         shownTakeoverID = id
         overlay.show(request, calendarTitle: calendarTitle, actions: .init(
-            join: { [weak self] in self?.closeTakeover(id, with: .join(eventID: id)) },
-            snooze: { [weak self] seconds in self?.closeTakeover(id, with: .snooze(eventID: id, seconds: seconds)) },
-            dismiss: { [weak self] in self?.closeTakeover(id, with: .dismiss(eventID: id)) }
+            join: { [weak self] in self?.closeTakeover(id, with: .join(eventId: id)) },
+            snooze: { [weak self] seconds in self?.closeTakeover(id, with: .snooze(eventId: id, seconds: seconds)) },
+            dismiss: { [weak self] in self?.closeTakeover(id, with: .dismiss(eventId: id)) }
         ))
-        commands.send(.takeoverPresented(eventID: id, onScreen: true), lane: .takeover)
+        commands.send(.takeoverPresented(eventId: id, onScreen: true), lane: .takeover)
     }
 
     /// Hides the takeover `id` and sends its one closing command; later actions for it do nothing.
@@ -331,7 +364,7 @@ final class AppCoordinator {
     /// Settings' "Test tug" button: a sample takeover that never touches the ledger. It replaces a takeover on
     /// screen, which is closed first.
     func fireTest() {
-        if let shown = shownTakeoverID { closeTakeover(shown, with: .takeoverClosed(eventID: shown)) }
+        if let shown = shownTakeoverID { closeTakeover(shown, with: .takeoverClosed(eventId: shown)) }
         commands.send(.testTug(title: "Sample meeting", calendarTitle: "Sample calendar"), lane: .takeover)
     }
 
@@ -342,7 +375,7 @@ final class AppCoordinator {
     }
 
     func separate(_ event: TimeTugCalendarEvent, members: [MergedMember]) {
-        commands.send(.separate(event, members: members), lane: .dedup)
+        commands.send(.separate(event: event, members: members), lane: .dedup)
     }
 
     func merge(_ a: TimeTugCalendarEvent, _ b: TimeTugCalendarEvent) {
@@ -358,23 +391,12 @@ final class AppCoordinator {
     /// Timers alone are not trusted: the engine recomputes after wake, clock, time zone and day changes. Each one
     /// also re-reads settings a widget may have changed (a dropped notification heals here, as on every refresh).
     private func observeSystemEvents() {
-        let report: @Sendable (SystemEvent) -> Void = { [weak self] event in
-            Task { @MainActor in self?.reportSystemEvent(event) }
-        }
-        NSWorkspace.shared.notificationCenter.addObserver(
-            forName: NSWorkspace.didWakeNotification, object: nil, queue: .main) { _ in report(.wake) }
-        let events: [(Notification.Name, SystemEvent)] = [
-            (.NSSystemClockDidChange, .clockChanged), (.NSSystemTimeZoneDidChange, .timeZoneChanged),
-            (.NSCalendarDayChanged, .dayChanged),
-        ]
-        for (name, event) in events {
-            NotificationCenter.default.addObserver(forName: name, object: nil, queue: .main) { _ in report(event) }
-        }
+        systemEvents.observe(beforeReport: { [weak self] in self?.settings.reloadFromShared() })
     }
 
     private func reportSystemEvent(_ event: SystemEvent) {
         settings.reloadFromShared()
-        commands.send(.system(event))
+        systemEvents.report(event)
     }
 
     /// A source poll backs off for up to 15 minutes after a failure, so refresh as soon as the network returns.

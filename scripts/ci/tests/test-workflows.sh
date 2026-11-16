@@ -74,9 +74,15 @@ contracts_reject 'asks for another token permission' 'permission-pull-requests: 
           permission-workflows: write'
 contracts_reject 'accepts a third library from the payload' '"timetug-shared"]' '"timetug-shared","other"]'
 contracts_reject 'accepts any payload library' "|| contains(fromJSON('[\"calendar-connectors\",\"timetug-shared\"]'), github.event.client_payload.library)" "|| true"
+contracts_reject 'offers calendar-connectors by hand' '          - timetug-shared' '          - calendar-connectors
+          - timetug-shared'
+contracts_reject 'fails a calendar-connectors dispatch instead of ending with a notice' 'calendar-connectors)
+' 'calendar-connectors-gone)
+'
 contracts_reject 'offers a third library by hand' '          - timetug-shared' '          - timetug-shared
           - other'
 contracts_reject 'merges' 'git push origin "$branch"' 'git push origin "$branch"; gh pr merge "$branch" --squash'
 contracts_reject 'shares one queue between the libraries' 'group: bump-${{ github.event.client_payload.library || inputs.library }}' 'group: bump-all'
-contracts_reject 'does not check the library itself' 'calendar-connectors|timetug-shared) ;;' '*) ;;'
+contracts_reject 'does not check the library itself' '            timetug-shared) ;;' '            *) ;;'
+contracts_reject 'still reads the connector version from the tag' 'scripts/ci/bump-pin.sh "$LIBRARY" "$VERSION"' 'scripts/ci/resolved-version.py x y'
 echo "PASS"

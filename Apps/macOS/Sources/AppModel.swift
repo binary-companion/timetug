@@ -1,6 +1,5 @@
-import CalendarCore
+import TimeTugKit
 import Foundation
-import TimeTugCore
 
 /// Observable state the SwiftUI views render.
 @MainActor

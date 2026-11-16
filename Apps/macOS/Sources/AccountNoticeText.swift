@@ -1,4 +1,4 @@
-import CalendarCore
+import TimeTugKit
 
 enum AccountNoticeText {
     /// The tooltip and accessibility text for an account's warning icon, or nil when there is nothing to warn about.

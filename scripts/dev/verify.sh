@@ -10,8 +10,8 @@ MODE="${1:-}"
 if [[ $# -gt 0 ]]; then shift; fi
 BASE=""
 if [[ "${1:-}" == --base && $# -eq 2 ]]; then BASE="$2"; shift 2; fi
-if [[ $# -ne 0 || ! "$MODE" =~ ^(core|connectors|app|release-tools|all|affected)$ ]]; then
-  echo 'usage: scripts/dev/verify.sh core|connectors|app|release-tools|all|affected [--base <git-ref>]' >&2
+if [[ $# -ne 0 || ! "$MODE" =~ ^(packages|app|release-tools|all|affected)$ ]]; then
+  echo 'usage: scripts/dev/verify.sh packages|app|release-tools|all|affected [--base <git-ref>]' >&2
   exit 2
 fi
 if [[ -n "$BASE" ]] && ! git rev-parse --verify "${BASE}^{commit}" >/dev/null 2>&1; then
@@ -54,11 +54,9 @@ run_app() {
 run_release() {
   need bash; need python3; need node
   python3 -c 'import yaml' >/dev/null 2>&1 || { echo 'missing prerequisite: PyYAML (scripts/ci/requirements-test.txt)' >&2; exit 2; }
-  for test in scripts/ci/tests/test-*.sh scripts/release/tests/test-*.sh \
-    scripts/dev/tests/test-use-local-connectors.sh scripts/dev/tests/test-use-local-library.sh; do
+  for test in scripts/ci/tests/test-*.sh scripts/release/tests/test-*.sh scripts/dev/tests/test-use-local-library.sh; do
     run "$(basename "$test" .sh)" bash "$test"
   done
-  run resolved-version python3 -m unittest scripts/ci/tests/test_resolved_version.py
   run wrapper-tests bash scripts/dev/tests/test-verify.sh
   run python-appcast python3 -m unittest discover -s scripts/release/tests -p 'test_*.py'
   run website node --test site/tests/download.test.js
@@ -83,7 +81,7 @@ if [[ "$MODE" == affected ]]; then
   fi
   while IFS= read -r -d '' file; do CHANGED+=("$file"); done < <(git ls-files --others --exclude-standard -z)
   if [[ ${#CHANGED[@]} -eq 0 ]]; then echo 'No changed files; no checks selected.' | tee -a "$SUMMARY"; exit 0; fi
-  WANT_CORE=0; WANT_CONNECTORS=0; WANT_APP=0; WANT_RELEASE=0; WANT_CONTRACTS=0
+  WANT_INFERENCE=0; WANT_ADAPTERS=0; WANT_APP=0; WANT_RELEASE=0; WANT_CONTRACTS=0
   for file in "${CHANGED[@]}"; do
     # Manifests and the project file decide which library version the app resolves, so they also run the
     # contracts (shared-pins) check, in addition to what their directory selects below.
@@ -93,37 +91,37 @@ if [[ "$MODE" == affected ]]; then
     case "$file" in
       # No local package depends on the adapters, so only the adapters and the app are affected.
       Packages/CalendarApple/*|Packages/EventKitSource/*)
-        WANT_CONNECTORS=1; WANT_APP=1;;
-      # TimeTugCore and CalendarBridge live in timetug-shared, which this repository consumes by released version.
+        WANT_ADAPTERS=1; WANT_APP=1;;
+      # The Core, the connectors and the engine live in timetug-shared, which this repository consumes by
+      # released version (its tests run there).
       Packages/AppleIntelligenceInference/*)
-        WANT_CORE=1; WANT_APP=1;;
+        WANT_INFERENCE=1; WANT_APP=1;;
       Apps/macOS/*) WANT_APP=1;;
       scripts/release/*|scripts/ci/*|scripts/dev/*|.github/workflows/*|.github/dependabot.yml|site/*)
         WANT_RELEASE=1;;
       docs/*|AGENTS.md|README.md) WANT_CONTRACTS=1;;
-      *) WANT_CORE=1; WANT_CONNECTORS=1; WANT_APP=1; WANT_RELEASE=1; WANT_CONTRACTS=1;;
+      *) WANT_INFERENCE=1; WANT_ADAPTERS=1; WANT_APP=1; WANT_RELEASE=1; WANT_CONTRACTS=1;;
     esac
   done
 else
-  WANT_CORE=0; WANT_CONNECTORS=0; WANT_APP=0; WANT_RELEASE=0; WANT_CONTRACTS=0
+  WANT_INFERENCE=0; WANT_ADAPTERS=0; WANT_APP=0; WANT_RELEASE=0; WANT_CONTRACTS=0
   case "$MODE" in
-    core) WANT_CORE=1;;
-    connectors) WANT_CONNECTORS=1;;
+    packages) WANT_INFERENCE=1; WANT_ADAPTERS=1;;
     app) WANT_APP=1;;
     release-tools) WANT_RELEASE=1; WANT_CONTRACTS=1;;
-    all) WANT_CORE=1; WANT_CONNECTORS=1; WANT_APP=1; WANT_RELEASE=1; WANT_CONTRACTS=1;;
+    all) WANT_INFERENCE=1; WANT_ADAPTERS=1; WANT_APP=1; WANT_RELEASE=1; WANT_CONTRACTS=1;;
   esac
 fi
-[[ "$WANT_CORE" == 1 ]] || skip_check inference
-[[ "$WANT_CONNECTORS" == 1 ]] || { skip_check calendar-apple; skip_check eventkit; }
+[[ "$WANT_INFERENCE" == 1 ]] || skip_check inference
+[[ "$WANT_ADAPTERS" == 1 ]] || { skip_check calendar-apple; skip_check eventkit; }
 [[ "$WANT_APP" == 1 ]] || skip_check app
 [[ "$WANT_RELEASE" == 1 ]] || skip_check release-tools
 [[ "$WANT_CONTRACTS" == 1 ]] || skip_check repository-contracts
-if [[ "$WANT_CONNECTORS" == 1 ]]; then
+if [[ "$WANT_ADAPTERS" == 1 ]]; then
   run_pkg calendar-apple Packages/CalendarApple
   run_pkg eventkit Packages/EventKitSource
 fi
-if [[ "$WANT_CORE" == 1 ]]; then
+if [[ "$WANT_INFERENCE" == 1 ]]; then
   run_pkg inference Packages/AppleIntelligenceInference
 fi
 if [[ "$WANT_APP" == 1 ]]; then run_app; fi

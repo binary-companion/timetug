@@ -1,6 +1,6 @@
 import AppKit
 import SwiftUI
-import TimeTugCore
+import TimeTugKit
 
 /// The left-click popup: problems, header, today's cards, lead-time footer. Sizes to its content.
 struct DropdownView: View {
@@ -128,6 +128,7 @@ struct DropdownView: View {
             case .needsPermission: return Problem(sourceID: sourceID, status: status, message: "\(name) access denied")
             case .authExpired: return Problem(sourceID: sourceID, status: status, message: "\(name) needs you to sign in again")
             case .failing(let reason): return Problem(sourceID: sourceID, status: status, message: "\(name) failed: \(reason)")
+            @unknown default: return Problem(sourceID: sourceID, status: status, message: "\(name) failed")
             }
         }
         .sorted { $0.sourceID < $1.sourceID }

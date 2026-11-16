@@ -152,3 +152,27 @@ Not missing, but checked: `EngineState.availableAccountKinds` is filled when the
 | `Packages/EventKitSource/Tests/EventKitSourceTests/EventKitMappingTests.swift` | Availability, CalendarEvent, CalendarProvider, EventRef, EventTiming, RecurrenceRule, Reminder, StructuredLocation | missing, same | M6, M7, M8 | 4 |
 | `Packages/EventKitSource/Tests/EventKitSourceTests/EventKitWriteMappingTests.swift` | EventTiming, RecurrenceRule, Reminder, StructuredLocation, WriteError | missing, same | M5, M7, M8 | 4 |
 | `Packages/EventKitSource/Tests/EventKitSourceTests/EventKitWriteTests.swift` | CalendarSource, EventDraft, EventPatch, EventRef, EventTiming, RecurrenceRule, RecurrenceScope, Reminder, WritableCalendarSource, WriteError | missing, not exposed, same | M5 | 4 |
+
+## Task 9 findings
+
+### Privacy manifest (Step 5)
+
+Checked 2026-11-15 on the app built from this branch (`TimeTug.app`, Debug, `timetug-shared` 2.1.1). Method: `nm -u` on the linked engine. The static archive `libtimetug_engine_ffi.a` holds LLVM bitcode for most members, so `nm` on the archive shows almost nothing; the linked image (the `TimeTugKit` product framework in the Debug app) shows what the engine imports from the system. Apple's required-reason API categories, against that list:
+
+| Category | Symbols checked | Found | Declared |
+|---|---|---|---|
+| File timestamp | `stat`, `fstat`, `lstat`, `fstatat`, `getattrlist`, `fgetattrlist`, `getattrlistbulk`, `futimes`, `utimes`, `futimens`, `utimensat` | `_stat`, `_fstat`, `_lstat`, `_fstatat` (Rust `std::fs` metadata, with `opendir`, `fdopendir`, `readdir`, which are not in a category) | `NSPrivacyAccessedAPICategoryFileTimestamp`, reason `C617.1` (metadata of files inside the app container and App Group container: the engine reads and writes only the data directory the host passes, `connections.json` and the other state files) |
+| System boot time | `mach_absolute_time`, `mach_continuous_time`, `systemUptime`, `kern.boottime` | none (`_clock_gettime` only; `sysctlbyname` is called with `kern.osproductversion` and `hw.optional.*`, which are not in the category) | not needed |
+| Disk space | `statfs`, `fstatfs`, `statvfs`, `getattrlist` with volume keys, the `NSURLVolume*` keys | none | not needed |
+| User defaults | `NSUserDefaults` | none in the engine. The app and the widgets already use `UserDefaults` (settings, the App Group suite) | `NSPrivacyAccessedAPICategoryUserDefaults`, reasons `CA92.1` (the app's own defaults) and `1C8F.1` (the App Group suite shared with the widgets) |
+
+Before this change the app had no `PrivacyInfo.xcprivacy` at all (Sparkle ships its own). `Apps/macOS/Resources/PrivacyInfo.xcprivacy` (the app, both targets) and `Apps/macOS/Widgets/PrivacyInfo.xcprivacy` (the widget extension: UserDefaults only, the widgets do not link the engine) now declare the above, with no tracking and no collected data types. Re-run the check when `timetug-shared` is bumped by a minor or more (the Rust standard library or a crate may add a call); the Release executable built by `scripts/ci/build-release.sh` imports the same set (`_stat`, `_fstat`, `_fstatat`, `_lstat`, `_clock_gettime`, `_sysctlbyname`), checked with `nm -u`.
+
+### Licence notices (Step 5a)
+
+`scripts/ci/copy-licence-notices.sh` (build phase `Copy licence notices` of both app targets) copies `THIRD-PARTY-NOTICES.md` and `LICENSE` of the resolved `TimeTugEngineFFI.xcframework` (found under the build's `SourcePackages/artifacts`, which sits beside `Build/` in the derived data folder, so `build/DerivedData`, `build/DerivedData-store` and archives work; a local checkout set by `use-local-library.sh` is read through `project.yml`) and KeyboardShortcuts' `license` into `Contents/Resources/Licenses/` as `TimeTugEngine-THIRD-PARTY-NOTICES.md`, `TimeTugEngine-LICENSE` and `KeyboardShortcuts-LICENSE`, and fails the build when a source is absent or empty. The user script sandbox is off for the two app targets because the script reads the SwiftPM folder outside the target. Checked by `scripts/ci/tests/test-copy-licence-notices.sh` (in `verify.sh release-tools`), `ThirdPartyNoticesTests` (the test host is the app), the `app-store-build` CI step and `scripts/release/verify-dmg.sh`. The About window and Settings > General > About show a "Third-party notices" link (owner decision of 2026-11-15) that opens a window with the three files. Sparkle's licence (its `LICENSE` is in the resolved `SourcePackages/artifacts/sparkle/Sparkle` folder) is not copied and was not carried before either (Sparkle is in the direct target only); the owner may want it added the same way.
+
+### Not done in this pass
+
+Step 3 (size, launch time, memory and idle CPU against the last Swift release), Step 4 (the sandboxed `fs_usage` run) and Step 6 (App Store validation, needs credentials) are not in this pass.
+

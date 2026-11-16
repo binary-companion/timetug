@@ -1,5 +1,5 @@
 import Foundation
-import TimeTugCore
+import TimeTugKit
 
 /// macOS presentation text. Core supplies raw dates; wording and truncation live here.
 enum TimeFormatting {

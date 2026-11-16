@@ -1,5 +1,5 @@
 import AppKit
-import CalendarCore
+import TimeTugKit
 import SwiftUI
 
 /// The one accounts list (spec "The shared control"): a bordered box with a selectable list of the signed-in accounts and

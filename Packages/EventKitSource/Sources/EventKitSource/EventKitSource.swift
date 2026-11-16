@@ -1,36 +1,93 @@
-import CalendarCore
 import EventKit
 import Foundation
+import TimeTugKit
 
-/// Apple Calendar via EventKit (includes iCloud, Google and Exchange accounts added to macOS). EventKit types
-/// never leave this module. Its id is the constant "eventkit" (existing stored calendar keys start with
-/// `eventkit/`), which deliberately differs from `Connection.sourceID`; hosts identify sources by `source.id`.
-public final class EventKitSource: CalendarCore.CalendarSource, @unchecked Sendable {
+/// What `EventKitSource` needs to know about calendar access, so tests can stand in for the system prompt.
+protocol EventStoreAuthorization: Sendable {
+    func status() -> EKAuthorizationStatus
+    func requestFullAccess() async throws -> Bool
+}
+
+/// The real thing: `EKEventStore`'s class-level status and its prompt. `EKEventStore` is documented as safe to use from
+/// any thread, but EventKit does not mark it `Sendable`.
+struct SystemEventStoreAuthorization: EventStoreAuthorization, @unchecked Sendable {
+    let store: EKEventStore
+    func status() -> EKAuthorizationStatus { EKEventStore.authorizationStatus(for: .event) }
+    func requestFullAccess() async throws -> Bool { try await store.requestFullAccessToEvents() }
+}
+
+/// Apple Calendar via EventKit (includes iCloud, Google and Exchange accounts added to macOS), as the engine's
+/// `SystemCalendarSource`. EventKit types never leave this module. Its id is the constant "eventkit" (existing stored
+/// calendar keys start with `eventkit/`); the engine uses `id()` as the source id.
+public final class EventKitSource: SystemCalendarSource, @unchecked Sendable {
     public static let sourceID = "eventkit"
-    public let id = EventKitSource.sourceID
-    public let displayName = "Apple Calendar"
-    public var capabilities: SourceCapabilities {
-        SourceCapabilities(
-            canWrite: true, providedFields: [.reminders, .series, .participation, .supportedAvailabilities, .recurrenceRules], syncKind: .notification,
-            writableFields: [.title, .notes, .location, .timing, .availability, .reminders, .recurrence],
-            controlsNotifications: false, recurrenceScopes: Set(RecurrenceScope.allCases))
-    }
+    public static let sourceDisplayName = "Apple Calendar"
     let store: EKEventStore
     let contacts: ContactEmailResolver
+    let authorization: any EventStoreAuthorization
+    private let notifications: NotificationCenter
+    private let observerLock = NSLock()
+    private var observers: [NSObjectProtocol] = []
 
     public init(store: EKEventStore = EKEventStore()) {
         self.store = store
         self.contacts = ContactEmailResolver()
+        self.authorization = SystemEventStoreAuthorization(store: store)
+        self.notifications = .default
     }
 
-    init(store: EKEventStore, contacts: ContactEmailResolver) {
+    init(
+        store: EKEventStore, contacts: ContactEmailResolver, authorization: (any EventStoreAuthorization)? = nil,
+        notifications: NotificationCenter = .default
+    ) {
         self.store = store
         self.contacts = contacts
+        self.authorization = authorization ?? SystemEventStoreAuthorization(store: store)
+        self.notifications = notifications
     }
 
-    /// Prompts for calendar access if undetermined. Returns whether access is granted.
-    public func requestAccess() async -> Bool {
-        (try? await store.requestFullAccessToEvents()) ?? false
+    deinit { removeObservers() }
+
+    public func id() -> String { Self.sourceID }
+    public func displayName() -> String { Self.sourceDisplayName }
+    public func capabilities() -> SourceCapabilities {
+        SourceCapabilities(
+            canWrite: true, providedFields: [.reminders, .series, .participation, .supportedAvailabilities, .recurrenceRules], syncKind: .notification,
+            writableFields: [.title, .notes, .location, .timing, .availability, .reminders, .recurrence],
+            controlsNotifications: false, recurrenceScopes: [.thisInstance, .thisAndFollowing, .allInSeries])
+    }
+
+    /// Prompts for calendar access if undetermined. A grant, a refusal and a failed prompt all return normally: the
+    /// engine finds out through the next read, which throws `needsPermission` without access.
+    public func requestAccess() async {
+        if authorization.status() == .fullAccess { return }
+        _ = try? await authorization.requestFullAccess()
+    }
+
+    /// A store-changed notification tells the handler the calendars changed; a Contacts grant, which makes participant
+    /// emails resolvable, tells it to fetch events again. A second call replaces the first handler.
+    public func setChangeHandler(handler: SystemChangeHandler) async {
+        observe(handler)
+    }
+
+    func observe(_ handler: any SystemChangeHandlerProtocol) {
+        let changed = notifications.addObserver(forName: .EKEventStoreChanged, object: store, queue: nil) { _ in
+            handler.calendarsChanged()
+        }
+        let grant = notifications.addObserver(forName: ContactEmailResolver.accessGranted, object: nil, queue: nil) { _ in
+            handler.eventsChanged(calendarIds: nil)
+        }
+        observerLock.withLock {
+            observers.forEach(notifications.removeObserver)
+            observers = [changed, grant]
+        }
+    }
+
+    private func removeObservers() {
+        observerLock.withLock {
+            observers.forEach(notifications.removeObserver)
+            observers = []
+        }
     }
 
     public func calendars() async throws -> [CalendarDescriptor] {
@@ -50,9 +107,9 @@ public final class EventKitSource: CalendarCore.CalendarSource, @unchecked Senda
         }
     }
 
-    public func events(in interval: DateInterval) async throws -> [CalendarEvent] {
+    public func eventsIn(start: Timestamp, end: Timestamp) async throws -> [CalendarEvent] {
         try requireAccess()
-        let predicate = store.predicateForEvents(withStart: interval.start, end: interval.end, calendars: nil)
+        let predicate = store.predicateForEvents(withStart: start, end: end, calendars: nil)
         let events = store.events(matching: predicate)
         let resolved = contacts.emails(for: Self.unresolvedParticipants(in: events))
         return events.map { map($0, resolvedEmails: resolved) }
@@ -65,35 +122,19 @@ public final class EventKitSource: CalendarCore.CalendarSource, @unchecked Senda
         for event in events {
             for participant in (event.attendees ?? []) + (event.organizer.map { [$0] } ?? []) {
                 let url = participant.url.absoluteString
-                guard CalendarUserAddress.email(from: url) == nil, seen.insert(url).inserted else { continue }
+                guard calendarUserAddressEmail(address: url) == nil, seen.insert(url).inserted else { continue }
                 result.append(UnresolvedParticipant(url: url, predicate: participant.contactPredicate))
             }
         }
         return result
     }
 
-    public func changes() -> AsyncStream<CalendarChange> {
-        AsyncStream { continuation in
-            let token = NotificationCenter.default.addObserver(
-                forName: .EKEventStoreChanged, object: store, queue: nil
-            ) { _ in continuation.yield(.calendarsChanged) }
-            // A Contacts grant makes emails resolvable: the host fetches events again.
-            let grant = NotificationCenter.default.addObserver(
-                forName: ContactEmailResolver.accessGranted, object: nil, queue: nil
-            ) { _ in continuation.yield(.eventsChanged(calendarIDs: nil)) }
-            continuation.onTermination = { _ in
-                NotificationCenter.default.removeObserver(token)
-                NotificationCenter.default.removeObserver(grant)
-            }
-        }
-    }
-
     func requireAccess() throws {
-        guard EKEventStore.authorizationStatus(for: .event) == .fullAccess else { throw SourceError.needsPermission }
+        guard authorization.status() == .fullAccess else { throw FfiError.Source(.needsPermission) }
     }
 
     private func attendee(_ p: EKParticipant, isOrganizer: Bool, resolvedEmails: [String: [String]], preferredDomains: Set<String>) -> Attendee {
-        let email = CalendarUserAddress.email(from: p.url.absoluteString)
+        let email = calendarUserAddressEmail(address: p.url.absoluteString)
             ?? ContactEmailResolver.choose(resolvedEmails[p.url.absoluteString] ?? [], preferredDomains: preferredDomains)
         return Attendee(name: p.name, email: email, role: EventKitMapping.role(p),
                  response: EventKitMapping.response(p.participantStatus) ?? .needsAction,
@@ -103,7 +144,7 @@ public final class EventKitSource: CalendarCore.CalendarSource, @unchecked Senda
     /// `resolvedEmails` (participant URL to a contact's emails) fills in participants EventKit gave no email for.
     func map(_ event: EKEvent, resolvedEmails: [String: [String]] = [:]) -> CalendarEvent {
         let known = ((event.attendees ?? []) + (event.organizer.map { [$0] } ?? []))
-            .compactMap { CalendarUserAddress.email(from: $0.url.absoluteString) }
+            .compactMap { calendarUserAddressEmail(address: $0.url.absoluteString) }
         let domains = Set(known.compactMap { $0.split(separator: "@").last.map(String.init) })
         let attendees = (event.attendees ?? []).map { attendee($0, isOrganizer: false, resolvedEmails: resolvedEmails, preferredDomains: domains) }
         let me = (event.attendees ?? []).first { $0.isCurrentUser }
@@ -129,7 +170,7 @@ public final class EventKitSource: CalendarCore.CalendarSource, @unchecked Senda
             availability: EventKitMapping.availability(event.availability),
             series: EventKitMapping.series(isOccurrence: isSeries, identifier: identifier, occurrenceDate: event.occurrenceDate),
             attendees: attendees, organizer: event.organizer.map { attendee($0, isOrganizer: true, resolvedEmails: resolvedEmails, preferredDomains: domains) },
-            conferences: ConferenceDetector.conferences(location: event.location, url: event.url, notes: event.notes),
+            conferences: detectConferences(structured: [], location: event.location, url: event.url, notes: event.notes),
             reminders: (event.alarms ?? []).map(EventKitMapping.reminder),
             url: event.url, version: EventKitWriteMapping.version(event.lastModifiedDate),
             lastModified: event.lastModifiedDate, created: event.creationDate,

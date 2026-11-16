@@ -1,11 +1,14 @@
 #!/usr/bin/env bash
-# Points the local packages and the app at a checkout of one shared library (calendar-connectors or
-# timetug-shared) while you work on both.
+# Points the local packages and the app at a checkout of timetug-shared (the only shared library the app pins
+# since phase 6 of the Rust program; the calendar connectors come inside it) while you work on both.
 #
-#   scripts/dev/use-local-library.sh <calendar-connectors|timetug-shared> <path-to-that-checkout>
+#   scripts/dev/use-local-library.sh timetug-shared <path-to-that-checkout>
 #   scripts/dev/use-local-library.sh --restore [--force]
 #
-# (scripts/dev/use-local-connectors.sh is the same command for calendar-connectors.)
+# The checkout is a Swift package whose root Package.swift has a binary target at
+# build/TimeTugEngineFFI.xcframework. When that directory does not exist the checkout's own
+# scripts/dev/build-xcframework.sh is run to build it (it needs the Rust toolchain; see timetug-shared); when
+# it still does not exist afterwards the override is refused.
 #
 # The change is for your machine only: scripts/ci/check-shared-pins.py fails while it is in place, so it
 # cannot be committed by mistake. The files it changes are copied to build/local-library-backup first, and
@@ -25,7 +28,7 @@ HASHES="$BACKUP/after.sha256"
 FILES=(Packages/*/Package*.swift Apps/macOS/project.yml)
 
 usage() {
-  echo "usage: $0 <calendar-connectors|timetug-shared> <path-to-that-checkout> | --restore [--force]" >&2
+  echo "usage: $0 timetug-shared <path-to-that-checkout> | --restore [--force]" >&2
   exit 2
 }
 
@@ -33,9 +36,16 @@ usage() {
 # argument is not a shared library.
 key_of() {
   case "$1" in
-    calendar-connectors) echo CalendarConnectors ;;
     timetug-shared) echo TimeTugShared ;;
   esac
+}
+
+# calendar-connectors was a library of its own until phase 6; refuse it with the reason rather than as unknown.
+refuse_retired() {
+  [ "$1" = calendar-connectors ] || return 0
+  echo "calendar-connectors is no longer a library the Mac app uses (phase 6 of the Rust program): it comes" >&2
+  echo "inside timetug-shared. Use: $0 timetug-shared <path-to-a-timetug-shared-checkout>" >&2
+  exit 2
 }
 
 # Prints the SHA-256 of one file: shasum on macOS and CI, sha256sum where that is what exists.
@@ -80,6 +90,7 @@ restore() {
 
 override() {
   local library="$1" checkout="$2" key abs rel f m
+  refuse_retired "$library"
   key="$(key_of "$library")"
   [ -n "$key" ] || { echo "unknown library: $library" >&2; usage; }
   [ ! -e "$BACKUP" ] || {
@@ -90,6 +101,17 @@ override() {
   # "<library>", so the checkout must have that name (use a symlink if yours does not).
   [ "$(basename "$abs")" = "$library" ] || {
     echo "the checkout directory must be named $library (got $(basename "$abs"))" >&2; exit 2; }
+  # The binary target of the checkout's Package.swift is a path to this build output on a branch.
+  if [ ! -d "$abs/build/TimeTugEngineFFI.xcframework" ]; then
+    if [ -x "$abs/scripts/dev/build-xcframework.sh" ]; then
+      echo "Building $abs/build/TimeTugEngineFFI.xcframework (scripts/dev/build-xcframework.sh)..."
+      (cd "$abs" && ./scripts/dev/build-xcframework.sh) >&2 || {
+        echo "$abs/scripts/dev/build-xcframework.sh failed" >&2; exit 2; }
+    fi
+    [ -d "$abs/build/TimeTugEngineFFI.xcframework" ] || {
+      echo "$abs/build/TimeTugEngineFFI.xcframework does not exist and could not be built" >&2
+      echo "(run scripts/dev/build-xcframework.sh in that checkout)" >&2; exit 2; }
+  fi
   export LIBRARY="$library" KEY="$key"
   # Without the library's pin in project.yml the redirect below would silently do nothing there.
   perl -0ne 'exit(m{^[ \t]+\Q$ENV{KEY}\E:\n[ \t]+url: [^\n]*/\Q$ENV{LIBRARY}\E\n[ \t]+exactVersion: [0-9.]+}m ? 0 : 1)' \
@@ -109,8 +131,9 @@ override() {
 
 command -v shasum >/dev/null 2>&1 || command -v sha256sum >/dev/null 2>&1 || {
   echo "need shasum or sha256sum" >&2; exit 2; }
-# `--restore [--force]` also follows a library name, so the connectors wrapper can pass its arguments through.
+# `--restore [--force]` may also follow a library name (`<library> --restore`).
 if [ -n "$(key_of "${1:-}")" ] && [ "${2:-}" = --restore ]; then shift; fi
+if [ "${1:-}" = calendar-connectors ] && [ "${2:-}" = --restore ]; then refuse_retired "$1"; fi
 case "${1:-}" in
   --restore)
     case "${2:-}" in

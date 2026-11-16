@@ -1,10 +1,11 @@
 #!/usr/bin/env bash
 # Tests .github/workflows/bump-dependencies.yml: pins the shape of the workflow (triggers, the job `if`, the
-# library and version plumbing, environment, token scope), runs its "Move the pin" step against the real
-# scripts/ci/bump-pin.sh and resolved-version.py (so the step must use their current command lines) with a stub
-# `gh api` for the timetug-shared tag's Package.resolved, then runs its "Open the pull request" step against stub
-# `git` and `gh` and asserts which pull requests it opens and closes, for both libraries. The steps are
-# extracted from the workflow and executed, so the real text is what is tested.
+# library and version plumbing, environment, token scope), runs its "Skip new major versions" step against the
+# real scripts/ci/bump-major-guard.sh and its "Move the pin" step against the real scripts/ci/bump-pin.sh (so
+# the steps must use their current command lines), then runs its "Open the pull request" step against stub
+# `git` and `gh` and asserts which pull requests it opens and closes. Since phase 6 only timetug-shared is
+# bumped; a calendar-connectors dispatch ends with a notice, not a failure. The steps are extracted from the
+# workflow and executed, so the real text is what is tested.
 # BUMP_WORKFLOW points at another copy of the workflow (used to prove that mutated copies fail).
 # PYTHON selects the interpreter that has PyYAML (default python3).
 set -euo pipefail
@@ -21,15 +22,16 @@ mkdir -p "$T/bin"
 fail() { echo "FAIL: $*" >&2; exit 1; }
 
 # --- the shape of the workflow, then the two steps extracted ---
-"$PYTHON" - "$WORKFLOW" "$T/open.sh" "$T/move.sh" <<'PY'
+"$PYTHON" - "$WORKFLOW" "$T/open.sh" "$T/move.sh" "$T/guard.sh" <<'PY'
 import re, sys, yaml
-workflow, open_target, move_target = sys.argv[1:]
+workflow, open_target, move_target, guard_target = sys.argv[1:]
 raw = open(workflow).read()
 document = yaml.safe_load(raw)
 def check(condition, message):
     if not condition:
         sys.exit(f'FAIL: {workflow}: {message}')
-LIBRARIES = ['calendar-connectors', 'timetug-shared']
+LIBRARIES = ['timetug-shared']  # what a manual dispatch may pick
+PAYLOAD_LIBRARIES = ['calendar-connectors', 'timetug-shared']  # what a dispatch event may carry (the first only ends with a notice)
 triggers = document.get(True, document.get('on'))
 check(isinstance(triggers, dict) and set(triggers) == {'repository_dispatch', 'workflow_dispatch'},
       'the triggers must be exactly repository_dispatch and workflow_dispatch (never pull_request_target or push)')
@@ -39,7 +41,7 @@ inputs = triggers['workflow_dispatch'].get('inputs', {})
 check(set(inputs) == {'library', 'version'}, 'workflow_dispatch must take exactly the inputs library and version')
 check(inputs['library'].get('type') == 'choice' and inputs['library'].get('options') == LIBRARIES
       and inputs['library'].get('required') is True,
-      'the library input must be a required choice of exactly calendar-connectors and timetug-shared')
+      'the library input must be a required choice of exactly timetug-shared')
 check(inputs['version'].get('required') is True, 'the version input must be required')
 check(document.get('permissions') == {}, 'the workflow-level permissions must be {}')
 check(document.get('concurrency') == {'group': "bump-${{ github.event.client_payload.library || inputs.library }}",
@@ -61,7 +63,8 @@ import json
 allowed = [name.lower() for name in json.loads(shape.group(2))]
 def runs(event_name, library):
     return event_name == shape.group(1) or (isinstance(library, str) and library.lower() in allowed)
-for library in LIBRARIES:
+check(json.loads(shape.group(2)) == PAYLOAD_LIBRARIES, 'the payload allow-list must be exactly calendar-connectors and timetug-shared')
+for library in PAYLOAD_LIBRARIES:
     check(runs('repository_dispatch', library), f'a payload for {library} must run the job')
 for library in ('other', '', 'timetug', 'calendar-connectors-evil', 'timetug-shared/x', None):
     check(not runs('repository_dispatch', library), f'a payload with library {library!r} must skip the job')
@@ -93,9 +96,12 @@ check(checkout.get('with') == {'ref': 'master', 'token': '${{ steps.app.outputs.
 check(guard.get('name') == 'Skip new major versions' and guard.get('id') == 'guard'
       and 'env' not in guard and '${{' not in guard['run']
       and 'scripts/ci/bump-major-guard.sh "$LIBRARY" "$VERSION"' in guard['run']
+      and 'calendar-connectors)' in guard['run']
       and '::notice::' in guard['run'] and 'decision=' in guard['run'] and 'continue-on-error' not in guard,
-      'the third step must be the major-version guard (id guard), calling bump-major-guard.sh with LIBRARY and VERSION '
-      'and writing its decision to the step output')
+      'the third step must be the guard (id guard): it ends a calendar-connectors dispatch with a notice, and calls '
+      'bump-major-guard.sh with LIBRARY and VERSION and writes its decision to the step output')
+check('resolved-version' not in raw and 'RECORDED' not in raw and 'Package.resolved' not in raw,
+      'the connector-pin logic (resolved-version.py, Package.resolved, RECORDED) must be gone')
 for gated in (move, open_pr):
     check(gated.get('if') == "steps.guard.outputs.decision == 'proceed'",
           f"the step {gated['name']!r} must run only when the guard decided proceed")
@@ -116,6 +122,7 @@ for line in raw.splitlines():
 check('refs/pull' not in raw and 'pull_request' not in raw, 'the workflow must not mention pull_request triggers')
 open(open_target, 'w').write(open_pr['run'])
 open(move_target, 'w').write(move['run'])
+open(guard_target, 'w').write(guard['run'])
 PY
 
 # --- stubs ---
@@ -129,8 +136,6 @@ esac
 exit 0
 SCRIPT
 # `gh pr list --head X` matches the head branch name of every pull request, forks included, like the real one.
-# `gh api` answers the timetug-shared tag's Package.resolved from canned JSON files ($RESOLVED/<ref>.json holds
-# {"content": "<base64>"}) and applies the real --jq expression with jq; a ref without a file is a 404.
 cat > "$T/bin/gh" <<'SCRIPT'
 #!/usr/bin/env bash
 echo "gh $*" >> "$CALLS"
@@ -157,12 +162,6 @@ case "$1 $2" in
   "pr close")
     case " ${FAIL_CLOSE:-} " in *" $3 "*) echo "could not close $3" >&2; exit 1;; esac;;
   "release view") echo "release notes of $5";;
-  "api repos/binary-companion/timetug-shared/contents/Package.resolved?ref="*)
-    ref="${2#*ref=}"
-    file="$RESOLVED/${ref//\//_}.json"
-    [ -f "$file" ] || { echo "gh: Not Found (HTTP 404)" >&2; exit 1; }
-    expr="."; [ "$3" = --jq ] && expr="$4"
-    jq -r "$expr" "$file";;
   *) echo "stub gh: unexpected call: $*" >&2; exit 99;;
 esac
 exit 0
@@ -174,140 +173,100 @@ no_forbidden_calls() { # after every run: the workflow never merges, labels or s
   fi
 }
 
-# --- the "Move the pin" step, in a tree with the real scripts and a project.yml with chosen pins ---
-# pin_in <file> <project.yml key> prints the exactVersion of that entry; set_pin <file> <key> <version> sets it.
+# --- the "Skip new major versions" and "Move the pin" steps, in a tree with the real scripts ---
+# pin_in <file> <project.yml key> prints the exactVersion of that entry.
 pin_in() { perl -0ne 'print $1 if m{^[ \t]+'"$2"':[ \t]*\n[ \t]+url:[^\n]*\n[ \t]+exactVersion:[ \t]*([0-9.]+)}m' "$1"; }
 set_pin() {
   KEY="$2" NEW="$3" perl -0pi -e 's{(^[ \t]+\Q$ENV{KEY}\E:[ \t]*\n[ \t]+url:[^\n]*\n[ \t]+exactVersion:[ \t]*)[0-9.]+}{$1$ENV{NEW}}m' "$1"
 }
-CC=CalendarConnectors
 TS=TimeTugShared
-# A project.yml pinned at <connector> and <shared>; the real file supplies everything else.
+# A project.yml pinned at <shared>; the real file supplies everything else.
 fresh_tree() {
-  rm -rf "$T/move" "$T/resolved"
-  mkdir -p "$T/move/scripts/ci" "$T/move/Apps/macOS" "$T/resolved"
-  cp "$ROOT/scripts/ci/bump-pin.sh" "$ROOT/scripts/ci/resolved-version.py" "$T/move/scripts/ci/"
+  rm -rf "$T/move"
+  mkdir -p "$T/move/scripts/ci" "$T/move/Apps/macOS"
+  cp "$ROOT/scripts/ci/bump-pin.sh" "$ROOT/scripts/ci/bump-major-guard.sh" "$T/move/scripts/ci/"
   cp "$ROOT/Apps/macOS/project.yml" "$T/move/Apps/macOS/"
-  set_pin "$T/move/Apps/macOS/project.yml" $CC "$1"
-  set_pin "$T/move/Apps/macOS/project.yml" $TS "$2"
-  [ "$(pin_in "$T/move/Apps/macOS/project.yml" $CC)" = "$1" ] || fail "fixture: connector pin is not $1"
-  [ "$(pin_in "$T/move/Apps/macOS/project.yml" $TS)" = "$2" ] || fail "fixture: shared pin is not $2"
+  set_pin "$T/move/Apps/macOS/project.yml" $TS "$1"
+  [ "$(pin_in "$T/move/Apps/macOS/project.yml" $TS)" = "$1" ] || fail "fixture: shared pin is not $1"
+  grep -q CalendarConnectors "$T/move/Apps/macOS/project.yml" && fail "fixture: project.yml still has a CalendarConnectors entry"
   cp "$T/move/Apps/macOS/project.yml" "$T/move.original"
 }
 untouched() { cmp -s "$T/move/Apps/macOS/project.yml" "$T/move.original"; }
-cc_pin() { pin_in "$T/move/Apps/macOS/project.yml" $CC; }
 ts_pin() { pin_in "$T/move/Apps/macOS/project.yml" $TS; }
-# resolved <tag> <json of pins>: the Package.resolved the stub serves for ?ref=refs/tags/<tag>.
-resolved() {
-  local body
-  body="$(printf '{"originHash":"x","pins":%s,"version":3}' "$2" | base64 | tr -d '\n')"
-  printf '{"content":"%s"}' "$body" > "$T/resolved/refs_tags_$1.json"
-}
-cc_pins() { printf '[{"identity":"calendar-connectors","kind":"remoteSourceControl","location":"https://github.com/binary-companion/calendar-connectors","state":{"revision":"092808b0c444c26f793b924f76210589a28a359b","version":"%s"}}]' "$1"; }
-# move <library> <version>: sets STATUS; output in $T/move.out, calls in $T/calls, GITHUB_ENV in $T/github_env.
+# move <library> <version>: sets STATUS; output in $T/move.out, calls in $T/calls.
 move() {
-  : > "$T/calls"; : > "$T/github_env"
+  : > "$T/calls"
   STATUS=0
-  (cd "$T/move" && CALLS="$T/calls" RESOLVED="$T/resolved" LIBRARY="$1" VERSION="$2" GH_TOKEN=unused \
-     GITHUB_ENV="$T/github_env" RUNNER_TEMP="$T" PATH="$T/bin:$PATH" bash "$T/move.sh") > "$T/move.out" 2>&1 || STATUS=$?
+  (cd "$T/move" && CALLS="$T/calls" LIBRARY="$1" VERSION="$2" GH_TOKEN=unused \
+     RUNNER_TEMP="$T" PATH="$T/bin:$PATH" bash "$T/move.sh") > "$T/move.out" 2>&1 || STATUS=$?
   no_forbidden_calls
 }
+# guard <library> <version>: sets STATUS and DECISION (the step output); the message is in $T/guard.out.
+guard() {
+  : > "$T/calls"; : > "$T/guard_output"
+  STATUS=0
+  (cd "$T/move" && LIBRARY="$1" VERSION="$2" GITHUB_OUTPUT="$T/guard_output" PATH="$T/bin:$PATH" bash "$T/guard.sh") \
+    > "$T/guard.out" 2>&1 || STATUS=$?
+  DECISION="$(sed -n 's/^decision=//p' "$T/guard_output")"
+}
 
-# calendar-connectors: only that pin moves, nothing is read from timetug-shared, no RECORDED.
-fresh_tree 1.0.2 1.0.0
-move calendar-connectors 1.998.0
-[ "$STATUS" = 0 ] || fail "moving calendar-connectors failed: $(cat "$T/move.out")"
-[ "$(cc_pin)" = 1.998.0 ] || fail 'the Move the pin step did not move the calendar-connectors pin'
-[ "$(ts_pin)" = 1.0.0 ] || fail 'the Move the pin step changed the timetug-shared pin for a connector release'
-grep -q 'gh api' "$T/calls" && fail 'a connector release read the timetug-shared tag'
-grep -q '^RECORDED=' "$T/github_env" && fail 'a connector release recorded a connector pin'
+# The guard: 2.x flows, a future major is held, a calendar-connectors dispatch ends with a notice (exit 0).
+fresh_tree 2.1.1
+guard timetug-shared 2.1.2
+[ "$STATUS" = 0 ] && [ "$DECISION" = proceed ] || fail "guard: timetug-shared 2.1.2 gave '$DECISION' (status $STATUS)"
+guard timetug-shared 2.9.0
+[ "$STATUS" = 0 ] && [ "$DECISION" = proceed ] || fail "guard: timetug-shared 2.9.0 gave '$DECISION'"
+guard timetug-shared 3.0.0
+[ "$STATUS" = 0 ] && [ "$DECISION" = skip ] || fail "guard: timetug-shared 3.0.0 gave '$DECISION'"
+grep -q '::notice::' "$T/guard.out" || fail 'guard: a held major version left no notice'
+for version in 1.2.0 2.0.0 3.1.0; do
+  guard calendar-connectors "$version"
+  [ "$STATUS" = 0 ] || fail "guard: a calendar-connectors $version dispatch must end successfully, got $STATUS: $(cat "$T/guard.out")"
+  [ "$DECISION" = skip ] || fail "guard: a calendar-connectors $version dispatch gave '$DECISION', expected skip"
+  grep -q '::notice::.*phase 6' "$T/guard.out" || fail "guard: a calendar-connectors dispatch left no notice naming phase 6: $(cat "$T/guard.out")"
+done
+guard other-lib 1.0.0
+[ "$STATUS" != 0 ] || fail 'guard: an unknown library was accepted'
 
-# (a) timetug-shared 1.0.0 whose Package.resolved pins the connector at 1.0.4 while the project pins 1.0.2:
-# both pins move, and the tag is read as a tag (refs/tags/1.0.0), not as a possibly ambiguous name.
-fresh_tree 1.0.2 0.9.0
-resolved 1.0.0 "$(cc_pins 1.0.4)"
-move timetug-shared 1.0.0
-[ "$STATUS" = 0 ] || fail "(a) moving timetug-shared failed: $(cat "$T/move.out")"
-[ "$(ts_pin)" = 1.0.0 ] || fail '(a) the timetug-shared pin did not move to 1.0.0'
-[ "$(cc_pin)" = 1.0.4 ] || fail "(a) the connector pin is $(cc_pin), expected 1.0.4 (the version the tag resolves)"
-grep -q 'gh api repos/binary-companion/timetug-shared/contents/Package.resolved?ref=refs/tags/1.0.0 ' "$T/calls" ||
-  fail "(a) the tag's Package.resolved was not read from refs/tags/1.0.0: $(grep 'gh api' "$T/calls")"
-grep -qx 'RECORDED=1.0.4' "$T/github_env" || fail "(a) RECORDED was not exported to the next step: $(cat "$T/github_env")"
+# timetug-shared moves the pin, and nothing is read from anywhere else.
+fresh_tree 2.1.1
+move timetug-shared 2.2.0
+[ "$STATUS" = 0 ] || fail "moving timetug-shared failed: $(cat "$T/move.out")"
+[ "$(ts_pin)" = 2.2.0 ] || fail 'the Move the pin step did not move the timetug-shared pin'
+grep -q 'gh ' "$T/calls" && fail "the Move the pin step called gh: $(cat "$T/calls")"
 
-# (b) the tag resolves a connector version below the project's pin: the connector pin is never lowered.
-fresh_tree 1.0.2 0.9.0
-resolved 1.0.0 "$(cc_pins 1.0.1)"
-move timetug-shared 1.0.0
-[ "$STATUS" = 0 ] || fail "(b) a lower recorded connector pin failed the step: $(cat "$T/move.out")"
-[ "$(cc_pin)" = 1.0.2 ] || fail "(b) the connector pin was lowered to $(cc_pin)"
-[ "$(ts_pin)" = 1.0.0 ] || fail '(b) the timetug-shared pin did not move'
-# ... and with the same version the connector pin is left alone too.
-fresh_tree 1.0.4 0.9.0
-resolved 1.0.0 "$(cc_pins 1.0.4)"
-move timetug-shared 1.0.0
-[ "$STATUS" = 0 ] && [ "$(cc_pin)" = 1.0.4 ] && [ "$(ts_pin)" = 1.0.0 ] || fail '(b) an equal recorded connector pin changed something else'
-# A numeric, not textual, comparison: recorded 1.0.10 is above 1.0.9.
-fresh_tree 1.0.9 0.9.0
-resolved 1.0.0 "$(cc_pins 1.0.10)"
-move timetug-shared 1.0.0
-[ "$STATUS" = 0 ] && [ "$(cc_pin)" = 1.0.10 ] || fail "(b) 1.0.10 was not treated as above 1.0.9 (pin is $(cc_pin))"
-
-# The tag's Package.resolved is not there (404), has no connector pin, or pins it by branch or revision: the step
-# fails loudly and nothing is moved (neither pin), never a silent skip of the connector move.
-fresh_tree 1.0.2 0.9.0
-move timetug-shared 1.0.0
-[ "$STATUS" != 0 ] && untouched || fail 'a tag without Package.resolved did not fail the step with the file untouched'
-grep -q '::error::' "$T/move.out" || fail 'a tag without Package.resolved failed without an ::error:: annotation'
-fresh_tree 1.0.2 0.9.0
-resolved 1.0.0 '[{"identity":"swift-log","state":{"revision":"abc","version":"1.5.0"}}]'
-move timetug-shared 1.0.0
-[ "$STATUS" != 0 ] && untouched || fail 'a Package.resolved without the connector pin did not fail the step with the file untouched'
-grep -q '::error::' "$T/move.out" || fail 'a missing connector pin failed without an ::error:: annotation'
-fresh_tree 1.0.2 0.9.0
-resolved 1.0.0 '[{"identity":"calendar-connectors","state":{"branch":"main","revision":"abc"}}]'
-move timetug-shared 1.0.0
-[ "$STATUS" != 0 ] && untouched || fail 'a connector pin without a version did not fail the step with the file untouched'
-fresh_tree 1.0.2 0.9.0
-resolved 1.0.0 "$(cc_pins 1.0.4-rc1)"
-move timetug-shared 1.0.0
-[ "$STATUS" != 0 ] && untouched || fail 'a pre-release connector pin was accepted'
-fresh_tree 1.0.2 0.9.0
-printf '{"content":"%s"}' "$(printf 'not json' | base64 | tr -d '\n')" > "$T/resolved/refs_tags_1.0.0.json"
-move timetug-shared 1.0.0
-[ "$STATUS" != 0 ] && untouched || fail 'an unreadable Package.resolved was accepted'
-
-# A downgrade of the library itself is refused and leaves the file; the same version is a no-op.
-fresh_tree 1.0.2 1.0.5
-resolved 1.0.4 "$(cc_pins 1.0.4)"
-move timetug-shared 1.0.4
+# A downgrade of the library is refused and leaves the file; the same version is a no-op.
+fresh_tree 2.1.5
+move timetug-shared 2.1.4
 [ "$STATUS" != 0 ] && untouched || fail 'a downgrade of timetug-shared was accepted'
-fresh_tree 1.0.4 1.0.0
-resolved 1.0.0 "$(cc_pins 1.0.4)"
-move timetug-shared 1.0.0
+fresh_tree 2.1.1
+move timetug-shared 2.1.1
 [ "$STATUS" = 0 ] && untouched || fail 'the version that is already pinned was not a no-op'
 
+# calendar-connectors is refused by the step itself (the guard ends that dispatch before this step; a manual
+# run of the step must not move anything).
+fresh_tree 2.1.1
+move calendar-connectors 1.2.0
+[ "$STATUS" != 0 ] && untouched || fail 'the Move the pin step accepted calendar-connectors'
+grep -q '::error::' "$T/move.out" || fail 'calendar-connectors was refused without the step own ::error::'
+
 # A hostile or unknown library and a hostile or malformed version are refused by the step itself, before any
-# API call, git call or file change; the message is the step's own.
-fresh_tree 1.0.2 0.9.0
-resolved 1.0.0 "$(cc_pins 1.0.4)"
+# git call or file change; the message is the step's own.
+fresh_tree 2.1.1
 for hostile in '' other Timetug-Shared 'timetug-shared ' 'timetug-shared/../x' 'timetug' 'calendar-connectors-evil' \
                '$(touch /tmp/x)' "timetug-shared
 calendar-connectors"; do
-  move "$hostile" 1.0.0
+  move "$hostile" 2.2.0
   [ "$STATUS" != 0 ] || fail "the library '$hostile' was accepted"
   untouched || fail "the library '$hostile' modified the file"
-  grep -q 'gh api' "$T/calls" && fail "the library '$hostile' reached the API"
   grep -q '::error::' "$T/move.out" || fail "the library '$hostile' was refused without the step's own ::error::"
 done
-for hostile in '../../../repos/other/x' '1.0' 'v1.0.5' '1.0.5-rc1' '1.0.1234567890123' "1.0.0
-1.0.1" '' '1.0.5 --jq .' '$(touch /tmp/x)' '99999999999999999999.0.0' '01.0.0' 'refs/tags/1.0.0'; do
-  for library in calendar-connectors timetug-shared; do
-    move "$library" "$hostile"
-    [ "$STATUS" != 0 ] || fail "the version '$hostile' was accepted for $library"
-    untouched || fail "the version '$hostile' modified the file for $library"
-    grep -q 'gh api' "$T/calls" && fail "the version '$hostile' reached the API for $library"
-    grep -q '::error::' "$T/move.out" || fail "the version '$hostile' was refused without the step's own ::error::"
-  done
+for hostile in '../../../repos/other/x' '1.0' 'v2.2.0' '2.2.0-rc1' '2.2.1234567890123' "2.2.0
+2.2.1" '' '2.2.0 --jq .' '$(touch /tmp/x)' '99999999999999999999.0.0' '02.0.0' 'refs/tags/2.2.0'; do
+  move timetug-shared "$hostile"
+  [ "$STATUS" != 0 ] || fail "the version '$hostile' was accepted"
+  untouched || fail "the version '$hostile' modified the file"
+  grep -q '::error::' "$T/move.out" || fail "the version '$hostile' was refused without the step's own ::error::"
 done
 
 # --- the "Open the pull request" step against stub git and gh ---
@@ -326,8 +285,8 @@ run() {
 }
 called() { grep -q -- "$1" "$T/calls"; }
 
-# The phase 1 matrix once per library, with no recorded connector pin: only that library's own older bump
-# pull requests are superseded; the other library's are never touched.
+# The supersede matrix for timetug-shared: only its own older bump pull requests are closed; older
+# calendar-connectors bump pull requests (from before phase 6) are never touched.
 matrix() {
   local library="$1" other="$2" P="bump/$1" O="bump/$2" saved
   PRS_JSON="$(pr 10 $P-1.0.2),$(pr 11 $P-1.0.9),$(pr 12 $P-1.0.10),$(pr 13 $P-1.0.3),\
@@ -367,6 +326,7 @@ $(pr 16 x$P-1.0.1),$(pr 17 $P-1.0.1 true),$(pr 18 $P-1.0.0),$(pr 19 $O-1.0.0)"
   [ "$(cat "$T/created.title")" = "Bump $library to 1.0.3" ] || fail "$library: the title is '$(cat "$T/created.title")'"
   grep -q "release notes of binary-companion/$library" "$T/created.body" || fail "$library: the body lacks the release notes of the library"
   grep -q 'Opened by timetug-bot' "$T/created.body" || fail "$library: the body lacks the bot line"
+  grep -q 'calendar-connectors' "$T/created.body" && fail "$library: the body still mentions a connector pin"
   called "gh release view 1.0.3 --repo binary-companion/$library" || fail "$library: the notes were not read from the library"
   grep -E '^gh pr create' "$T/calls" | grep -Eq -- '--(label|reviewer|assignee|draft)' && fail "$library: the pull request was labelled, assigned or drafted"
 
@@ -405,37 +365,5 @@ $(pr 16 x$P-1.0.1),$(pr 17 $P-1.0.1 true),$(pr 18 $P-1.0.0),$(pr 19 $O-1.0.0)"
   called 'git push' && fail "$library: a clean tree pushed"
   unset DIFF_CLEAN
 }
-unset RECORDED
-matrix calendar-connectors timetug-shared
 matrix timetug-shared calendar-connectors
-
-# (c) timetug-shared 1.0.0 carried the connector pin to 1.0.4 (RECORDED): the open connector bump pull requests
-# for 1.0.4 and below are superseded, and so are older timetug-shared ones; nothing else is closed.
-PRS_JSON="$(pr 40 bump/calendar-connectors-1.0.3),$(pr 41 bump/timetug-shared-0.9.0),$(pr 42 bump/calendar-connectors-1.0.4),\
-$(pr 43 bump/calendar-connectors-1.0.5),$(pr 44 bump/timetug-shared-1.0.1),$(pr 45 bump/timetug-shared-1.0.0),\
-$(pr 46 bump/calendar-connectors-1.0.3 true),$(pr 47 feature/other),$(pr 48 bump/calendar-connectors-1.0.10),\
-$(pr 49 bump/calendar-connectors-1.0.4-rc1),$(pr 50 bump/calendar-connectors-0.9.9),$(pr 51 xbump/calendar-connectors-1.0.1)"
-RECORDED=1.0.4 run timetug-shared 1.0.0
-[ "$STATUS" = 0 ] || fail "(c) exited $STATUS: $(cat "$T/out")"
-[ "$CLOSED" = "40 41 42 50" ] || fail "(c) closed '$CLOSED', expected '40 41 42 50' (the connector bumps up to 1.0.4 and the older timetug-shared one)"
-called 'gh pr close 40 --comment Superseded by #45 --delete-branch' || fail '(c) the close did not name the open pull request #45'
-called 'gh pr create' && fail '(c) an open same-repository pull request still got a new one'
-# The same, with the new pull request created here.
-PRS_JSON="$(pr 40 bump/calendar-connectors-1.0.3),$(pr 41 bump/timetug-shared-0.9.0),$(pr 43 bump/calendar-connectors-1.0.5)"
-RECORDED=1.0.4 run timetug-shared 1.0.0
-[ "$STATUS" = 0 ] && [ "$CLOSED" = "40 41" ] || fail "(c) with a new pull request closed '$CLOSED' (status $STATUS), expected '40 41'"
-called 'Superseded by #99' || fail '(c) the close did not name the new pull request #99'
-grep -q 'calendar-connectors 1.0.4' "$T/created.body" || fail '(c) the body does not say which connector version the tag resolves'
-# A recorded version compares numerically: 1.0.10 recorded closes the 1.0.9 and 1.0.10 connector bumps.
-PRS_JSON="$(pr 60 bump/calendar-connectors-1.0.9),$(pr 61 bump/calendar-connectors-1.0.10),$(pr 62 bump/calendar-connectors-1.0.11)"
-RECORDED=1.0.10 run timetug-shared 1.0.0
-[ "$STATUS" = 0 ] && [ "$CLOSED" = "60 61" ] || fail "(c) numeric recorded comparison closed '$CLOSED', expected '60 61'"
-# Without a recorded pin (cannot happen after a successful Move step) no connector pull request is closed.
-RECORDED= run timetug-shared 1.0.0
-[ "$CLOSED" = "" ] || fail "(c) an empty RECORDED closed '$CLOSED'"
-# A connector release never closes a timetug-shared pull request, and a RECORDED left in the environment does not
-# make it close connector ones beyond its own library's rule.
-PRS_JSON="$(pr 70 bump/timetug-shared-0.9.0),$(pr 71 bump/calendar-connectors-1.0.3),$(pr 72 bump/calendar-connectors-1.0.5)"
-RECORDED=1.0.4 run calendar-connectors 1.0.4
-[ "$STATUS" = 0 ] && [ "$CLOSED" = "71" ] || fail "a connector release closed '$CLOSED', expected only '71'"
 echo PASS

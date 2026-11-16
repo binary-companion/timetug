@@ -1,6 +1,5 @@
 import Foundation
-import TimeTugCore
-import TimeTugEngine
+import TimeTugKit
 
 /// Copies an `EngineState` into what the Mac views render. Each value is assigned only when it changed, so a
 /// countdown tick (a new state with the same agenda) does not redraw the popup or the Settings window.
@@ -24,7 +23,7 @@ enum EngineModelMirror {
 
     /// The menu bar icon for `state` at `now`.
     static func iconState(_ state: EngineState, now: Date) -> MenuBarIconState {
-        MenuBarIconState.resolve(events: state.events, settings: state.settings.takeover, ledger: state.ledger, now: now)
+        MenuBarIconState.resolve(nextPendingStart: state.nextPendingStart, now: now)
     }
 
     private static func assign<Value: Equatable>(

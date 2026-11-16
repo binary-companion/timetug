@@ -1,12 +1,11 @@
 #!/usr/bin/env bash
-# Tests check-architecture.sh: the real repo passes, a clean fixture passes, and each rule catches its violation.
+# Tests check-architecture.sh: a clean fixture passes and each rule catches its violation. (The real repository
+# is checked by the architecture job itself; during the phase 6 cutover its sources still import the old modules.)
 set -euo pipefail
 cd "$(dirname "$0")/../../.."
 S="$PWD/scripts/ci/check-architecture.sh"
 T="$(mktemp -d)"; trap 'rm -rf "$T"' EXIT
 fail() { echo "FAIL: $*" >&2; exit 1; }
-
-"$S" >/dev/null || { "$S" >&2; fail "the repository itself violates the architecture rules"; }
 
 # A minimal repo shaped like this one that follows every rule.
 pkg() { # pkg <name> <dependencies: ../Local paths or https URLs...>
@@ -22,17 +21,17 @@ pkg() { # pkg <name> <dependencies: ../Local paths or https URLs...>
     > "$T/Packages/$name/Package.swift"
   printf 'import Foundation\n' > "$T/Packages/$name/Sources/$name/A.swift"
 }
-LIB=https://github.com/binary-companion/calendar-connectors
 SHARED=https://github.com/binary-companion/timetug-shared
-pkg EventKitSource "$LIB"
-pkg CalendarApple "$LIB"
-pkg AppleIntelligenceInference "$SHARED" "$LIB"
-printf 'import FoundationModels\nimport TimeTugCore\n' > "$T/Packages/AppleIntelligenceInference/Sources/AppleIntelligenceInference/B.swift"
-printf 'import EventKit\n' > "$T/Packages/EventKitSource/Sources/EventKitSource/B.swift"
-printf 'import AppKit\nimport CalendarOAuth\n' > "$T/Packages/CalendarApple/Sources/CalendarApple/B.swift"
+LIB=https://github.com/binary-companion/calendar-connectors   # retired in phase 6
+pkg EventKitSource "$SHARED"
+pkg CalendarApple "$SHARED"
+pkg AppleIntelligenceInference "$SHARED"
+printf 'import FoundationModels\nimport TimeTugKit\n' > "$T/Packages/AppleIntelligenceInference/Sources/AppleIntelligenceInference/B.swift"
+printf 'import EventKit\nimport TimeTugKit\n' > "$T/Packages/EventKitSource/Sources/EventKitSource/B.swift"
+printf 'import AppKit\nimport TimeTugKit\n' > "$T/Packages/CalendarApple/Sources/CalendarApple/B.swift"
 mkdir -p "$T/Apps/macOS/Sources" "$T/Apps/macOS/Widgets" "$T/Apps/macOS/Shared"
-printf 'import Sparkle\nimport EventKit\nimport SwiftUI\n' > "$T/Apps/macOS/Sources/App.swift"
-printf 'import WidgetKit\nimport TimeTugCore\n' > "$T/Apps/macOS/Widgets/W.swift"
+printf 'import Sparkle\nimport SwiftUI\nimport TimeTugKit\n' > "$T/Apps/macOS/Sources/App.swift"
+printf 'import WidgetKit\nimport Foundation\n' > "$T/Apps/macOS/Widgets/W.swift"
 
 out="$("$S" "$T")" || fail "clean fixture rejected: $out"
 
@@ -59,16 +58,46 @@ expect() {
   if [ "$had" = 1 ]; then mv "$f.orig" "$f"; else rm "$f"; fi
 }
 expect Packages/EventKitSource/Sources/EventKitSource/X.swift 'import AppKit\n' "EventKitSource may not import AppKit"
-expect Packages/EventKitSource/Sources/EventKitSource/X.swift 'import TimeTugCore\n' "EventKitSource may not import TimeTugCore"
+expect Packages/EventKitSource/Sources/EventKitSource/X.swift 'import CalendarApple\n' "EventKitSource may not import CalendarApple"
 expect Packages/CalendarApple/Sources/CalendarApple/X.swift 'import SwiftUI\n' "CalendarApple may not import SwiftUI"
 expect Packages/CalendarApple/Sources/CalendarApple/X.swift 'import Sparkle\n' "Sparkle is app-only) may not import Sparkle"
-expect Packages/AppleIntelligenceInference/Sources/AppleIntelligenceInference/X.swift 'import CalendarBridge\n' \
-  "AppleIntelligenceInference may not import CalendarBridge"
+expect Packages/AppleIntelligenceInference/Sources/AppleIntelligenceInference/X.swift 'import EventKitSource\n' \
+  "AppleIntelligenceInference may not import EventKitSource"
+# FoundationModels only in AppleIntelligenceInference, EventKit only in EventKitSource.
 expect Apps/macOS/Sources/X.swift 'import FoundationModels\n' "FoundationModels"
+expect Packages/CalendarApple/Sources/CalendarApple/X.swift 'import FoundationModels\n' "may not import FoundationModels"
+expect Apps/macOS/Sources/X.swift 'import EventKit\n' "may not import EventKit"
+expect Packages/CalendarApple/Sources/CalendarApple/X.swift 'import EventKit\n' "may not import EventKit"
+expect Packages/AppleIntelligenceInference/Sources/AppleIntelligenceInference/X.swift 'import EventKit\n' "may not import EventKit"
+# The widgets do not link the engine: no TimeTugKit, no EventKit, no Sparkle.
+expect Apps/macOS/Widgets/X.swift 'import TimeTugKit\n' "may not import TimeTugKit"
+expect Apps/macOS/Shared/X.swift 'import TimeTugKit\n' "may not import TimeTugKit"
 expect Apps/macOS/Widgets/X.swift 'import EventKit\n' "may not import EventKit"
 expect Apps/macOS/Shared/X.swift 'import Sparkle\n' "may not import Sparkle"
-# Package dependencies: the allow-lists are exact (EventKitSource and CalendarApple: the library; only
-# AppleIntelligenceInference may also use timetug-shared), and a path dependency on a moved package is refused.
+# The modules of the two former libraries are gone since phase 6 (timetug-shared 2.x ships TimeTugKit only):
+# forbidden in every package and in the app, including the forms `@testable import` and `import struct M.Type`.
+for module in TimeTugEngine TimeTugCore CalendarBridge CalendarCore GoogleCalendar MicrosoftCalendar CalDAVCalendar \
+              ICalSubscription CalendarOAuth; do
+  expect Apps/macOS/Sources/X.swift "import $module\n" "may not import $module"
+  expect Apps/macOS/Widgets/X.swift "import $module\n" "may not import $module"
+  expect Packages/EventKitSource/Sources/EventKitSource/X.swift "import $module\n" "may not import $module"
+  expect Packages/CalendarApple/Sources/CalendarApple/X.swift "import $module\n" "may not import $module"
+  expect Packages/AppleIntelligenceInference/Sources/AppleIntelligenceInference/X.swift "@testable import $module\n" "may not import $module"
+  expect Packages/CalendarApple/Tests/CalendarAppleTests/X.swift "import struct $module.Thing\n" "may not import $module"
+done
+# TimeTugKit itself is fine in the app and in every package.
+for f in Apps/macOS/Sources/Y.swift Packages/EventKitSource/Sources/EventKitSource/Y.swift \
+         Packages/CalendarApple/Sources/CalendarApple/Y.swift Packages/AppleIntelligenceInference/Sources/AppleIntelligenceInference/Y.swift; do
+  mkdir -p "$(dirname "$T/$f")"; printf 'import TimeTugKit\n' > "$T/$f"
+  out="$("$S" "$T")" || fail "import TimeTugKit rejected in $f: $out"
+  rm "$T/$f"
+done
+# Package dependencies: the allow-list is exact (every package depends on timetug-shared and nothing else),
+# the retired connector library is refused, and a path dependency on a moved package is refused.
+for pkgname in EventKitSource CalendarApple AppleIntelligenceInference; do
+  expect "Packages/$pkgname/Package.swift" 'let package = Package(dependencies: [.package(url: "'$LIB'", from: "1.0.0")])\n' \
+    "$pkgname may not depend on $LIB"
+done
 expect Packages/AppleIntelligenceInference/Package.swift 'let package = Package(dependencies: [.package(path: "../TimeTugCore")])\n' \
   "may not depend on ../TimeTugCore"
 expect Packages/AppleIntelligenceInference/Package.swift 'let package = Package(dependencies: [.package(path: "../CalendarBridge")])\n' \
@@ -79,9 +108,6 @@ expect Packages/AppleIntelligenceInference/Package.swift \
 expect Packages/AppleIntelligenceInference/Package.swift 'let package = Package(\n  dependencies: [\n    .package(\n      path: "../TimeTugCore"\n    ),\n  ]\n)\n' \
   "Package.swift:4: AppleIntelligenceInference may not depend on ../TimeTugCore"
 for adapter in EventKitSource CalendarApple; do
-  expect "Packages/$adapter/Package.swift" \
-    'let package = Package(dependencies: [.package(url: "'$SHARED'", from: "1.0.0")])\n' \
-    "$adapter may not depend on $SHARED"
   expect "Packages/$adapter/Package.swift" 'let package = Package(dependencies: [.package(path: "../TimeTugCore")])\n' \
     "$adapter may not depend on ../TimeTugCore"
 done
@@ -94,8 +120,8 @@ expect Packages/CalendarApple/Package@swift-5.9.swift \
   'let package = Package(dependencies: [.package(url: "https://github.com/x/y", from: "1.0.0")])\n' \
   "Packages/CalendarApple/Package@swift-5.9.swift:1: CalendarApple may not depend on https://github.com/x/y"
 expect Packages/EventKitSource/Package@swift-6.0.swift \
-  'let package = Package(dependencies: [.package(url: "'$SHARED'", from: "1.0.0")])\n' \
-  "Packages/EventKitSource/Package@swift-6.0.swift:1: EventKitSource may not depend on $SHARED"
+  'let package = Package(dependencies: [.package(url: "'$LIB'", from: "1.0.0")])\n' \
+  "Packages/EventKitSource/Package@swift-6.0.swift:1: EventKitSource may not depend on $LIB"
 expect Packages/AppleIntelligenceInference/Package@swift-6.0.swift \
   'let package = Package(\n  dependencies: [\n    .package(\n      path: "../TimeTugCore"\n    ),\n  ]\n)\n' \
   "Packages/AppleIntelligenceInference/Package@swift-6.0.swift:4: AppleIntelligenceInference may not depend on ../TimeTugCore"

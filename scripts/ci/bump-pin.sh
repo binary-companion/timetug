@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
-# Moves the pin of one shared library (calendar-connectors or timetug-shared) to a released version.
+# Moves the pin of timetug-shared (the only library the Mac app pins since phase 6 of the Rust program; the
+# calendar connectors come inside it) to a released version.
 #
-#   scripts/ci/bump-pin.sh [--at-least] <calendar-connectors|timetug-shared> <X.Y.Z> [repo-root]
+#   scripts/ci/bump-pin.sh [--at-least] timetug-shared <X.Y.Z> [repo-root]
 #
-# Always sets exactVersion for that library's entry (CalendarConnectors, TimeTugShared) in
-# Apps/macOS/project.yml; the other library's pin and floors are never touched. A `from:` floor of the library
+# Always sets exactVersion for the TimeTugShared entry in Apps/macOS/project.yml. A `from:` floor of the library
 # in a Packages/*/Package*.swift manifest is a lower bound the code is known to need, so it is raised only when
 # the new version is in a different major than the floor (scripts/ci/check-shared-pins.py requires the floor to
 # be at most the pin within one major); on a same-major bump the floors stay. Refuses anything that is not
@@ -16,7 +16,7 @@
 set -euo pipefail
 
 usage() {
-  echo "usage: bump-pin.sh [--at-least] <calendar-connectors|timetug-shared> X.Y.Z [repo-root]" >&2
+  echo "usage: bump-pin.sh [--at-least] timetug-shared X.Y.Z [repo-root]" >&2
   exit 2
 }
 
@@ -28,7 +28,10 @@ version="$2"
 
 # The library's project.yml key; anything else is refused (a bare version lands here too).
 case "$library" in
-  calendar-connectors) KEY=CalendarConnectors ;;
+  calendar-connectors)
+    echo "calendar-connectors is no longer pinned by the Mac app (phase 6 of the Rust program): the connector" >&2
+    echo "library comes inside timetug-shared. Bump timetug-shared instead." >&2
+    exit 2 ;;
   timetug-shared) KEY=TimeTugShared ;;
   *) echo "unknown library: $library" >&2; usage ;;
 esac

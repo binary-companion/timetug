@@ -1,4 +1,4 @@
-import CalendarCore
+import TimeTugKit
 import SwiftUI
 
 /// The sign-in form for a connector kind that asks for a user name and password (iCloud, Other CalDAV): one field per
