@@ -4,7 +4,7 @@
 
 **Goal:** Track feature progress in GitHub issues and two org projects (TimeTug, Libraries), with written rules, an agent skill, and Actions for mechanical status changes.
 
-**Architecture:** Each tracked repo declares its projects in `.github/tracking.yml`. Reusable workflows in a new public `binary-companion/.github` repo read that file and apply the dedup and parent roll-up rules, using pure, unit-tested Python functions behind a thin `gh` GraphQL layer. Rules and the agent skill live in `timetug`. Agents own judgment; Actions own mechanical transitions.
+**Architecture:** Each tracked repo declares its projects in `.github/tracking.yml`. Reusable workflows in a new public `binary-companion/.github` repo read that file and apply the project-membership and parent roll-up rules, using pure, unit-tested Python functions behind a thin `gh` GraphQL layer. Rules and the agent skill live in `timetug`. Agents own judgment; Actions own mechanical transitions.
 
 **Tech Stack:** GitHub issues, sub-issues, org projects (v2), issue types, GitHub Actions reusable workflows, Python 3 with pytest, `gh` CLI/GraphQL.
 
@@ -102,8 +102,8 @@ Projects and issue types do not exist yet, so this task does what is possible by
 - Consumes: the template from Task 4; the reusable workflows.
 
 - [ ] **Step 1: Add the files** in each repo as a branch and PR, one PR per repo.
-- [ ] **Step 2: Verify the dedup path end to end** by opening a test parent in `timetug` and a child in `calendar-connectors`: parent in TimeTug only, child in Libraries only; then close both.
-- [ ] **Step 2b: Test the built-in "Auto-add sub-issues to project" workflow** (enabled on both projects; the dry run showed it adds every sub-issue, #203 findings item 4): confirm what it does for a same-project child and a cross-project child, then decide keep or disable, and encode the decision in the dedup logic and the rules.
+- [ ] **Step 2: Verify membership end to end** by opening a test parent in `timetug` and a child in `calendar-connectors`: the child is in Libraries (its repo) and TimeTug (parent's project, built-in auto-add), with the same Status in both; then close both.
+- [x] **Step 2b: Tested 2026-11-16** (see #203 finding 9): the built-in auto-add puts a cross-repo child in its parent's project; accepted, with status synced across all of an issue's items.
 - [ ] **Step 3: Verify roll-up**: set the child In progress, then In review, then Done, and confirm the parent follows.
 
 ### Task 6: Rules, skill and issue forms (in `timetug`, plus pointers)
