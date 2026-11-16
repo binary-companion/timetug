@@ -15,7 +15,7 @@
 - Projects: `TimeTug` and `Libraries` in org `binary-companion`. Repos: timetug, timetug-shared, timetug-windows, homebrew-tap and the private manual-work repo → TimeTug; calendar-connectors → Libraries; website → none.
 - Status values exactly: Backlog, Ready, In progress, In review, Done. Fields: Status, Agent. Issue type `Manual Task`; label `manual`.
 - Parent status is derived only: In progress when any child is In progress; In review when every child that is not Done is In review (at least one); Done only when all children are Done. Agents never set it by hand.
-- Dedup: add an issue to project P only if no ancestor issue is already in P.
+- Project membership: add an issue to each project its repo's `tracking.yml` lists that it is not already in. The built-in sub-issue auto-add may also put a child in its parent's project (tested 2026-11-16, accepted): write every status change to all of the issue's project items.
 - No credentials in any issue. Manual tickets live in the private repo, assigned to the owner, status Ready.
 - `.github` repo is public: no secrets or internal structure in it.
 - The default `GITHUB_TOKEN` cannot write org projects; the Actions use the org secret `APP_PRIVATE_KEY` and org variable `APP_ID` (a GitHub App, minted into a token with `actions/create-github-app-token`) (GitHub App).
@@ -25,7 +25,7 @@
 
 - `tracking.yml` missing, empty, or malformed → repo is untracked, never a crash. (Task 3)
 - Parent with no children → roll-up returns no change. (Task 3)
-- Grandparent chain: a child's ancestors include all levels; project membership at any level suppresses the add. (Task 3)
+- A child in two projects: status writes reach every project item of the issue. (Task 4)
 - A child reopened after Done → parent leaves Done on the next roll-up. (Task 3)
 - A PR that closes several issues, or none → every linked issue handled, no error for none. (Task 4)
 - Child in a repo with no `tracking.yml` (for example website): parent roll-up still counts it by its issue state, but it is never added to a project. (Task 3)
@@ -70,7 +70,7 @@ Projects and issue types do not exist yet, so this task does what is possible by
 **Interfaces:**
 - Produces:
   - `parse_tracking(text: str) -> list[str]`: project refs (`org/name`) from `tracking.yml` text; returns `[]` for empty, missing key, or malformed input.
-  - `projects_to_add(repo_projects: list[str], ancestor_project_sets: list[set[str]]) -> list[str]`: those in `repo_projects` not present in any ancestor's set.
+  - `projects_to_add(repo_projects: list[str], already_in: set[str]) -> list[str]`: those in `repo_projects` the issue is not already in.
   - `rollup_status(child_statuses: list[str]) -> str | None`: `"In progress"`, `"In review"`, `"Done"`, or `None` for no change/no children. Child status `None` (untracked) is treated by its issue state: closed counts as `"Done"`, open as not started.
 
 - [ ] **Step 1: Write the failing tests** with these assertions: `parse_tracking("projects: [binary-companion/libraries]") == ["binary-companion/libraries"]`; `parse_tracking("") == []`; `parse_tracking("::: not yaml") == []`; `projects_to_add(["a/timetug"], []) == ["a/timetug"]`; `projects_to_add(["a/timetug"], [{"a/timetug"}]) == []`; `projects_to_add(["a/libraries"], [{"a/timetug"}]) == ["a/libraries"]`; a grandparent set suppresses the add; `rollup_status([]) is None`; `["In progress","Backlog"] -> "In progress"`; `["In review","Done"] -> "In review"`; `["In review","Backlog"] -> None`; `["Done","Done"] -> "Done"`; `["Done","In progress"] -> "In progress"`; a reopened child (`["Done", "Backlog"]`) -> `None` (parent leaves Done to its prior non-Done status).
