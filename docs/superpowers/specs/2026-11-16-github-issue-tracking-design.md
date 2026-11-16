@@ -69,7 +69,7 @@ When a ticket needs the owner, the agent creates an issue in the private manual-
 
 Agents own judgment: body and criteria, sub-issues, blocker relations, the Agent field, stage-summary comments, and the Backlog → Ready decision. Actions own mechanical transitions:
 
-- Add to project on issue open, per the repo's `tracking.yml`, with the dedup rule: add an issue to project P only if no ancestor issue is already in P, so a parent already in P covers its children, and a child whose parent is not in P is added itself.
+- Add to project on issue open, per the repo's `tracking.yml`: add the issue to each listed project it is not already in. GitHub's built-in "Auto-add sub-issues" also adds a child to its parent's project, so a cross-repo child can be in two projects (for example a `calendar-connectors` child of a `timetug` parent is in Libraries and TimeTug). This was tested on 2026-11-16 and is accepted: every status write goes to all of an issue's project items so they never disagree, and the roll-up reads each child's status from the parent's project.
 - PR opened or marked ready → In review on its linked issues; PR merged → Done on its linked issues ("Fixes #N").
 - Parent roll-up when a child's status changes.
 - Failed CI on `master` → a bug issue referencing the merge.
@@ -98,7 +98,7 @@ projects: [binary-companion/libraries]
 
 A repo with no file, or an empty list, is not tracked (`website` has none). A repo may list several projects. The reusable workflows in `.github` read the calling repo's own file, so there is no central routing data and no per-repo special case in code. The file is versioned and reviewed in a PR. A check in the caller workflow validates that each listed project exists and that the bot token can write to it.
 
-The dedup rule is evaluated per project over the issue's ancestor chain, so a `calendar-connectors` child under a `timetug` parent lands in Libraries (the parent is not there) while the parent stays only in TimeTug. A new repo adopts tracking by adding its caller workflow and this file; nothing central changes. A new project is just a new entry in the repos that use it.
+Same-project children are project items too (they carry their own status); the built-in sub-issue auto-add puts a child in its parent's project and `tracking.yml` puts it in its own repo's projects, so a `calendar-connectors` child under a `timetug` parent is in both. A new repo adopts tracking by adding its caller workflow and this file; nothing central changes. A new project is just a new entry in the repos that use it.
 
 Considered and not chosen: GitHub's native repo-to-project link as the source of truth. It has no config file, but it is not in git (no review or diff) and conflates "linked for visibility" with "track here".
 

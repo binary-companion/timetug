@@ -4,7 +4,7 @@
 
 **Goal:** Track feature progress in GitHub issues and two org projects (TimeTug, Libraries), with written rules, an agent skill, and Actions for mechanical status changes.
 
-**Architecture:** Each tracked repo declares its projects in `.github/tracking.yml`. Reusable workflows in a new public `binary-companion/.github` repo read that file and apply the dedup and parent roll-up rules, using pure, unit-tested Python functions behind a thin `gh` GraphQL layer. Rules and the agent skill live in `timetug`. Agents own judgment; Actions own mechanical transitions.
+**Architecture:** Each tracked repo declares its projects in `.github/tracking.yml`. Reusable workflows in a new public `binary-companion/.github` repo read that file and apply the project-membership and parent roll-up rules, using pure, unit-tested Python functions behind a thin `gh` GraphQL layer. Rules and the agent skill live in `timetug`. Agents own judgment; Actions own mechanical transitions.
 
 **Tech Stack:** GitHub issues, sub-issues, org projects (v2), issue types, GitHub Actions reusable workflows, Python 3 with pytest, `gh` CLI/GraphQL.
 
@@ -15,7 +15,7 @@
 - Projects: `TimeTug` and `Libraries` in org `binary-companion`. Repos: timetug, timetug-shared, timetug-windows, homebrew-tap and the private manual-work repo → TimeTug; calendar-connectors → Libraries; website → none.
 - Status values exactly: Backlog, Ready, In progress, In review, Done. Fields: Status, Agent. Issue type `Manual Task`; label `manual`.
 - Parent status is derived only: In progress when any child is In progress; In review when every child that is not Done is In review (at least one); Done only when all children are Done. Agents never set it by hand.
-- Dedup: add an issue to project P only if no ancestor issue is already in P.
+- Project membership: add an issue to each project its repo's `tracking.yml` lists that it is not already in. The built-in sub-issue auto-add may also put a child in its parent's project (tested 2026-11-16, accepted): write every status change to all of the issue's project items.
 - No credentials in any issue. Manual tickets live in the private repo, assigned to the owner, status Ready.
 - `.github` repo is public: no secrets or internal structure in it.
 - The default `GITHUB_TOKEN` cannot write org projects; the Actions use the org secret `APP_PRIVATE_KEY` and org variable `APP_ID` (a GitHub App, minted into a token with `actions/create-github-app-token`) (GitHub App).
@@ -25,7 +25,7 @@
 
 - `tracking.yml` missing, empty, or malformed → repo is untracked, never a crash. (Task 3)
 - Parent with no children → roll-up returns no change. (Task 3)
-- Grandparent chain: a child's ancestors include all levels; project membership at any level suppresses the add. (Task 3)
+- A child in two projects: status writes reach every project item of the issue. (Task 4)
 - A child reopened after Done → parent leaves Done on the next roll-up. (Task 3)
 - A PR that closes several issues, or none → every linked issue handled, no error for none. (Task 4)
 - Child in a repo with no `tracking.yml` (for example website): parent roll-up still counts it by its issue state, but it is never added to a project. (Task 3)
@@ -44,7 +44,7 @@ Projects and issue types do not exist yet, so this task does what is possible by
 - Produces: issue numbers for the four phases and a "dry run findings" comment on #203 that Task 6 turns into rule changes.
 
 - [ ] **Step 1: Rewrite #203's body** to the standard shape: Summary, Intent, Success criteria (checklist), Plan (link to the spec and this plan, plus a one-line list of the phase sub-issues), Dry-run note. Keep the original discussion points under a collapsed "Original request" details block.
-- [ ] **Step 2: Create four issues in `binary-companion/timetug`** titled `Tracking: owner setup (projects, fields, issue type, manual-work repo, bot token)`, `Tracking: rules, agent skill and issue forms`, `Tracking: Actions (routing, dedup, roll-up, PR and CI transitions)`, `Tracking: migrate open work and retire progress docs` (titles in phase order: setup, rules, Actions, migration), each with a self-contained body (summary, what to do, success criteria, blocked-by notes) and label `enhancement`. Link each as a sub-issue of #203: `gh api -X POST repos/binary-companion/timetug/issues/203/sub_issues -F sub_issue_id=<id>` where `<id>` is the new issue's REST `id`, not its number.
+- [ ] **Step 2: Create four issues in `binary-companion/timetug`** titled `Tracking: owner setup (projects, fields, issue type, manual-work repo, bot token)`, `Tracking: rules, agent skill and issue forms`, `Tracking: Actions (routing, membership, roll-up, PR and CI transitions)`, `Tracking: migrate open work and retire progress docs` (titles in phase order: setup, rules, Actions, migration), each with a self-contained body (summary, what to do, success criteria, blocked-by notes) and label `enhancement`. Link each as a sub-issue of #203: `gh api -X POST repos/binary-companion/timetug/issues/203/sub_issues -F sub_issue_id=<id>` where `<id>` is the new issue's REST `id`, not its number.
 - [ ] **Step 3: Record blockers** in each body ("Blocked by #N"): setup blocks Actions; rules block migration.
 - [ ] **Step 4: Verify**: `gh api repos/binary-companion/timetug/issues/203/sub_issues --jq '.[].title'` lists all four.
 - [ ] **Step 5: Post a "dry run findings" comment on #203** listing what could not be done by hand (no project, no Status field, no Agent field, no issue type, token lacks `project` scope), and append to it as we find more.
@@ -70,10 +70,10 @@ Projects and issue types do not exist yet, so this task does what is possible by
 **Interfaces:**
 - Produces:
   - `parse_tracking(text: str) -> list[str]`: project refs (`org/name`) from `tracking.yml` text; returns `[]` for empty, missing key, or malformed input.
-  - `projects_to_add(repo_projects: list[str], ancestor_project_sets: list[set[str]]) -> list[str]`: those in `repo_projects` not present in any ancestor's set.
+  - `projects_to_add(repo_projects: list[str], already_in: set[str]) -> list[str]`: those in `repo_projects` the issue is not already in.
   - `rollup_status(child_statuses: list[str]) -> str | None`: `"In progress"`, `"In review"`, `"Done"`, or `None` for no change/no children. Child status `None` (untracked) is treated by its issue state: closed counts as `"Done"`, open as not started.
 
-- [ ] **Step 1: Write the failing tests** with these assertions: `parse_tracking("projects: [binary-companion/libraries]") == ["binary-companion/libraries"]`; `parse_tracking("") == []`; `parse_tracking("::: not yaml") == []`; `projects_to_add(["a/timetug"], []) == ["a/timetug"]`; `projects_to_add(["a/timetug"], [{"a/timetug"}]) == []`; `projects_to_add(["a/libraries"], [{"a/timetug"}]) == ["a/libraries"]`; a grandparent set suppresses the add; `rollup_status([]) is None`; `["In progress","Backlog"] -> "In progress"`; `["In review","Done"] -> "In review"`; `["In review","Backlog"] -> None`; `["Done","Done"] -> "Done"`; `["Done","In progress"] -> "In progress"`; a reopened child (`["Done", "Backlog"]`) -> `None` (parent leaves Done to its prior non-Done status).
+- [ ] **Step 1: Write the failing tests** with these assertions: `parse_tracking("projects: [binary-companion/libraries]") == ["binary-companion/libraries"]`; `parse_tracking("") == []`; `parse_tracking("::: not yaml") == []`; `projects_to_add(["a/timetug", "a/libraries"], {"a/timetug"}) == ["a/libraries"]`; `projects_to_add(["a/timetug"], {"a/timetug"}) == []`; `projects_to_add([], set()) == []`; `rollup_status([]) is None`; `["In progress","Backlog"] -> "In progress"`; `["In review","Done"] -> "In review"`; `["In review","Backlog"] -> None`; `["Done","Done"] -> "Done"`; `["Done","In progress"] -> "In progress"`; a reopened child (`["Done","Backlog"]`) -> `None` from `rollup_status` (Task 4's `run_rollup` then moves the parent from Done to In progress).
 - [ ] **Step 2: Run** `python3 -m pytest scripts/tracking/tests -q`; expect failures for undefined functions.
 - [ ] **Step 3: Implement** the three functions in `logic.py`, standard library plus `yaml` for parsing.
 - [ ] **Step 4: Run the tests**; expect all pass.
@@ -85,9 +85,9 @@ Projects and issue types do not exist yet, so this task does what is possible by
 
 **Interfaces:**
 - Consumes: Task 3's three functions; secret the GitHub App credentials (`APP_ID`, `APP_PRIVATE_KEY`).
-- Produces: `cli.py add|pr|rollup|ci-bug` entry points called by the workflows; `gh_api.py` exposing `project_ids(refs)`, `ancestors(issue)`, `children(issue)`, `set_status(item, status)` over GraphQL.
+- Produces: `cli.py` commands `add|pr|rollup|sweep|ci-bug` backed by `run_add`, `run_pr`, `run_rollup`, `run_sweep`, `run_ci_bug` (each takes the GitHub layer as `api`); `gh_api.GH` with `issue`, `sub_issues`, `resolve_project`, `add_to_project`, `set_status`, `closing_issues`, `open_children`, `create_bug` over GraphQL; `model.py` (`Project`, `Item`, `Issue`).
 
-- [ ] **Step 1: Write failing tests** for `cli.py` using a fake `gh_api` module: `add` on an issue with a parent already in the project calls no add; a PR body with `Fixes #1, Fixes #2` sets both to the target status; a PR with no closing keyword does nothing and exits 0; `rollup` on an issue with no parent does nothing.
+- [ ] **Step 1: Write failing tests** for `cli.py` using a fake GitHub layer: `add` joins only the listed projects the issue is not already in, and an untracked repo does nothing; a PR closing issues #1 and #2 sets every project item of both to the target status, and a PR closing none does nothing; `rollup` with no parent does nothing, reads a cross-repo child's status from the parent's project, walks to the grandparent, does not rewrite an unchanged status, and moves a Done parent to In progress when a child is reopened; `sweep` rolls up every open child; `ci-bug` files a bug that references the merge.
 - [ ] **Step 2: Run to confirm failure**, then implement `cli.py` and `gh_api.py` (GraphQL via `gh api graphql`).
 - [ ] **Step 3: Write the four reusable workflows**: `tracking-add` on `issues: opened` reads `.github/tracking.yml` from the calling repo and runs `add`; `tracking-pr` sets In review on PR opened/ready-for-review and Done on merged; `tracking-rollup` runs on a child's status change and its project item changes; `tracking-ci-bug` files a bug referencing the merge on a failed `master` CI.
 - [ ] **Step 4: Write `docs/caller-template.yml`**, the caller each repo copies (the only per-repo logic).
@@ -102,8 +102,8 @@ Projects and issue types do not exist yet, so this task does what is possible by
 - Consumes: the template from Task 4; the reusable workflows.
 
 - [ ] **Step 1: Add the files** in each repo as a branch and PR, one PR per repo.
-- [ ] **Step 2: Verify the dedup path end to end** by opening a test parent in `timetug` and a child in `calendar-connectors`: parent in TimeTug only, child in Libraries only; then close both.
-- [ ] **Step 2b: Test the built-in "Auto-add sub-issues to project" workflow** (enabled on both projects; the dry run showed it adds every sub-issue, #203 findings item 4): confirm what it does for a same-project child and a cross-project child, then decide keep or disable, and encode the decision in the dedup logic and the rules.
+- [ ] **Step 2: Verify membership end to end** by opening a test parent in `timetug` and a child in `calendar-connectors`: the child is in Libraries (its repo) and TimeTug (parent's project, built-in auto-add), with the same Status in both; then close both.
+- [x] **Step 2b: Tested 2026-11-16** (see #203 finding 9): the built-in auto-add puts a cross-repo child in its parent's project; accepted, with status synced across all of an issue's items.
 - [ ] **Step 3: Verify roll-up**: set the child In progress, then In review, then Done, and confirm the parent follows.
 
 ### Task 6: Rules, skill and issue forms (in `timetug`, plus pointers)
