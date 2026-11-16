@@ -23,7 +23,7 @@ Since phase 6 of the Rust program the Mac app pins one library, `timetug-shared`
 
 ## Tracking work
 
-Features and fixes are tracked in GitHub issues and the org projects TimeTug and Libraries, not in progress documents. Use the [`tracking-work-in-issues`](.agents/skills/tracking-work-in-issues/SKILL.md) skill to create, plan, execute and close issues and sub-issues, to set status and the Agent field, and to file owner steps as Manual Tasks in the private `binary-companion/manual-configuration` repository. Each issue must be readable on its own; link plan documents for large work. Specs and plans stay in `docs/superpowers/`. A pull request closes its issue with `Fixes #N`.
+Features and fixes are tracked in GitHub issues and the org projects TimeTug and Libraries, not in progress documents. Use the [`tracking-work-in-issues`](.agents/skills/tracking-work-in-issues/SKILL.md) skill to create, plan, execute and close issues and sub-issues, to set status and the Agent field, and to file owner steps as Manual Tasks in the private `binary-companion/manual-configuration` repository. Each issue must be readable on its own; link plan documents for large work. Specs and plans stay in `docs/superpowers/`. Every pull request is attached to an issue: `Fixes #N` when it finishes it, `Part of #N` when it only advances it; the tracking check fails a PR that mentions none.
 
 ## Verify
 

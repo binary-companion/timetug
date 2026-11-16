@@ -40,6 +40,10 @@ Backlog, Ready, In progress, In review, Done (spelled exactly so in the projects
 
 Actions (see `binary-companion/.github`) do the mechanical moves: add to the project, In review when a PR opens, Done when it merges, parent roll-up, and the failed-`master` bug. Agents own everything else.
 
+## Pull requests
+
+**Every pull request is attached to an issue.** File the issue first if there is none. Put `Fixes #N` (cross-repo: `Fixes owner/repo#N`) in the description when the PR finishes the issue, so it moves to Done on merge. Use `Part of #N` when it only advances a larger issue (it is mentioned, not closed). A PR that touches several issues lists each with its own `Fixes`. The tracking check fails a PR that mentions no issue (bot PRs are exempt); editing the description to add the reference clears it. A PR in a repo other than its parent issue's still gets its own sub-issue where the code lives, linked to the parent.
+
 ## Creating issues
 
 When asked to create an issue, ask only for what is missing, then file it with the sections above in the right repo and label (`bug` or `enhancement`). File it in Backlog; do not mark it Ready until the design step is done. Do not put credentials or internal infrastructure detail in public repos.
