@@ -1,3 +1,5 @@
+> **Historical.** This log is no longer updated. Progress is tracked in GitHub issues on the TimeTug and Libraries projects (https://github.com/orgs/binary-companion/projects/1). See the `tracking-work-in-issues` skill.
+
 # Implementation progress log
 
 Plan: `docs/superpowers/plans/2026-09-18-timetug-core-app.md` (12 tasks, subagent-driven).
