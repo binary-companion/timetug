@@ -1,6 +1,6 @@
 ---
 name: tracking-work-in-issues
-description: Use when starting, planning, executing or finishing a feature or fix that should be tracked, when asked to create or refine a GitHub issue or sub-issue in any binary-companion TimeTug repository, when work needs the owner (a manual task), when updating an issue's status or Agent field, or when a merge leaves CI red.
+description: Use when starting, planning, executing or finishing a feature or fix that should be tracked, when asked to create or refine a GitHub issue or sub-issue in any binary-companion TimeTug repository, when work needs the owner (a manual task), when updating an issue's status or its Agent and Model fields, or when CI goes red on a default branch.
 ---
 
 # Tracking work in issues
@@ -35,8 +35,8 @@ Backlog, Ready, In progress, In review, Done (spelled exactly so in the projects
 - Work with no PR (settings, docs-only decisions): close the issue when its criteria are met; closing sets Done.
 - **Agent** is the organization issue field (an option menu: Claude, ChatGPT, None): set it to the agent that did the work (the primary agent on a parent). Set it on the issue with `echo '{"issue_field_values":[{"field_id":49997879,"value":"Claude"}]}' | gh api -X POST repos/<owner>/<repo>/issues/<n>/issue-field-values --input -` (the field id is from `gh api orgs/binary-companion/issue-fields`). **Model** is a text field on the projects: the model that did the work, for example `Claude Sonnet 5.5`.
 - Set status or Model with `gh project item-edit <project number> --owner binary-companion --url <issue url> --field Status --value "In progress"` (for Model use `--field Model --text "<model>"`). This form needs a recent gh (verified on 2.103.3; 2.96.0 has no `--owner`, `--url` or `--value`). Check `gh project item-edit --help`; if those flags are missing, upgrade gh, or use the ID form: `gh project item-edit --id <item id> --project-id <project node id> --field-id <field id> --single-select-option-id <option id>` (`--text` for Model). Get the ids from `gh project item-list <n> --owner binary-companion --format json`, `gh project field-list <n> --owner binary-companion --format json` and `gh project view <n> --owner binary-companion --format json`. That JSON has control characters that break `jq`: parse it with `python3` and `json.loads(text, strict=False)`.
-- **Parents**: their status is derived from their children (In progress when any child is; In review when every child that is not Done is In review; Done only when all children are Done). Never set a parent's status by hand once the roll-up Action is live.
-- **Red `master` after a merge**: file a new bug that references the issue or merge that caused it. Do not reopen the Done issue.
+- **Parents**: their status is derived from their children (In progress when any child is; In review when every child that is not Done is In review; Done only when all children are Done). Never set a parent's status by hand: the sweeper derives it from the children within 15 minutes (a reopened child pulls a Done parent back to In progress).
+- **Red default branch**: the sweeper files one bug per red CI streak, referencing the first failing commit. Work that bug; do not reopen the Done issue that caused it. File one by hand (referencing the commit) only if the sweeper has not yet.
 
 GitHub's built-in project workflows do the instant moves (closed or merged to Done, PR linked, reopened, auto-archive after 14 days). A central sweeper in `binary-companion/.github` runs every 15 minutes for every repository that has a `.github/tracking.yml`: it adds open issues to that repository's projects (one issue lives in one project), rolls parent status up from children, and files a bug when CI on the default branch goes red. Agents own everything else.
 
@@ -55,8 +55,10 @@ When asked to create an issue, ask only for what is missing, then file it with t
 
 ## Manual tasks (owner steps)
 
-When progress needs the owner, create the issue in the private `binary-companion/manual-configuration` repo: label `manual`, issue type **Manual Task**, assigned to the owner, status **Ready**. The body has a one-line summary and numbered, step-by-step instructions with exact values and direct URLs, and success criteria. **Never include a credential.** Make it a sub-issue of the issue that needs it (no wrapper ticket); mark that issue blocked by it when work cannot continue. The owner tells you when it is done; verify, comment, and close it. Add the task to the TimeTug project and set Ready until the Actions do it.
+When progress needs the owner, create the issue in the private `binary-companion/manual-configuration` repo: label `manual`, issue type **Manual Task**, assigned to the owner, status **Ready**. The body has a one-line summary and numbered, step-by-step instructions with exact values and direct URLs, and success criteria. **Never include a credential.** Make it a sub-issue of the issue that needs it (no wrapper ticket); mark that issue blocked by it when work cannot continue. The owner tells you when it is done; verify, comment, and close it. The sweeper adds the task to the TimeTug project within 15 minutes (or add it yourself with `gh project item-add 1 --owner binary-companion --url <issue url>`), then set its status to Ready.
+
+Settings that GitHub does not let an API change are manual tasks too: project workflow settings (Auto-add, Pull request linked, Item reopened and so on) and repository or organization settings the token cannot reach.
 
 ## Credentials
 
-Never print or paste a secret. The owner creates credentials in a browser and gives the agent a file path; copy it into a GitHub secret with `gh secret set NAME < file`, then tell the owner to delete the file.
+Never print or paste a secret. The owner creates credentials in a browser and gives the agent a file path; copy it into a GitHub secret with `gh secret set NAME < file`, then tell the owner to delete the file. A secret's visibility cannot be narrowed later without its value, so set it correctly the first time (`--visibility selected --repos <repo>`); if it must change, ask the owner for a new key.
