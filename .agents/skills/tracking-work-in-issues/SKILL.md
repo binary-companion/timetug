@@ -28,7 +28,7 @@ Agents may refine title, body and criteria while planning and executing. Post a 
 
 Backlog, Ready, In progress, In review, Done (spelled exactly so in the projects). Anyone, or an outside reporter, can file into Backlog.
 
-- **Design**: flesh out the issue until an agent could pick it up; create one sub-issue per phase in the repo where the code lives, with blockers; then set **Ready**. Agents set Ready.
+- **Design**: flesh out the issue until an agent could pick it up; create one sub-issue per phase in the repo where the code lives, with blockers; then set **Ready**. Agents set Ready, including at creation when the story is already complete.
 - **In progress**: initial work is under way.
 - **In review**: a PR is open and an agent is reviewing, waiting for CI or waiting for the owner.
 - **Done**: merged. A PR that fixes an issue says `Fixes #N` (cross-repo: `Fixes owner/repo#N`).
@@ -51,7 +51,7 @@ A pull request that is part of a story must be **linked** to it. GitHub links a 
 
 ## Creating issues
 
-When asked to create an issue, ask only for what is missing, then file it with the sections above in the right repo and label (`bug` or `enhancement`). File it in Backlog; do not mark it Ready until the design step is done. Do not put credentials or internal infrastructure detail in public repos.
+When asked to create an issue, ask only for what is missing, then file it with the sections above in the right repo and label (`bug` or `enhancement`). Status: Backlog by default. If the story is already groomed (a clear summary, success criteria, a plan an agent can follow, blockers noted), set it to **Ready** when you create it. Do not mark it Ready while it still needs design. Do not put credentials or internal infrastructure detail in public repos.
 
 ## Manual tasks (owner steps)
 

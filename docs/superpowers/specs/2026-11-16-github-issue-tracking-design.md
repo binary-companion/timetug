@@ -47,7 +47,7 @@ Each repo declares this in its own `.github/tracking.yml` (see Routing), not in 
 
 Backlog → (design: flesh out, create phase sub-issues in the repos where code lives, mark blockers) → Ready → In progress → In review → Done.
 
-- Backlog: created by a human, an agent or from outside (the public issue forms).
+- Backlog: the default for anything created by a human, an agent or from outside (the public issue forms). A story that is already groomed (clear intent, success criteria, a plan an agent can follow, blockers noted) may be created directly as Ready.
 - Ready: requirements are complete enough for an agent; sub-issues exist; blockers noted.
 - In progress: initial work under way.
 - In review: a PR is open and an agent is reviewing, waiting for CI, or waiting for the owner.
