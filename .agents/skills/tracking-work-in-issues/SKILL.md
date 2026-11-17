@@ -38,11 +38,16 @@ Backlog, Ready, In progress, In review, Done (spelled exactly so in the projects
 - **Parents**: their status is derived from their children (In progress when any child is; In review when every child that is not Done is In review; Done only when all children are Done). Never set a parent's status by hand once the roll-up Action is live.
 - **Red `master` after a merge**: file a new bug that references the issue or merge that caused it. Do not reopen the Done issue.
 
-Actions (see `binary-companion/.github`) do the mechanical moves: add to the project, In review when a PR opens, Done when it merges, parent roll-up, and the failed-`master` bug. Agents own everything else.
+GitHub's built-in project workflows do the instant moves (closed or merged to Done, PR linked, reopened, auto-archive after 14 days). A central sweeper in `binary-companion/.github` runs every 15 minutes for every repository that has a `.github/tracking.yml`: it adds open issues to that repository's projects (one issue lives in one project), rolls parent status up from children, and files a bug when CI on the default branch goes red. Agents own everything else.
 
 ## Pull requests
 
-**Every pull request is attached to an issue.** File the issue first if there is none. Put `Fixes #N` (cross-repo: `Fixes owner/repo#N`) in the description when the PR finishes the issue, so it moves to Done on merge. Use `Part of #N` when it only advances a larger issue (it is mentioned, not closed). A PR that touches several issues lists each with its own `Fixes`. The tracking check fails a PR that mentions no issue (bot PRs are exempt); editing the description to add the reference clears it. A PR in a repo other than its parent issue's still gets its own sub-issue where the code lives, linked to the parent.
+A pull request that is part of a story must be **linked** to it. GitHub links a PR to an issue only through a closing keyword in the description: `Fixes #N` (other repository: `Fixes owner/repo#N`; also `Closes`, `Resolves`). A phrase like `Part of #N` is only a mention: it does not link, so the PR does not show on the issue. Never use it as the only reference.
+
+- One PR, one issue. If a story needs several PRs (several repositories, or phases), give each PR its own sub-issue in the repository where its code lands, as for any multi-repo work, and put `Fixes` on that sub-issue. The parent's status rolls up from its children.
+- A PR that is not part of a story (a typo, a dependency bump) needs no issue and says nothing about one.
+- The `pr-check` workflow fails a PR that mentions an issue without a closing link (bots are exempt). Edit the description to add `Fixes` and it clears.
+- Merging moves the issue to Done (GitHub's built-in project workflow). When the PR is opened, the built-in "pull request linked" workflow moves it to its configured status.
 
 ## Creating issues
 

@@ -2,7 +2,7 @@
 <!-- What does this change? -->
 
 ## Why
-<!-- The problem or motivation. Link the issue with "Fixes #123" (another repo: "Fixes owner/repo#123"); it moves to Done when this merges. -->
+<!-- The problem or motivation. If this is part of a story, link its issue with "Fixes #123" (another repo: "Fixes owner/repo#123"; "Part of" does not link); it moves to Done when this merges. Not part of a story: leave it out. -->
 
 ## How I tested it
 <!-- Commands run, manual steps, screenshots for UI changes. -->
