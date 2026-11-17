@@ -47,7 +47,7 @@ Each repo declares this in its own `.github/tracking.yml` (see Routing), not in 
 
 Backlog → (design: flesh out, create phase sub-issues in the repos where code lives, mark blockers) → Ready → In progress → In review → Done.
 
-- Backlog: created by a human, an agent or from outside (the public issue forms).
+- Backlog: the default for anything created by a human, an agent or from outside (the public issue forms). A story that is already groomed (clear intent, success criteria, a plan an agent can follow, blockers noted) may be created directly as Ready.
 - Ready: requirements are complete enough for an agent; sub-issues exist; blockers noted.
 - In progress: initial work under way.
 - In review: a PR is open and an agent is reviewing, waiting for CI, or waiting for the owner.
@@ -58,7 +58,8 @@ Parent status is derived and set only by the roll-up Action: In progress when an
 ## Project fields
 
 - Status: Backlog, Ready, In progress, In review, Done.
-- Agent: the primary agent for a parent; the agent that did the work for a sub-issue. Set by the agent.
+- Agent: the organization issue field (option menu: Claude, ChatGPT, None). The primary agent for a parent; the agent that did the work for a sub-issue. Set by the agent.
+- Model: a text field on the projects, the model that did the work (for example "Claude Sonnet 5.5"). Set by the agent.
 - Type (issue type): Bug, Feature, Task, plus an org issue type **Manual Task**.
 
 ## Manual tasks
@@ -67,7 +68,7 @@ When a ticket needs the owner, the agent creates an issue in the private manual-
 
 ## Automation (the mix)
 
-Agents own judgment: body and criteria, sub-issues, blocker relations, the Agent field, stage-summary comments, and the Backlog to Ready decision. Automation owns mechanical transitions, in two places.
+Agents own judgment: body and criteria, sub-issues, blocker relations, the Agent and Model fields, stage-summary comments, and the Backlog to Ready decision. Automation owns mechanical transitions, in two places.
 
 **GitHub's built-in project workflows** (enabled on both projects) give the instant moves: item added, item closed to Done, pull request linked, pull request merged to Done, auto-add sub-issues, auto-archive after 14 days.
 
