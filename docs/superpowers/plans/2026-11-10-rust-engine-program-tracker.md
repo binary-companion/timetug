@@ -1,5 +1,8 @@
 # Rust engine program: tracker
 
+> **Historical (2026-11-17).** Progress is tracked in GitHub issues on the TimeTug project (https://github.com/orgs/binary-companion/projects/1), not here. The open items below were moved to issues under binary-companion/timetug#206: phase 6 close-out (timetug#225, with the owner's Mac checks), phase 7 (timetug#224), the Windows owner checks (manual-configuration#13, #14, #15), the Swift API docs section (timetug-shared#98) and the next-major host-contract consolidation (timetug-shared#99). The plan and the session log stay as the record; some items below are already done and not ticked.
+
+
 This is the saved progress for the move of the shared libraries to Rust. It is updated at the end of every working session and committed with that session's work, so any later session or agent can resume from it.
 
 **Spec:** [`docs/superpowers/specs/2026-11-10-rust-engine-program-design.md`](../specs/2026-11-10-rust-engine-program-design.md) (approved by the owner 2026-11-10).
