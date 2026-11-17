@@ -67,14 +67,15 @@ When a ticket needs the owner, the agent creates an issue in the private manual-
 
 ## Automation (the mix)
 
-Agents own judgment: body and criteria, sub-issues, blocker relations, the Agent field, stage-summary comments, and the Backlog → Ready decision. Actions own mechanical transitions:
+Agents own judgment: body and criteria, sub-issues, blocker relations, the Agent field, stage-summary comments, and the Backlog to Ready decision. Automation owns mechanical transitions, in two places.
 
-- Add to project on issue open, per the repo's `tracking.yml`: add the issue to each listed project it is not already in. GitHub's built-in "Auto-add sub-issues" also adds a child to its parent's project, so a cross-repo child can be in two projects (for example a `calendar-connectors` child of a `timetug` parent is in Libraries and TimeTug). This was tested on 2026-11-16 and is accepted: every status write goes to all of an issue's project items so they never disagree, and the roll-up reads each child's status from the parent's project.
-- PR opened or marked ready → In review on its linked issues; PR merged → Done on its linked issues ("Fixes #N").
-- Parent roll-up when a child's status changes.
-- Failed CI on `master` → a bug issue referencing the merge.
+**GitHub's built-in project workflows** (enabled on both projects) give the instant moves: item added, item closed to Done, pull request linked, pull request merged to Done, auto-add sub-issues, auto-archive after 14 days.
 
-The mix needs a token the default `GITHUB_TOKEN` cannot provide (org project write). Phase 1 includes a bot token or GitHub App, held as an org secret.
+**A central sweeper** in `binary-companion/.github` (`sweep.yml`, every 15 minutes and on demand) does the rest for every repository that has a `.github/tracking.yml`, found by listing the organization's repositories. For each tracked repository it: adds open issues to the projects the file lists (skipping projects they are already in); moves the issues an open non-draft pull request closes to In review (never backwards) and the issues a recently merged one closed to Done; rolls each parent's status up from its children (every ancestor; a reopened child pulls a Done parent back to In progress); and files a bug when the latest CI run on the default branch failed, unless an issue already mentions that commit. A cross-repo child can be in two projects (tested 2026-11-16, accepted): status writes go to all of an issue's project items, and the roll-up reads each child's status from the parent's project.
+
+**Why central:** the GitHub App key lives only in `.github` (an org secret visible to that repository alone), so no tracked repository's pull-request code can reach it, which several repositories' workflow contracts require (`timetug-windows` allows only `GITHUB_TOKEN`). A new repository joins by adding `tracking.yml`. The cost is up to 15 minutes of lag on roll-ups and bug filing.
+
+**Per repository** the only workflow is `pr-check`, which uses only `GITHUB_TOKEN` and fails a pull request that is not attached to an issue (`Fixes #N` or `Part of #N`; bots exempt).
 
 ## Approaches considered
 
@@ -96,7 +97,7 @@ projects: [binary-companion/timetug]
 projects: [binary-companion/libraries]
 ```
 
-A repo with no file, or an empty list, is not tracked (`website` has none). A repo may list several projects. The reusable workflows in `.github` read the calling repo's own file, so there is no central routing data and no per-repo special case in code. The file is versioned and reviewed in a PR. A check in the caller workflow validates that each listed project exists and that the bot token can write to it.
+A repo with no file, or an empty list, is not tracked (`website` has none). A repo may list several projects. The sweeper in `.github` reads each repository's own file, so there is no central routing data and no per-repo special case in code. The file is versioned and reviewed in a PR. The sweeper reports a listed project that does not exist.
 
 Same-project children are project items too (they carry their own status); the built-in sub-issue auto-add puts a child in its parent's project and `tracking.yml` puts it in its own repo's projects, so a `calendar-connectors` child under a `timetug` parent is in both. A new repo adopts tracking by adding its caller workflow and this file; nothing central changes. A new project is just a new entry in the repos that use it.
 
@@ -104,7 +105,7 @@ Considered and not chosen: GitHub's native repo-to-project link as the source of
 
 ## Phases (each a sub-issue of #203, in the repo where the work lands)
 
-1. Owner setup (manual tasks): `gh auth refresh -s project`; create the projects and fields; the Manual Task issue type; the private manual-work repo; the bot token or GitHub App and org secret; confirm the website repo is handled by website#4. The first manual tickets are filed in `timetug` as sub-issues of #203, since the private repo does not exist yet; move them afterwards.
+1. Owner setup (manual tasks): `gh auth refresh -s project`; create the projects and fields; the Manual Task issue type; the private manual-work repo; the GitHub App and its org secret (scoped to `.github` only); confirm the website repo is handled by website#4. The first manual tickets are filed in `timetug` as sub-issues of #203, since the private repo does not exist yet; move them afterwards.
 2. Rules and templates: the skill and `AGENTS.md` sections in `timetug`; issue forms in `.github` including a phase sub-issue form and a manual task form; labels (`manual` and others); pointers from the other repos' `AGENTS.md`; update the PR template to require "Fixes #N". Docs say progress docs are retired for new work.
 3. Actions: reusable workflows in `.github`, caller workflow and `tracking.yml` per repo, tests for the file validation, dedup and roll-up logic (written first).
 4. Migration: put open work on issues and stop updating progress docs.
