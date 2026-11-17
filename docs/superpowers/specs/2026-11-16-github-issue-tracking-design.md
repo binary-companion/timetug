@@ -64,7 +64,7 @@ Parent status is derived and set only by the roll-up Action: In progress when an
 
 ## Manual tasks
 
-When a ticket needs the owner, the agent creates an issue in the private manual-work repo, assigned to the owner, status Ready, label `manual`, type Manual Task. The description has numbered step-by-step instructions, exact values and direct links (never credentials). It is a sub-issue of the issue that needs it, added directly with no separate tracking ticket (cross-repo sub-issues show under the parent), and it blocks that issue when the work cannot proceed without it. A phase or grouping issue exists only where there is agent work in it; an owner step with no agent work goes directly under the issue it unblocks, never under a wrapper issue (the dry run's #207 was one, kept as a record). Because the repo is private, the steps may describe internal structure.
+When a ticket needs the owner, the agent creates an issue in the private manual-work repo, assigned to the owner, status Ready, label `manual`, type Manual Task. The description has numbered step-by-step instructions, exact values and direct links (never credentials). The issue that needs it is marked blocked by it (cross-repo dependency; no separate tracking ticket). A task with only one thing to do has no sub-issues, so a manual task is never made a sub-issue of such a task; it is a sub-issue only of a parent that already has several pieces of work (rule added 2026-11-17). A phase or grouping issue exists only where there is agent work in it; an owner step with no agent work goes directly under the issue it unblocks, never under a wrapper issue (the dry run's #207 was one, kept as a record). Because the repo is private, the steps may describe internal structure.
 
 ## Automation (the mix)
 

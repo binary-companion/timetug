@@ -9,7 +9,7 @@ Progress lives in GitHub issues and two org projects: **TimeTug** (project 1: `t
 
 ## Where an issue goes
 
-- One repo only: file it in that repo.
+- One repo only: file it in that repo. An issue with a single thing to do has no sub-issues; sub-issues exist only to split real, separate pieces of work.
 - Several repos or platforms: a parent in `timetug` (the product), with a sub-issue in each other repo where code changes. Library work (`timetug-shared`, `calendar-connectors`) that is only in the library is tracked in the library repo alone; an app-visible feature has a `timetug` parent with the library work as a sub-issue; if the app needs only a version bump, only the bump issue is in TimeTug.
 - Create sub-issues with the REST API (`POST repos/{owner}/{repo}/issues/{n}/sub_issues`, field `sub_issue_id` is the issue's REST `id`, not its number) and blockers with `POST .../issues/{n}/dependencies/blocked_by` (`issue_id`). Set the issue type (Feature, Bug, Task) with `PATCH` field `type`.
 
@@ -55,7 +55,7 @@ When asked to create an issue, ask only for what is missing, then file it with t
 
 ## Manual tasks (owner steps)
 
-When progress needs the owner, create the issue in the private `binary-companion/manual-configuration` repo: label `manual`, issue type **Manual Task**, assigned to the owner, status **Ready**. The body has a one-line summary and numbered, step-by-step instructions with exact values and direct URLs, and success criteria. **Never include a credential.** Make it a sub-issue of the issue that needs it (no wrapper ticket); mark that issue blocked by it when work cannot continue. The owner tells you when it is done; verify, comment, and close it. The sweeper adds the task to the TimeTug project within 15 minutes (or add it yourself with `gh project item-add 1 --owner binary-companion --url <issue url>`), then set its status to Ready.
+When progress needs the owner, create the issue in the private `binary-companion/manual-configuration` repo: label `manual`, issue type **Manual Task**, assigned to the owner, status **Ready**. The body has a one-line summary and numbered, step-by-step instructions with exact values and direct URLs, and success criteria. **Never include a credential.** Mark the issue that needs it as **blocked by** it (`blocked_by`, cross-repository is fine). Do not turn an issue that has only one thing to do into a parent just to hold the manual task, and never add a wrapper ticket; a manual task is a sub-issue only when its parent already has several pieces of work and the step is one of them (for example a board-setup step under a feature). The owner tells you when it is done; verify, comment, and close it. The sweeper adds the task to the TimeTug project within 15 minutes (or add it yourself with `gh project item-add 1 --owner binary-companion --url <issue url>`), then set its status to Ready.
 
 Settings that GitHub does not let an API change are manual tasks too: project workflow settings (Auto-add, Pull request linked, Item reopened and so on) and repository or organization settings the token cannot reach.
 
