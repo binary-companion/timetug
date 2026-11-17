@@ -78,33 +78,29 @@ Projects and issue types do not exist yet, so this task does what is possible by
 - [ ] **Step 3: Implement** the three functions in `logic.py`, standard library plus `yaml` for parsing.
 - [ ] **Step 4: Run the tests**; expect all pass.
 
-### Task 4: Reusable workflows and caller template (in `binary-companion/.github`)
+### Task 4: Central sweeper (in `binary-companion/.github`)
 
 **Files:**
-- Create: `.github/workflows/tracking-add.yml`, `tracking-pr.yml`, `tracking-rollup.yml`, `tracking-ci-bug.yml` (all `workflow_call`), `scripts/tracking/gh_api.py`, `scripts/tracking/cli.py`, `scripts/tracking/tests/test_cli.py`, `docs/caller-template.yml`
+- Modify: `scripts/tracking/cli.py`, `scripts/tracking/gh_api.py`, `scripts/tracking/logic.py`, `scripts/tracking/tests/test_cli.py`, `scripts/tracking/tests/test_logic.py`
+- Create: `.github/workflows/sweep.yml`, `.github/actions/pr-check/action.yml`, `docs/pr-check-caller.yml`; Delete: `.github/actions/tracking/action.yml`, `docs/caller-template.yml`
 
 **Interfaces:**
-- Consumes: Task 3's three functions; secret the GitHub App credentials (`APP_ID`, `APP_PRIVATE_KEY`).
-- Produces: `cli.py` commands `add|pr|rollup|sweep|ci-bug` backed by `run_add`, `run_pr`, `run_rollup`, `run_sweep`, `run_ci_bug` (each takes the GitHub layer as `api`); `gh_api.GH` with `issue`, `sub_issues`, `resolve_project`, `add_to_project`, `set_status`, `closing_issues`, `open_children`, `create_bug` over GraphQL; `model.py` (`Project`, `Item`, `Issue`).
+- Consumes: Task 3's functions, `run_add`, `run_pr`, `run_rollup`, `run_pr_check`, `run_ci_bug`.
+- Produces: `logic.should_move(current: str | None, target: str) -> bool`; `cli.run_sweep_all(api)`; `GH.tracked_repos() -> dict[str, str]`, `scan(repo)`, `open_prs(repo)`, `merged_prs(repo)`, `latest_failure(repo)`, `bug_exists(repo, sha)`; `sweep.yml` (cron every 15 minutes, dispatch; App token from an org secret visible to this repo only); composite `pr-check` (input `token`, uses only `GITHUB_TOKEN`).
 
-- [ ] **Step 1: Write failing tests** for `cli.py` using a fake GitHub layer: `add` joins only the listed projects the issue is not already in, and an untracked repo does nothing; a PR closing issues #1 and #2 sets every project item of both to the target status, and a PR closing none does nothing; `rollup` with no parent does nothing, reads a cross-repo child's status from the parent's project, walks to the grandparent, does not rewrite an unchanged status, and moves a Done parent to In progress when a child is reopened; `sweep` rolls up every open child; `ci-bug` files a bug that references the merge.
-- [ ] **Step 2: Run to confirm failure**, then implement `cli.py` and `gh_api.py` (GraphQL via `gh api graphql`).
-- [ ] **Step 3: Write the four reusable workflows**: `tracking-add` on `issues: opened` reads `.github/tracking.yml` from the calling repo and runs `add`; `tracking-pr` sets In review on PR opened/ready-for-review and Done on merged; `tracking-rollup` runs on a child's status change and its project item changes; `tracking-ci-bug` files a bug referencing the merge on a failed `master` CI.
-- [ ] **Step 4: Write `docs/caller-template.yml`**, the caller each repo copies (the only per-repo logic).
-- [ ] **Step 5: Run** `python3 -m pytest scripts/tracking/tests -q` and `actionlint`; expect pass.
+- [ ] **Step 1: Write failing tests**: `should_move(None|"Backlog"|"Ready"|"In progress", "In review")` is true and `("In review"|"Done", "In review")` false; `should_move("Done", "Done")` false and any other to Done true; `run_sweep_all` over a fake API adds missing issues, moves PR-linked issues forward only, rolls up parents, skips repos whose tracking file is empty, files one bug for a failed default-branch run and none when `bug_exists`.
+- [ ] **Step 2: Implement** them, then `sweep.yml` and the `pr-check` composite; run `pytest` and `actionlint`.
+- [ ] **Step 3: Scope the secret**: `gh secret set APP_PRIVATE_KEY --org binary-companion --visibility selected --repos .github` and the same for the `APP_ID` variable.
 
-### Task 5: Per-repo files and callers
+### Task 5: Per-repo files
 
 **Files:**
-- Create in each of timetug, timetug-shared, timetug-windows, homebrew-tap and the manual-work repo: `.github/tracking.yml` (`projects: [binary-companion/timetug]`) and `.github/workflows/tracking.yml` (from the template). In calendar-connectors: `projects: [binary-companion/libraries]`. Do not add to website.
-
-**Interfaces:**
-- Consumes: the template from Task 4; the reusable workflows.
+- Create in each tracked repository: `.github/tracking.yml`, and in public repositories `.github/workflows/pr-check.yml` calling the `pr-check` composite on `pull_request` with `github.token`. No workflow in `manual-configuration` (private) and no secret anywhere but `.github`.
 
 - [ ] **Step 1: Add the files** in each repo as a branch and PR, one PR per repo.
-- [ ] **Step 2: Verify membership end to end** by opening a test parent in `timetug` and a child in `calendar-connectors`: the child is in Libraries (its repo) and TimeTug (parent's project, built-in auto-add), with the same Status in both; then close both.
+- [ ] **Step 2: Verify end to end** with a throwaway parent in `timetug` and a child in `calendar-connectors` after the next sweep: the child is in both projects with the same status, and the parent follows the child.
 - [x] **Step 2b: Tested 2026-11-16** (see #203 finding 9): the built-in auto-add puts a cross-repo child in its parent's project; accepted, with status synced across all of an issue's items.
-- [ ] **Step 3: Verify roll-up**: set the child In progress, then In review, then Done, and confirm the parent follows.
+- [ ] **Step 3: Verify roll-up**: set the child In progress, In review, then Done and confirm the parent follows within one sweep.
 
 ### Task 6: Rules, skill and issue forms (in `timetug`, plus pointers)
 
