@@ -3,6 +3,51 @@
   <channel>
     <title>TimeTug</title>
     <item>
+      <title>TimeTug 3.1.0</title>
+      <pubDate>Wed, 25 Nov 2026 22:40:23 GMT</pubDate>
+      <sparkle:version>20261125223459</sparkle:version>
+      <sparkle:shortVersionString>3.1.0</sparkle:shortVersionString>
+      <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
+      <description>&lt;!DOCTYPE html&gt;
+&lt;html&gt;
+&lt;head&gt;
+&lt;meta charset="utf-8"&gt;
+&lt;style&gt;
+body {
+  font: 13px -apple-system, BlinkMacSystemFont, "Helvetica Neue", sans-serif;
+  color: #1d1d1f;
+  margin: 12px 16px;
+  word-wrap: break-word;
+}
+a { color: #0068da; }
+h1, h2, h3 { font-size: 1.05em; }
+pre, code { font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 0.95em; }
+pre { white-space: pre-wrap; overflow-wrap: anywhere; }
+@media (prefers-color-scheme: dark) {
+  body { color: #f5f5f7; }
+  a { color: #4da3ff; }
+}
+&lt;/style&gt;
+&lt;/head&gt;
+&lt;body&gt;
+&lt;h2 dir="auto"&gt;What's Changed&lt;/h2&gt;
+&lt;ul dir="auto"&gt;
+&lt;li&gt;Track work in GitHub issues: design, plan and tracking skill by &lt;a class="user-mention notranslate" data-hovercard-type="user" data-hovercard-url="/users/darkarena1/hovercard" data-octo-click="hovercard-link-click" data-octo-dimensions="link_type:self" href="https://github.com/darkarena1"&gt;@darkarena1&lt;/a&gt; in &lt;a class="issue-link js-issue-link" data-error-text="Failed to load title" data-id="6432345774" data-permission-text="Title is private" data-url="https://github.com/binary-companion/timetug/issues/208" data-hovercard-type="pull_request" data-hovercard-url="/binary-companion/timetug/pull/208/hovercard" href="https://github.com/binary-companion/timetug/pull/208"&gt;#208&lt;/a&gt;&lt;/li&gt;
+&lt;li&gt;Tracking design: children may be in two projects, status synced by &lt;a class="user-mention notranslate" data-hovercard-type="user" data-hovercard-url="/users/darkarena1/hovercard" data-octo-click="hovercard-link-click" data-octo-dimensions="link_type:self" href="https://github.com/darkarena1"&gt;@darkarena1&lt;/a&gt; in &lt;a class="issue-link js-issue-link" data-error-text="Failed to load title" data-id="6432857120" data-permission-text="Title is private" data-url="https://github.com/binary-companion/timetug/issues/210" data-hovercard-type="pull_request" data-hovercard-url="/binary-companion/timetug/pull/210/hovercard" href="https://github.com/binary-companion/timetug/pull/210"&gt;#210&lt;/a&gt;&lt;/li&gt;
+&lt;li&gt;Track this repository's issues (tracking.yml and PR issue-link check) by &lt;a class="user-mention notranslate" data-hovercard-type="user" data-hovercard-url="/users/darkarena1/hovercard" data-octo-click="hovercard-link-click" data-octo-dimensions="link_type:self" href="https://github.com/darkarena1"&gt;@darkarena1&lt;/a&gt; in &lt;a class="issue-link js-issue-link" data-error-text="Failed to load title" data-id="6433046449" data-permission-text="Title is private" data-url="https://github.com/binary-companion/timetug/issues/212" data-hovercard-type="pull_request" data-hovercard-url="/binary-companion/timetug/pull/212/hovercard" href="https://github.com/binary-companion/timetug/pull/212"&gt;#212&lt;/a&gt;&lt;/li&gt;
+&lt;li&gt;Document the Agent (option) and Model (text) fields by &lt;a class="user-mention notranslate" data-hovercard-type="user" data-hovercard-url="/users/darkarena1/hovercard" data-octo-click="hovercard-link-click" data-octo-dimensions="link_type:self" href="https://github.com/darkarena1"&gt;@darkarena1&lt;/a&gt; in &lt;a class="issue-link js-issue-link" data-error-text="Failed to load title" data-id="6435239316" data-permission-text="Title is private" data-url="https://github.com/binary-companion/timetug/issues/216" data-hovercard-type="pull_request" data-hovercard-url="/binary-companion/timetug/pull/216/hovercard" href="https://github.com/binary-companion/timetug/pull/216"&gt;#216&lt;/a&gt;&lt;/li&gt;
+&lt;li&gt;Spec: real-time tracking via caller workflows by &lt;a class="user-mention notranslate" data-hovercard-type="user" data-hovercard-url="/users/darkarena1/hovercard" data-octo-click="hovercard-link-click" data-octo-dimensions="link_type:self" href="https://github.com/darkarena1"&gt;@darkarena1&lt;/a&gt; in &lt;a class="issue-link js-issue-link" data-error-text="Failed to load title" data-id="6450506022" data-permission-text="Title is private" data-url="https://github.com/binary-companion/timetug/issues/221" data-hovercard-type="pull_request" data-hovercard-url="/binary-companion/timetug/pull/221/hovercard" href="https://github.com/binary-companion/timetug/pull/221"&gt;#221&lt;/a&gt;&lt;/li&gt;
+&lt;li&gt;Track issues in real time by &lt;a class="user-mention notranslate" data-hovercard-type="user" data-hovercard-url="/users/darkarena1/hovercard" data-octo-click="hovercard-link-click" data-octo-dimensions="link_type:self" href="https://github.com/darkarena1"&gt;@darkarena1&lt;/a&gt; in &lt;a class="issue-link js-issue-link" data-error-text="Failed to load title" data-id="6453075936" data-permission-text="Title is private" data-url="https://github.com/binary-companion/timetug/issues/223" data-hovercard-type="pull_request" data-hovercard-url="/binary-companion/timetug/pull/223/hovercard" href="https://github.com/binary-companion/timetug/pull/223"&gt;#223&lt;/a&gt;&lt;/li&gt;
+&lt;li&gt;Mark PROGRESS.md and the Rust tracker as historical by &lt;a class="user-mention notranslate" data-hovercard-type="user" data-hovercard-url="/users/darkarena1/hovercard" data-octo-click="hovercard-link-click" data-octo-dimensions="link_type:self" href="https://github.com/darkarena1"&gt;@darkarena1&lt;/a&gt; in &lt;a class="issue-link js-issue-link" data-error-text="Failed to load title" data-id="6453491842" data-permission-text="Title is private" data-url="https://github.com/binary-companion/timetug/issues/227" data-hovercard-type="pull_request" data-hovercard-url="/binary-companion/timetug/pull/227/hovercard" href="https://github.com/binary-companion/timetug/pull/227"&gt;#227&lt;/a&gt;&lt;/li&gt;
+&lt;li&gt;Bump timetug-shared to 2.1.7 to address crashing issue by @timetug-bot[bot] in &lt;a class="issue-link js-issue-link" data-error-text="Failed to load title" data-id="6477648157" data-permission-text="Title is private" data-url="https://github.com/binary-companion/timetug/issues/230" data-hovercard-type="pull_request" data-hovercard-url="/binary-companion/timetug/pull/230/hovercard" href="https://github.com/binary-companion/timetug/pull/230"&gt;#230&lt;/a&gt;&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p dir="auto"&gt;&lt;strong&gt;Full Changelog&lt;/strong&gt;: &lt;a class="commit-link" href="https://github.com/binary-companion/timetug/compare/v3.0.0...v3.1.0"&gt;&lt;tt&gt;v3.0.0...v3.1.0&lt;/tt&gt;&lt;/a&gt;&lt;/p&gt;
+&lt;/body&gt;
+&lt;/html&gt;
+</description>
+      <enclosure url="https://github.com/binary-companion/timetug/releases/download/v3.1.0/TimeTug-3.1.0.zip" length="12736447" type="application/octet-stream" sparkle:edSignature="qg40mj9Hn3G+ljaVGkKJMpaUnoZ7xX4JJs7HqpA6vTkXrkOBWY9kqQ+u7ECVWGmbZLaXhMnmL4J7TdKPPxFsAA==" />
+    </item>
+    <item>
       <title>TimeTug 3.0.0-beta.20261119010341</title>
       <pubDate>Thu, 19 Nov 2026 01:07:12 GMT</pubDate>
       <sparkle:version>20261119010341</sparkle:version>
